@@ -1,0 +1,177 @@
+/* === ESTILOS BASE REUTILIZABLES === */
+
+/* Importar fuentes */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap");
+
+/* Variables globales */
+:root {
+  --primary-color: #2563eb;
+  --primary-dark: #1d4ed8;
+  --secondary-color: #f59e0b;
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --background-light: #f8fafc;
+  --background-white: #ffffff;
+  --border-color: #e5e7eb;
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --radius-md: 12px;
+}
+
+/* Reset */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Global */
+body {
+  font-family: "Inter", sans-serif;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--background-light);
+  min-height: 100vh;
+}
+
+/* === HEADER Y MENÚ === */
+#header {
+  background: var(--background-white);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow-md);
+  padding: 0.5rem 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+#header .logo a {
+  font-family: "Poppins", sans-serif;
+  font-weight: 700;
+  font-size: 1.4rem;
+  color: var(--primary-color);
+  text-decoration: none;
+}
+
+.navbar ul {
+  display: flex;
+  list-style: none;
+  gap: 1rem;
+}
+
+.navbar ul li a {
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: all 0.3s ease;
+}
+
+.navbar ul li a:hover {
+  background: var(--primary-color);
+  color: white;
+}
+
+/* === TITULOS DE SECCIÓN === */
+/*--------------------------------------------------------------
+# Sections General
+--------------------------------------------------------------*/
+section {
+  padding: 60px 0;
+  overflow: hidden;
+}
+
+.section-bg {
+  background-color: #f1f8ff;
+}
+
+.section-title {
+  text-align: center;
+  padding-bottom: 30px;
+}
+
+.section-title h2 {
+    /* Estas propiedades están diseñadas para aplicar un fondo o degradado al texto.
+       Al deshabilitarlas (con 'unset' o 'none'), se fuerza el uso del color 'color' estándar.
+    */
+    background: none;
+    -webkit-background-clip: unset;
+    -webkit-text-fill-color: unset;
+    background-clip: unset;
+    
+    /* Aplica el color sólido deseado y quita el !important si es posible */
+    color: #054a85; /* Azul oscuro sólido */
+    
+    /* Asegúrate de que no haya un 'span' o 'em' dentro del h2 
+       que pueda tener estilos propios, como el color naranja.
+    */
+}
+
+.section-title p {
+  margin-bottom: 0;
+  font-style: italic;
+}
+
+/* === FORMULARIOS Y FILTROS === */
+.filtros {
+  display: flex;
+  align-items: flex-end; /* alinea al mismo nivel */
+  gap: 1rem; /* espacio entre elementos */
+  margin-bottom: 1.5rem;
+}
+
+.filtros label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.3rem;
+}
+
+.btn-filtrar {
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.btn-filtrar:hover {
+  background: var(--primary-dark);
+}
+
+
+/* === CAJAS DE CONTENIDO REUTILIZABLES === */
+.card-box {
+  background: var(--background-white);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 1.5rem;
+  transition: transform 0.2s ease;
+}
+
+.card-box:hover {
+  transform: translateY(-5px);
+}
+
+/* === FOOTER === */
+#footer {
+  background: var(--primary-dark);
+  color: white;
+  text-align: center;
+  padding: 1rem;
+  margin-top: 2rem;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+  .navbar ul {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .section-title h2 {
+    font-size: 1.6rem;
+  }
+}
