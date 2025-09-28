@@ -62,49 +62,49 @@
         </div>
 
         <div class="row">
-          <div class="col-md-6 d-flex align-items-stretch" data-aos="fade-up" data-aos-delay="100">
+          <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="100">
             <div class="icon-box">
               <i class="bi bi-card-checklist"></i>
               <h4><a href="librosestadodesituacionfinanciera.php">Estado de situación financiera</a></h4>
               <p>Es el registro que presenta la posición financiera de una empresa en un momento determinado, este informe muestra los activos, pasivos y patrimonio de la empresa, proporcionando una visión clara de su situación financiera y su capacidad para cumplir con sus obligaciones.</p>
             </div>
           </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="200">
+          <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="200">
             <div class="icon-box">
               <i class="bi bi-bar-chart"></i>
               <h4><a href="librosestadoderesultados.php">Estado de resultados</a></h4>
               <p>Este reporte que muestra los ingresos, costos y gastos de una empresa durante un período específico (como un mes, trimestre o año), este informe contable le permite conocer la rentabilidad de la empresa, detallando cuánto ha ganado o perdido en el período evaluado.</p>
             </div>
           </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="300">
+          <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="300">
             <div class="icon-box">
               <i class="bi bi-binoculars"></i>
               <h4><a href="librosbalancedeprueba.php">Balance de prueba</a></h4>
               <p>Es un reporte en el que se muestra un resumen de todas las cuentas del libro mayor de una empresa, indicando sus saldos deudores y acreedores en un período específico con el objetivo de verificar que el total de los débitos sea igual al total de los créditos, asegurando que las cuentas estén equilibradas y que no haya errores en los registros contables.</p>
             </div>
           </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="400">
+          <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="400">
             <div class="icon-box">
               <i class="bi bi-brightness-high"></i>
               <h4><a href="libroslibroauxiliar.php">Libro auxiliar</a></h4>
               <p>Es un registro detallado y específico que desglosa y complementa las cuentas del libro mayor, estos se utilizan para llevar un seguimiento más detallado de las transacciones y saldos de cuentas específicas, proporcionando información más precisa sobre cada tipo de cuenta.</p>
             </div>
           </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="500">
+          <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="500">
             <div class="icon-box">
               <i class="bi bi-briefcase"></i>
               <h4><a href="libroslibrodeventas.php">Libro de ventas</a></h4>
               <p>Registro detallado de todas las transacciones de ventas realizadas por la empresa en un período determinado. Este libro contiene información sobre las ventas de productos o servicios, incluyendo los detalles de cada operación, los montos involucrados y los impuestos aplicables (como el IVA).</p>
             </div>
           </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="600">
+          <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="600">
             <div class="icon-box">
               <i class="bi bi-briefcase"></i>
               <h4><a href="libroslibrodecompras.php">Libro de compras</a></h4>
               <p>Es el registro detallado de todas las transacciones de compras realizadas la empresa en un período determinado. Este libro tiene como objetivo llevar un control de las adquisiciones de bienes y servicios, registrar los impuestos pagados (como el IVA) y garantizar que las compras estén correctamente reflejadas en los estados financieros de la empresa.</p>
             </div>
           </div>          
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="700">
+          <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="700">
             <div class="icon-box">
               <i class="bi bi-calendar4-week"></i>
               <h4><a href="librosmovimientodecaja.php">Movimiento de caja</a></h4>

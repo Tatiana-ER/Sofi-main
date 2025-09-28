@@ -1,3 +1,69 @@
+<?php
+// ================== CONEXIÓN ==================
+include("connection_demo.php");
+$conn = new connection();
+$pdo = $conn->connect();
+
+// ================== FILTROS ==================
+$fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-m-01');
+$fecha_hasta = isset($_GET['hasta']) ? $_GET['hasta'] : date('Y-m-t');
+$cuenta_desde = isset($_GET['cuenta_desde']) ? $_GET['cuenta_desde'] : '';
+$cuenta_hasta = isset($_GET['cuenta_hasta']) ? $_GET['cuenta_hasta'] : '';
+
+// ================== CONSULTA ==================
+$sql = "SELECT 
+            c.codigo,
+            c.nombre AS cuenta,
+            IFNULL(s.saldo_inicial,0) AS saldo_inicial,
+            IFNULL(SUM(m.debe),0) AS debito,
+            IFNULL(SUM(m.haber),0) AS credito,
+            (IFNULL(s.saldo_inicial,0) + IFNULL(SUM(m.debe),0) - IFNULL(SUM(m.haber),0)) AS saldo_final
+        FROM cuentas_contables c
+        LEFT JOIN saldos_iniciales s 
+            ON s.cuenta_id = c.id 
+            /* puedes filtrar por periodo específico si tienes un campo periodo */
+        INNER JOIN movimientos_contables m 
+            ON m.cuenta_id = c.id 
+            AND m.fecha BETWEEN :desde AND :hasta
+        WHERE 1=1";
+
+if ($cuenta_desde != '' && $cuenta_hasta != '') {
+    $sql .= " AND c.codigo BETWEEN :cuenta_desde AND :cuenta_hasta";
+}
+
+$sql .= " GROUP BY c.id, c.codigo, c.nombre, s.saldo_inicial
+          ORDER BY c.codigo";
+
+$stmt = $pdo->prepare($sql);
+
+// Parámetros obligatorios
+$params = [
+    ':desde' => $fecha_desde,
+    ':hasta' => $fecha_hasta
+];
+// Parámetros opcionales
+if ($cuenta_desde != '' && $cuenta_hasta != '') {
+    $params[':cuenta_desde'] = $cuenta_desde;
+    $params[':cuenta_hasta'] = $cuenta_hasta;
+}
+
+$stmt->execute($params);
+$datos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// ================== TOTALES ==================
+$totalSaldoInicial = 0;
+$totalDebito = 0;
+$totalCredito = 0;
+$totalSaldoFinal = 0;
+foreach ($datos as $fila) {
+    $totalSaldoInicial += $fila['saldo_inicial'];
+    $totalDebito += $fila['debito'];
+    $totalCredito += $fila['credito'];
+    $totalSaldoFinal += $fila['saldo_final'];
+}
+
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -26,7 +92,7 @@
   <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
 
-  <link href="assets/css/style.css" rel="stylesheet">
+  <link href="assets/css/improved-style.css" rel="stylesheet">
 
 </head>
 
@@ -35,7 +101,7 @@
   <!-- ======= Header ======= -->
   <header id="header" class="fixed-top d-flex align-items-center ">
     <div class="container d-flex align-items-center justify-content-between">
-      <h1 class="logo"><a href="dashboard.php"> S O F I </a>  = >  Software Financiero </h1>
+      <h1 class="logo"><a href="dashboard.php"> S O F I = >  Software Financiero  </a>  </h1>
       <nav id="navbar" class="navbar">
         <ul>
           <li>
@@ -48,7 +114,6 @@
             <a class="nav-link scrollto active" href="index.php" style="color: darkblue;">Cerrar Sesión</a>
           </li>
         </ul>
-        <i class="bi bi-list mobile-nav-toggle"></i>
       </nav><!-- .navbar -->
     </div>
   </header><!-- End Header -->
@@ -57,63 +122,63 @@
     <section id="services" class="services">
       <div class="container" data-aos="fade-up">
 
-        <div class="section-title">
-          <br><br><br><br><br>
-          <h2>LIBROS</h2>
-          <p>A continuación puede ingresar a los libros configurados para su usuario en el sistema.</p>
-        </div>
+        <h2 class="section-title" style="color: #054a85;">BALANCE DE PRUEBA</h2>
 
-        <div class="row">
-          <div class="col-md-6 d-flex align-items-stretch" data-aos="fade-up" data-aos-delay="100">
-            <div class="icon-box">
-              <i class="bi bi-card-checklist"></i>
-              <h4><a href="#">Estado de situación financiera</a></h4>
-              <p>Voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident</p>
-            </div>
+        <!-- ====== FORMULARIO DE FILTRO ====== -->
+        <form class="row g-3 mb-4" method="get">
+          <div class="col-md-4">
+            <label class="form-label">Cuenta desde:</label>
+            <input type="text" name="cuenta_desde" class="form-control" placeholder="Desde" value="<?= htmlspecialchars($cuenta_desde) ?>">
           </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="200">
-            <div class="icon-box">
-              <i class="bi bi-bar-chart"></i>
-              <h4><a href="#">Estado de resultados</a></h4>
-              <p>Minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat tarad limino ata</p>
-            </div>
+          <div class="col-md-4">
+            <label class="form-label">Cuenta hasta:</label>
+            <input type="text" name="cuenta_hasta" class="form-control" placeholder="Hasta" value="<?= htmlspecialchars($cuenta_hasta) ?>">
           </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="300">
-            <div class="icon-box">
-              <i class="bi bi-binoculars"></i>
-              <h4><a href="#">Balance de prueba</a></h4>
-              <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur</p>
-            </div>
+          <div class="col-md-4">
+            <label class="form-label">Desde:</label>
+            <input type="date" name="desde" class="form-control" value="<?= htmlspecialchars($fecha_desde) ?>">
           </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="400">
-            <div class="icon-box">
-              <i class="bi bi-brightness-high"></i>
-              <h4><a href="#">Libro auxiliar</a></h4>
-              <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum</p>
-            </div>
+          <div class="col-md-4">
+            <label class="form-label">Hasta:</label>
+            <input type="date" name="hasta" class="form-control" value="<?= htmlspecialchars($fecha_hasta) ?>">
           </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="500">
-            <div class="icon-box">
-              <i class="bi bi-briefcase"></i>
-              <h4><a href="#">Libro de ventas</a></h4>
-              <p>At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque</p>
-            </div>
+          <div class="col-md-3 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100">Consultar</button>
           </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="600">
-            <div class="icon-box">
-              <i class="bi bi-briefcase"></i>
-              <h4><a href="#">Libro de compras</a></h4>
-              <p>Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi</p>
-            </div>
-          </div>          
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="700">
-            <div class="icon-box">
-              <i class="bi bi-calendar4-week"></i>
-              <h4><a href="#">Movimiento de caja</a></h4>
-              <p>Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi</p>
-            </div>
-          </div>
-        </div>
+        </form>
+
+        <!-- ====== TABLA DE RESULTADOS ====== -->
+        <table class="table table-bordered">
+          <thead style="background-color:#f8f9fa;">
+            <tr>
+              <th>Código cuenta contable</th>
+              <th>Nombre de la cuenta</th>
+              <th class="text-end">Saldo Inicial</th>
+              <th class="text-end">Movimiento Débito</th>
+              <th class="text-end">Movimiento Crédito</th>
+              <th class="text-end">Saldo Final</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($datos as $fila): ?>
+              <tr>
+                <td><?= htmlspecialchars($fila['codigo']) ?></td>
+                <td><?= htmlspecialchars($fila['cuenta']) ?></td>
+                <td class="text-end"><?= number_format($fila['saldo_inicial'],2) ?></td>
+                <td class="text-end"><?= number_format($fila['debito'],2) ?></td>
+                <td class="text-end"><?= number_format($fila['credito'],2) ?></td>
+                <td class="text-end"><?= number_format($fila['saldo_final'],2) ?></td>
+              </tr>
+            <?php endforeach; ?>
+            <tr class="fw-bold">
+              <td colspan="2">TOTALES</td>
+              <td class="text-end"><?= number_format($totalSaldoInicial,2) ?></td>
+              <td class="text-end"><?= number_format($totalDebito,2) ?></td>
+              <td class="text-end"><?= number_format($totalCredito,2) ?></td>
+              <td class="text-end"><?= number_format($totalSaldoFinal,2) ?></td>
+            </tr>
+          </tbody>
+        </table>
 
       </div>
     </section><!-- End Services Section -->

@@ -104,92 +104,110 @@ foreach ($datos as $fila) {
     <!-- ======= Services Section ======= -->
     <section id="services" class="services">
       <div class="container">
-        <h1>Estado de Situación Financiera</h1>
-        <form class="form-filtros" method="get">
-            Desde: <input type="date" name="desde" value="<?= $fecha_desde ?>">
-            Hasta: <input type="date" name="hasta" value="<?= $fecha_hasta ?>">
-            <input type="submit" value="Filtrar">
+        <h2 class="section-title" style="color: #054a85;">ESTADO DE SITUACION FINANCIERA</h2>
+        <!-- Formulario de filtros -->
+        <form class="row g-3 mb-4" method="get">
+          <div class="col-md-3">
+            <label class="form-label">Desde:</label>
+            <input type="date" name="desde" class="form-control" value="<?= $fecha_desde ?>">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Hasta:</label>
+            <input type="date" name="hasta" class="form-control" value="<?= $fecha_hasta ?>">
+          </div>
+          <div class="col-md-3 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+          </div>
         </form>
 
         <div class="row">
             <!-- ACTIVO -->
-            <div class="col-md-4">
-                <h2>Activo</h2>
-                <table class="table table-bordered">
-                    <tr>
-                        <th>Código</th>
-                        <th>Cuenta</th>
-                        <th>Saldo</th>
-                    </tr>
-                    <?php foreach($activos as $fila): ?>
-                    <tr>
-                        <td><?= $fila['codigo'] ?></td>
-                        <td><?= $fila['cuenta'] ?></td>
-                        <td><?= number_format($fila['saldo'],2) ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                    <tr class="table-info">
-                        <td colspan="2">Total Activos</td>
-                        <td><?= number_format($totalActivos,2) ?></td>
-                    </tr>
-                </table>
-            </div>
+          <h2 class="mt-4">Activos</h2>
+          <table class="table table-bordered">
+            <thead style="background-color:#f8f9fa;">
+              <tr>
+                <th>Código</th>
+                <th>Nombre de la cuenta</th>
+                <th class="text-end">Saldo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach($activos as $fila): ?>
+                <tr>
+                  <td><?= $fila['codigo'] ?></td>
+                  <td><?= $fila['cuenta'] ?></td>
+                  <td class="text-end"><?= number_format($fila['saldo'],2) ?></td>
+                </tr>
+              <?php endforeach; ?>
+              <tr class="fw-bold">
+                <td colspan="2">Total Activos</td>
+                <td class="text-end"><?= number_format($totalActivos,2) ?></td>
+              </tr>
+            </tbody>
+          </table>
 
-            <!-- PASIVO -->
-            <div class="col-md-4">
-                <h2>Pasivo</h2>
-                <table class="table table-bordered">
-                    <tr>
-                        <th>Código</th>
-                        <th>Cuenta</th>
-                        <th>Saldo</th>
-                    </tr>
-                    <?php foreach($pasivos as $fila): ?>
-                    <tr>
-                        <td><?= $fila['codigo'] ?></td>
-                        <td><?= $fila['cuenta'] ?></td>
-                        <td><?= number_format($fila['saldo'],2) ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                    <tr class="table-info">
-                        <td colspan="2">Total Pasivos</td>
-                        <td><?= number_format($totalPasivos,2) ?></td>
-                    </tr>
-                </table>
-            </div>
+          <!-- PASIVO -->
+          <h2 class="mt-4">Pasivos</h2>
+          <table class="table table-bordered">
+            <thead style="background-color:#f8f9fa;">
+              <tr>
+                <th>Código</th>
+                <th>Nombre de la cuenta</th>
+                <th class="text-end">Saldo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach($pasivos as $fila): ?>
+                <tr>
+                  <td><?= $fila['codigo'] ?></td>
+                  <td><?= $fila['cuenta'] ?></td>
+                  <td class="text-end"><?= number_format($fila['saldo'],2) ?></td>
+                </tr>
+              <?php endforeach; ?>
+              <tr class="fw-bold">
+                <td colspan="2">Total Pasivos</td>
+                <td class="text-end"><?= number_format($totalPasivos,2) ?></td>
+              </tr>
+            </tbody>
+          </table>
 
-            <!-- PATRIMONIO -->
-            <div class="col-md-4">
-                <h2>Patrimonio</h2>
-                <table class="table table-bordered">
-                    <tr>
-                        <th>Código</th>
-                        <th>Cuenta</th>
-                        <th>Saldo</th>
-                    </tr>
-                    <?php foreach($patrimonios as $fila): ?>
-                    <tr>
-                        <td><?= $fila['codigo'] ?></td>
-                        <td><?= $fila['cuenta'] ?></td>
-                        <td><?= number_format($fila['saldo'],2) ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                    <tr class="table-info">
-                        <td colspan="2">Total Patrimonio</td>
-                        <td><?= number_format($totalPatrimonios,2) ?></td>
-                    </tr>
-                </table>
-            </div>
+          <!-- PATRIMONIO -->
+          <h2 class="mt-4">Patrimonio</h2>
+          <table class="table table-bordered">
+            <thead style="background-color:#f8f9fa;">
+              <tr>
+                <th>Código</th>
+                <th>Nombre de la cuenta</th>
+                <th class="text-end">Saldo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach($patrimonios as $fila): ?>
+                <tr>
+                  <td><?= $fila['codigo'] ?></td>
+                  <td><?= $fila['cuenta'] ?></td>
+                  <td class="text-end"><?= number_format($fila['saldo'],2) ?></td>
+                </tr>
+              <?php endforeach; ?>
+              <tr class="fw-bold">
+                <td colspan="2">Total Patrimonio</td>
+                <td class="text-end"><?= number_format($totalPatrimonios,2) ?></td>
+              </tr>
+            </tbody>
+          </table>
+
         </div>
 
-        <p style="margin-top:40px;text-align:center;">
-        ______________________________ <br>
-        CONTADOR PÚBLICO
-        </p>
-        <p style="margin-top:20px;text-align:center;">
-        ______________________________ <br>
-        REPRESENTANTE LEGAL
-        </p>
+        <!-- Firmas -->
+        <div class="text-center mt-5 d-flex justify-content-around">
+          <br>
+            <div class="col-6">
+                <p>______________________________ <br> CONTADOR PÚBLICO</p>
+            </div>
+            <div class="col-6">
+                <p>______________________________ <br> REPRESENTANTE LEGAL</p>
+            </div>
+        </div>
     </div>
     </section><!-- End Services Section -->
 

@@ -76,6 +76,23 @@ body {
 /*--------------------------------------------------------------
 # Sections General
 --------------------------------------------------------------*/
+/* Asegurar que en pantallas medianas y más grandes sean 2 por fila */
+@media (min-width: 768px) {
+  .row > .col-md-6 {
+    flex: 0 0 50%;   /* Ocupa el 50% */
+    max-width: 50%; /* No pase de la mitad */
+  }
+}
+
+.icon-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  height: 100%; /* Para que todas tengan la misma altura */
+}
+
+
+
 section {
   padding: 60px 0;
   overflow: hidden;
