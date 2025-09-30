@@ -211,10 +211,6 @@ body {
   background-clip: text;
 }
 
-.icon-box:hover i {
-  transform: scale(1.1) rotate(5deg);
-}
-
 .icon-box h4 {
   font-family: "Poppins", sans-serif;
   font-size: 1.4rem;
@@ -253,12 +249,12 @@ body {
 }
 
 /* Grid Improvements */
-.services .row {
+.services .icon-box-row.row {
   display: grid !important;
   grid-template-columns: repeat(2, 1fr);
   gap: 30px;
   max-width: 1200px;
-  margin: 0 auto;
+  margin: 0 auto; 
 }
 
 .services .col-md-6 {

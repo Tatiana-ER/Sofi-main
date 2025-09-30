@@ -13,7 +13,11 @@ $sql = "SELECT
             c.tipo,
             c.codigo,
             c.nombre AS cuenta,
-            SUM(m.haber - m.debe) AS saldo
+            CASE 
+                WHEN c.tipo = 'INGRESO' THEN SUM(m.haber)
+                WHEN c.tipo IN ('COSTO','GASTO') THEN SUM(m.debe)
+                ELSE 0
+            END AS saldo
         FROM movimientos_contables m
         INNER JOIN cuentas_contables c ON m.cuenta_id = c.id
         WHERE m.fecha BETWEEN :desde AND :hasta
@@ -21,7 +25,7 @@ $sql = "SELECT
         ORDER BY FIELD(c.tipo,'INGRESO','COSTO','GASTO'), c.codigo";
 
 $stmt = $pdo->prepare($sql);
-$stmt->execute([':desde'=>$fecha_desde,':hasta'=>$fecha_hasta]);
+$stmt->execute([':desde'=>$fecha_desde, ':hasta'=>$fecha_hasta]);
 $datos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // ================== SEPARAR POR TIPO ==================
@@ -33,20 +37,26 @@ $totalCostos = 0;
 $totalGastos = 0;
 
 foreach ($datos as $fila) {
-    if ($fila['tipo'] == 'INGRESO') {
-        $ingresos[] = $fila;
-        $totalIngresos += $fila['saldo'];
-    } elseif ($fila['tipo'] == 'COSTO') {
-        $costos[] = $fila;
-        $totalCostos += $fila['saldo'];
-    } elseif ($fila['tipo'] == 'GASTO') {
-        $gastos[] = $fila;
-        $totalGastos += $fila['saldo'];
+    switch ($fila['tipo']) {
+        case 'INGRESO':
+            $ingresos[] = $fila;
+            $totalIngresos += $fila['saldo'];
+            break;
+        case 'COSTO':
+            $costos[] = $fila;
+            $totalCostos += $fila['saldo'];
+            break;
+        case 'GASTO':
+            $gastos[] = $fila;
+            $totalGastos += $fila['saldo'];
+            break;
     }
 }
 
+// ================== RESULTADO DEL EJERCICIO ==================
 $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -108,18 +118,24 @@ $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
         <h2 class="section-title" style="color: #054a85;">ESTADO DE RESULTADOS</h2>
 
         <!-- Formulario de filtros -->
-        <form class="row g-3 mb-4" method="get">
-          <div class="col-md-3">
-            <label class="form-label">Desde:</label>
-            <input type="date" name="desde" class="form-control" value="<?= $fecha_desde ?>">
-          </div>
-          <div class="col-md-3">
-            <label class="form-label">Hasta:</label>
-            <input type="date" name="hasta" class="form-control" value="<?= $fecha_hasta ?>">
-          </div>
-          <div class="col-md-3 d-flex align-items-end">
-            <button type="submit" class="btn btn-primary w-100">Filtrar</button>
-          </div>
+        <form class="row g-3 mb-4 justify-content-center" method="get">
+            <div class="col-md-4">
+                <label class="form-label visually-hidden">Desde:</label>
+                <div class="input-group">
+                    <span class="input-group-text">Desde:</span>
+                    <input type="date" name="desde" class="form-control" value="<?= $fecha_desde ?>">
+                </div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label visually-hidden">Hasta:</label>
+                <div class="input-group">
+                    <span class="input-group-text">Hasta:</span>
+                    <input type="date" name="hasta" class="form-control" value="<?= $fecha_hasta ?>">
+                </div>
+            </div>
+            <div class="col-md-2 d-grid align-items-end">
+                <button type="submit" class="btn btn-primary">Filtrar</button>
+            </div>
         </form>
 
         <!-- INGRESOS -->

@@ -63,28 +63,28 @@
         </div>
 
         <div class="row">
-          <div class="col-md-6 d-flex align-items-stretch" data-aos="fade-up" data-aos-delay="100">
+          <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="100">
             <div class="icon-box">
               <i class="bi bi-card-checklist"></i>
               <h4><a href="menucatalogos.php">CATÁLOGOS</a></h4>
               <p> Registro sistemático y organizado de elementos contables como cuentas, terceros, inventarios, medios de pago e impuestos.Sirve como una base de datos que permite consultar, crear y modificar la información de manera eficiente.</p>
             </div>
           </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="200">
+          <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="200">
             <div class="icon-box">
               <i class="bi bi-bar-chart"></i>
               <h4><a href="menudocumentos.php">DOCUMENTOS</a></h4>
               <p>Soportes contables como facturas de venta y compra, recibos de caja, y comprobantes de egreso que sirven como evidencia de las transacciones económicas y permiten generar los registros contables necesarios para elaborar los estados financieros.</p>
             </div>
           </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="300">
+          <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="300">
             <div class="icon-box">
               <i class="bi bi-binoculars"></i>
               <h4><a href="menuinformes.php">INFORMES</a></h4>
               <p>Documentos que presentan de manera estructurada y concisa la información recopilada y procesada sobre clientes, proveedores, inventarios y otros elementos relevantes para la empresa. Permiten analizar datos, realizar consultas específicas y validar información.</p>
             </div>
           </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="400">
+          <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="400">
             <div class="icon-box">
               <i class="bi bi-briefcase"></i>
               <h4><a href="menulibros.php">LIBROS</a></h4>

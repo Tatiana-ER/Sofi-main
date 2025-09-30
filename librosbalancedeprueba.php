@@ -125,27 +125,41 @@ foreach ($datos as $fila) {
         <h2 class="section-title" style="color: #054a85;">BALANCE DE PRUEBA</h2>
 
         <!-- ====== FORMULARIO DE FILTRO ====== -->
-        <form class="row g-3 mb-4" method="get">
+        <form class="row g-3 mb-4 justify-content-center align-items-end" method="get">
+    
+          <div class="col-md-5">
+              <label class="form-label visually-hidden">Cuenta desde:</label>
+              <div class="input-group">
+                  <span class="input-group-text">Cuenta desde:</span>
+                  <input type="text" name="cuenta_desde" class="form-control" placeholder="Código" value="<?= htmlspecialchars($cuenta_desde) ?>">
+              </div>
+          </div>
+          <div class="col-md-5">
+              <label class="form-label visually-hidden">Cuenta hasta:</label>
+              <div class="input-group">
+                  <span class="input-group-text">Cuenta hasta:</span>
+                  <input type="text" name="cuenta_hasta" class="form-control" placeholder="Código" value="<?= htmlspecialchars($cuenta_hasta) ?>">
+              </div>
+          </div>
+          
           <div class="col-md-4">
-            <label class="form-label">Cuenta desde:</label>
-            <input type="text" name="cuenta_desde" class="form-control" placeholder="Desde" value="<?= htmlspecialchars($cuenta_desde) ?>">
+              <label class="form-label visually-hidden">Desde:</label>
+              <div class="input-group">
+                  <span class="input-group-text">Desde:</span>
+                  <input type="date" name="desde" class="form-control" value="<?= htmlspecialchars($fecha_desde) ?>">
+              </div>
           </div>
           <div class="col-md-4">
-            <label class="form-label">Cuenta hasta:</label>
-            <input type="text" name="cuenta_hasta" class="form-control" placeholder="Hasta" value="<?= htmlspecialchars($cuenta_hasta) ?>">
+              <label class="form-label visually-hidden">Hasta:</label>
+              <div class="input-group">
+                  <span class="input-group-text">Hasta:</span>
+                  <input type="date" name="hasta" class="form-control" value="<?= htmlspecialchars($fecha_hasta) ?>">
+              </div>
           </div>
-          <div class="col-md-4">
-            <label class="form-label">Desde:</label>
-            <input type="date" name="desde" class="form-control" value="<?= htmlspecialchars($fecha_desde) ?>">
+          <div class="col-md-2 d-grid">
+              <button type="submit" class="btn btn-primary">Consultar</button>
           </div>
-          <div class="col-md-4">
-            <label class="form-label">Hasta:</label>
-            <input type="date" name="hasta" class="form-control" value="<?= htmlspecialchars($fecha_hasta) ?>">
-          </div>
-          <div class="col-md-3 d-flex align-items-end">
-            <button type="submit" class="btn btn-primary w-100">Consultar</button>
-          </div>
-        </form>
+      </form>
 
         <!-- ====== TABLA DE RESULTADOS ====== -->
         <table class="table table-bordered">
