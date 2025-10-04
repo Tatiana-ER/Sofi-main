@@ -85,8 +85,31 @@ $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
   <link href="assets/vendor/glightbox/css/glightbox.min.css" rel="stylesheet">
   <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
   <link href="assets/css/improved-style.css" rel="stylesheet">
+
+  <style>
+    .btn-ir {
+      background-color: #054a85;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: 0.3s;
+      margin-left: 50px;
+    }
+    .btn-ir::before {
+      margin-right: 8px;
+      font-size: 18px;
+    }
+
+    .btn-ir:hover {
+      background-color: #4c82b0ff;
+    }
+  </style>
 
 </head>
 
@@ -113,8 +136,11 @@ $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
   </header><!-- End Header -->
 
     <!-- ======= Services Section ======= -->
+     <section id="services" class="services">
+      <button class="btn-ir" onclick="window.location.href='menulibros.php'">
+        <i class="fa-solid fa-arrow-left"></i> Regresar
+      </button>
      <div class="container my-5">
-      <br><br>
         <h2 class="section-title" style="color: #054a85;">ESTADO DE RESULTADOS</h2>
 
         <!-- Formulario de filtros -->
@@ -233,7 +259,7 @@ $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
             </div>
         </div>
       </div>
-
+    </section>
     <!-- End Services Section -->
 
   <!-- ======= Footer ======= -->
