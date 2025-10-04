@@ -9,59 +9,69 @@ $fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-m-01');
 $fecha_hasta = isset($_GET['hasta']) ? $_GET['hasta'] : date('Y-m-t');
 $cuenta_desde = isset($_GET['cuenta_desde']) ? $_GET['cuenta_desde'] : '';
 $cuenta_hasta = isset($_GET['cuenta_hasta']) ? $_GET['cuenta_hasta'] : '';
+$tercero = isset($_GET['tercero']) ? $_GET['tercero'] : '';
 
 // ================== CONSULTA ==================
-$sql = "SELECT 
-            c.codigo,
-            c.nombre AS cuenta,
-            IFNULL(s.saldo_inicial,0) AS saldo_inicial,
-            IFNULL(SUM(m.debe),0) AS debito,
-            IFNULL(SUM(m.haber),0) AS credito,
-            (IFNULL(s.saldo_inicial,0) + IFNULL(SUM(m.debe),0) - IFNULL(SUM(m.haber),0)) AS saldo_final
-        FROM cuentas_contables c
-        LEFT JOIN saldos_iniciales s 
-            ON s.cuenta_id = c.id 
-            /* puedes filtrar por periodo específico si tienes un campo periodo */
-        INNER JOIN movimientos_contables m 
-            ON m.cuenta_id = c.id 
-            AND m.fecha BETWEEN :desde AND :hasta
-        WHERE 1=1";
+$sql = "
+SELECT 
+    c.codigo AS codigo_cuenta,
+    c.nombre AS nombre_cuenta,
+    t.identificacion AS identificacion_tercero,
+    t.nombre AS nombre_tercero,
+    co.codigo AS comprobante,
+    m.fecha AS fecha_comprobante,
+    IFNULL(s.saldo_inicial,0) AS saldo_inicial,
+    m.debe AS movimiento_debito,
+    m.haber AS movimiento_credito,
+    (IFNULL(s.saldo_inicial,0) + m.debe - m.haber) AS saldo_final
+FROM movimientos_contables m
+INNER JOIN cuentas_contables c ON c.id = m.cuenta_id
+LEFT JOIN terceros t ON t.id = m.tercero_id
+LEFT JOIN comprobantes co ON co.id = m.comprobante_id
+LEFT JOIN saldos_iniciales s ON s.cuenta_id = c.id
+WHERE m.fecha BETWEEN :desde AND :hasta
+";
 
 if ($cuenta_desde != '' && $cuenta_hasta != '') {
     $sql .= " AND c.codigo BETWEEN :cuenta_desde AND :cuenta_hasta";
 }
 
-$sql .= " GROUP BY c.id, c.codigo, c.nombre, s.saldo_inicial
-          ORDER BY c.codigo";
+if ($tercero != '') {
+    $sql .= " AND t.identificacion LIKE :tercero";
+}
+
+$sql .= " ORDER BY c.codigo, m.fecha ASC";
 
 $stmt = $pdo->prepare($sql);
 
-// Parámetros obligatorios
 $params = [
     ':desde' => $fecha_desde,
     ':hasta' => $fecha_hasta
 ];
-// Parámetros opcionales
+
 if ($cuenta_desde != '' && $cuenta_hasta != '') {
     $params[':cuenta_desde'] = $cuenta_desde;
     $params[':cuenta_hasta'] = $cuenta_hasta;
+}
+if ($tercero != '') {
+    $params[':tercero'] = "%$tercero%";
 }
 
 $stmt->execute($params);
 $datos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // ================== TOTALES ==================
-$totalSaldoInicial = 0;
+$totalInicial = 0;
 $totalDebito = 0;
 $totalCredito = 0;
-$totalSaldoFinal = 0;
-foreach ($datos as $fila) {
-    $totalSaldoInicial += $fila['saldo_inicial'];
-    $totalDebito += $fila['debito'];
-    $totalCredito += $fila['credito'];
-    $totalSaldoFinal += $fila['saldo_final'];
-}
+$totalFinal = 0;
 
+foreach ($datos as $fila) {
+    $totalInicial += $fila['saldo_inicial'];
+    $totalDebito += $fila['movimiento_debito'];
+    $totalCredito += $fila['movimiento_credito'];
+    $totalFinal += $fila['saldo_final'];
+}
 ?>
 
 <!DOCTYPE html>
@@ -124,7 +134,7 @@ foreach ($datos as $fila) {
   <!-- ======= Header ======= -->
   <header id="header" class="fixed-top d-flex align-items-center ">
     <div class="container d-flex align-items-center justify-content-between">
-      <h1 class="logo"><a href="dashboard.php"> S O F I = >  Software Financiero  </a>  </h1>
+      <h1 class="logo"><a href="dashboard.php"> S O F I = >  Software Financiero </a>   </h1>
       <nav id="navbar" class="navbar">
         <ul>
           <li>
@@ -142,16 +152,18 @@ foreach ($datos as $fila) {
   </header><!-- End Header -->
 
     <!-- ======= Services Section ======= -->
-    <section id="services" class="services">
-      <button class="btn-ir" onclick="window.location.href='menulibros.php'">
-        <i class="fa-solid fa-arrow-left"></i> Regresar
-      </button>
-      <div class="container" data-aos="fade-up">
+    <section id="services" class="services mt-5 pt-5">
 
-        <h2 class="section-title" style="color: #054a85;">BALANCE DE PRUEBA</h2>
+    <button class="btn-ir" onclick="window.location.href='menulibros.php'">
+      <i class="fa-solid fa-arrow-left"></i> Regresar
+    </button>
 
-        <!-- ====== FORMULARIO DE FILTRO ====== -->
-        <form class="row g-3 mb-4 justify-content-center align-items-end" method="get">
+    <div class="container" data-aos="fade-up">
+
+      <h2 class="section-title" style="color:#054a85;">LIBRO AUXILIAR</h2>
+
+      <!-- ====== FORMULARIO DE FILTRO ====== -->
+      <form class="row g-3 mb-4 justify-content-center align-items-end" method="get">
     
           <div class="col-md-5">
               <label class="form-label visually-hidden">Cuenta desde:</label>
@@ -167,7 +179,15 @@ foreach ($datos as $fila) {
                   <input type="text" name="cuenta_hasta" class="form-control" placeholder="Código" value="<?= htmlspecialchars($cuenta_hasta) ?>">
               </div>
           </div>
-          
+
+          <div class="col-md-4">
+              <label class="form-label visually-hidden">Tercero:</label>
+              <div class="input-group">
+                  <span class="input-group-text">Tercero:</span>
+                  <input type="text" name="cuenta_hasta" class="form-control" placeholder="Código" value="<?= htmlspecialchars($tercero) ?>">
+              </div>
+          </div>
+        
           <div class="col-md-4">
               <label class="form-label visually-hidden">Desde:</label>
               <div class="input-group">
@@ -187,41 +207,49 @@ foreach ($datos as $fila) {
           </div>
       </form>
 
-        <!-- ====== TABLA DE RESULTADOS ====== -->
-        <table class="table table-bordered">
-          <thead style="background-color:#f8f9fa;">
+      <!-- ====== TABLA DE RESULTADOS ====== -->
+      <table class="table table-bordered">
+        <thead style="background-color:#f8f9fa;">
+          <tr>
+            <th>Código cuenta contable</th>
+            <th>Nombre de la cuenta</th>
+            <th>Identificación del tercero</th>
+            <th>Nombre de tercero</th>
+            <th>Comprobante</th>
+            <th>Fecha comprobante</th>
+            <th class="text-end">Saldo Inicial</th>
+            <th class="text-end">Movimiento Débito</th>
+            <th class="text-end">Movimiento Crédito</th>
+            <th class="text-end">Saldo Final</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($datos as $fila): ?>
             <tr>
-              <th>Código cuenta contable</th>
-              <th>Nombre de la cuenta</th>
-              <th class="text-end">Saldo Inicial</th>
-              <th class="text-end">Movimiento Débito</th>
-              <th class="text-end">Movimiento Crédito</th>
-              <th class="text-end">Saldo Final</th>
+              <td><?= htmlspecialchars($fila['codigo_cuenta']) ?></td>
+              <td><?= htmlspecialchars($fila['nombre_cuenta']) ?></td>
+              <td><?= htmlspecialchars($fila['identificacion_tercero']) ?></td>
+              <td><?= htmlspecialchars($fila['nombre_tercero']) ?></td>
+              <td><?= htmlspecialchars($fila['comprobante']) ?></td>
+              <td><?= htmlspecialchars($fila['fecha_comprobante']) ?></td>
+              <td class="text-end"><?= number_format($fila['saldo_inicial'],2) ?></td>
+              <td class="text-end"><?= number_format($fila['movimiento_debito'],2) ?></td>
+              <td class="text-end"><?= number_format($fila['movimiento_credito'],2) ?></td>
+              <td class="text-end"><?= number_format($fila['saldo_final'],2) ?></td>
             </tr>
-          </thead>
-          <tbody>
-            <?php foreach ($datos as $fila): ?>
-              <tr>
-                <td><?= htmlspecialchars($fila['codigo']) ?></td>
-                <td><?= htmlspecialchars($fila['cuenta']) ?></td>
-                <td class="text-end"><?= number_format($fila['saldo_inicial'],2) ?></td>
-                <td class="text-end"><?= number_format($fila['debito'],2) ?></td>
-                <td class="text-end"><?= number_format($fila['credito'],2) ?></td>
-                <td class="text-end"><?= number_format($fila['saldo_final'],2) ?></td>
-              </tr>
-            <?php endforeach; ?>
-            <tr class="fw-bold">
-              <td colspan="2">TOTALES</td>
-              <td class="text-end"><?= number_format($totalSaldoInicial,2) ?></td>
-              <td class="text-end"><?= number_format($totalDebito,2) ?></td>
-              <td class="text-end"><?= number_format($totalCredito,2) ?></td>
-              <td class="text-end"><?= number_format($totalSaldoFinal,2) ?></td>
-            </tr>
-          </tbody>
-        </table>
+          <?php endforeach; ?>
+          <tr class="fw-bold">
+            <td colspan="6" class="text-end">TOTALES</td>
+            <td class="text-end"><?= number_format($totalInicial,2) ?></td>
+            <td class="text-end"><?= number_format($totalDebito,2) ?></td>
+            <td class="text-end"><?= number_format($totalCredito,2) ?></td>
+            <td class="text-end"><?= number_format($totalFinal,2) ?></td>
+          </tr>
+        </tbody>
+      </table>
 
-      </div>
-    </section><!-- End Services Section -->
+    </div>
+  </section><!-- End Services Section -->
 
   <!-- ======= Footer ======= -->
   <footer id="footer">
