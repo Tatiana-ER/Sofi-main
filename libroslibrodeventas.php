@@ -1,3 +1,45 @@
+<?php
+// ================== CONEXIÓN ==================
+include("connection_demo.php");
+$conn = new connection();
+$pdo = $conn->connect();
+
+// ================== FILTROS ==================
+$fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-m-01');
+$fecha_hasta = isset($_GET['hasta']) ? $_GET['hasta'] : date('Y-m-t');
+
+// ================== CONSULTA ==================
+$sql = "SELECT 
+            comprobante,
+            fecha_elaboracion,
+            identificacion_tercero,
+            nombre_tercero,
+            base_gravada,
+            base_exenta,
+            iva,
+            (base_gravada + base_exenta + iva) AS total
+        FROM ventas
+        WHERE fecha_elaboracion BETWEEN :desde AND :hasta
+        ORDER BY fecha_elaboracion ASC";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute([':desde' => $fecha_desde, ':hasta' => $fecha_hasta]);
+$ventas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// ================== TOTALES ==================
+$totalBaseGravada = 0;
+$totalBaseExenta = 0;
+$totalIVA = 0;
+$totalGeneral = 0;
+
+foreach ($ventas as $v) {
+    $totalBaseGravada += $v['base_gravada'];
+    $totalBaseExenta += $v['base_exenta'];
+    $totalIVA += $v['iva'];
+    $totalGeneral += $v['total'];
+}
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -25,8 +67,31 @@
   <link href="assets/vendor/glightbox/css/glightbox.min.css" rel="stylesheet">
   <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-  <link href="assets/css/style.css" rel="stylesheet">
+  <link href="assets/css/improved-style.css" rel="stylesheet">
+     <style>
+    .btn-ir {
+      background-color: #054a85;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: 0.3s;
+      margin-left: 50px;
+    }
+    .btn-ir::before {
+      margin-right: 8px;
+      font-size: 18px;
+    }
+
+    .btn-ir:hover {
+      background-color: #4c82b0ff;
+    }
+  </style>
+
 
 </head>
 
@@ -35,7 +100,7 @@
   <!-- ======= Header ======= -->
   <header id="header" class="fixed-top d-flex align-items-center ">
     <div class="container d-flex align-items-center justify-content-between">
-      <h1 class="logo"><a href="dashboard.php"> S O F I </a>  = >  Software Financiero </h1>
+      <h1 class="logo"><a href="dashboard.php"> S O F I = >  Software Financiero</a></h1>
       <nav id="navbar" class="navbar">
         <ul>
           <li>
@@ -48,75 +113,78 @@
             <a class="nav-link scrollto active" href="index.php" style="color: darkblue;">Cerrar Sesión</a>
           </li>
         </ul>
-        <i class="bi bi-list mobile-nav-toggle"></i>
       </nav><!-- .navbar -->
     </div>
   </header><!-- End Header -->
 
     <!-- ======= Services Section ======= -->
-    <section id="services" class="services">
-      <div class="container" data-aos="fade-up">
+ <section id="services" class="services">
 
-        <div class="section-title">
-          <br><br><br><br><br>
-          <h2>LIBROS</h2>
-          <p>A continuación puede ingresar a los libros configurados para su usuario en el sistema.</p>
-        </div>
+    <button class="btn-ir" onclick="window.location.href='menulibros.php'">
+      <i class="fa-solid fa-arrow-left"></i> Regresar
+    </button>
+    <div class="container" data-aos="fade-up">
+      <h2 class="section-title" style="color:#054a85;">LIBRO DE VENTAS</h2>
 
-        <div class="row">
-          <div class="col-md-6 d-flex align-items-stretch" data-aos="fade-up" data-aos-delay="100">
-            <div class="icon-box">
-              <i class="bi bi-card-checklist"></i>
-              <h4><a href="#">Estado de situación financiera</a></h4>
-              <p>Voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident</p>
-            </div>
-          </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="200">
-            <div class="icon-box">
-              <i class="bi bi-bar-chart"></i>
-              <h4><a href="#">Estado de resultados</a></h4>
-              <p>Minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat tarad limino ata</p>
-            </div>
-          </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="300">
-            <div class="icon-box">
-              <i class="bi bi-binoculars"></i>
-              <h4><a href="#">Balance de prueba</a></h4>
-              <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur</p>
-            </div>
-          </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="400">
-            <div class="icon-box">
-              <i class="bi bi-brightness-high"></i>
-              <h4><a href="#">Libro auxiliar</a></h4>
-              <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum</p>
-            </div>
-          </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="500">
-            <div class="icon-box">
-              <i class="bi bi-briefcase"></i>
-              <h4><a href="#">Libro de ventas</a></h4>
-              <p>At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque</p>
-            </div>
-          </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="600">
-            <div class="icon-box">
-              <i class="bi bi-briefcase"></i>
-              <h4><a href="#">Libro de compras</a></h4>
-              <p>Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi</p>
-            </div>
-          </div>          
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="700">
-            <div class="icon-box">
-              <i class="bi bi-calendar4-week"></i>
-              <h4><a href="#">Movimiento de caja</a></h4>
-              <p>Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi</p>
-            </div>
+      <!-- ====== FILTRO ====== -->
+      <form class="row g-3 mb-4 justify-content-center align-items-end" method="get">
+        <div class="col-md-4">
+          <label class="form-label visually-hidden">Desde:</label>
+          <div class="input-group">
+            <span class="input-group-text">Desde:</span>
+            <input type="date" name="desde" class="form-control" value="<?= htmlspecialchars($fecha_desde) ?>">
           </div>
         </div>
+        <div class="col-md-4">
+          <label class="form-label visually-hidden">Hasta:</label>
+          <div class="input-group">
+            <span class="input-group-text">Hasta:</span>
+            <input type="date" name="hasta" class="form-control" value="<?= htmlspecialchars($fecha_hasta) ?>">
+          </div>
+        </div>
+        <div class="col-md-2 d-grid">
+          <button type="submit" class="btn btn-primary">Consultar</button>
+        </div>
+      </form>
 
-      </div>
-    </section><!-- End Services Section -->
+      <!-- ====== TABLA DE RESULTADOS ====== -->
+      <table class="table table-bordered">
+        <thead style="background-color:#f8f9fa;">
+          <tr>
+            <th>Comprobante</th>
+            <th>Fecha de elaboración</th>
+            <th>Identificación del tercero</th>
+            <th>Nombre del tercero</th>
+            <th class="text-end">Base gravada</th>
+            <th class="text-end">Base exenta</th>
+            <th class="text-end">IVA</th>
+            <th class="text-end">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($ventas as $fila): ?>
+          <tr>
+            <td><?= htmlspecialchars($fila['comprobante']) ?></td>
+            <td><?= htmlspecialchars($fila['fecha_elaboracion']) ?></td>
+            <td><?= htmlspecialchars($fila['identificacion_tercero']) ?></td>
+            <td><?= htmlspecialchars($fila['nombre_tercero']) ?></td>
+            <td class="text-end"><?= number_format($fila['base_gravada'], 2) ?></td>
+            <td class="text-end"><?= number_format($fila['base_exenta'], 2) ?></td>
+            <td class="text-end"><?= number_format($fila['iva'], 2) ?></td>
+            <td class="text-end"><?= number_format($fila['total'], 2) ?></td>
+          </tr>
+          <?php endforeach; ?>
+          <tr class="fw-bold">
+            <td colspan="4" class="text-end">TOTALES</td>
+            <td class="text-end"><?= number_format($totalBaseGravada, 2) ?></td>
+            <td class="text-end"><?= number_format($totalBaseExenta, 2) ?></td>
+            <td class="text-end"><?= number_format($totalIVA, 2) ?></td>
+            <td class="text-end"><?= number_format($totalGeneral, 2) ?></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section><!-- End Services Section -->
 
   <!-- ======= Footer ======= -->
   <footer id="footer">
@@ -191,5 +259,4 @@
   <script src="assets/js/main.js"></script>
 
 </body>
-
 </html>
