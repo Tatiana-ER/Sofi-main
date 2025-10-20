@@ -27,81 +27,126 @@
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
 
   <!-- Template Main CSS File -->
-  <link href="assets/css/style.css" rel="stylesheet">
+  <link href="assets/css/improved-style.css" rel="stylesheet">
+
+  <!-- Estilos del nuevo logo -->
+  <style>
+    .logo {
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .logo a {
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo-icon {
+      width: 70px;
+      height: auto;
+    }
+
+    /* ===== Footer ===== */
+      #footer {
+        background: #1c0e0e40; /* azul oscuro institucional */
+        color: #000000ff;
+        text-align: center;
+      }
+
+      #footer a {
+        color: #000000ff;
+        text-decoration: none;
+      }
+
+      #footer a:hover {
+        color: #000000ff;
+        text-decoration: underline;
+      }
+
+      #footer .copyright {
+        font-weight: 500;
+        margin-bottom: 5px;
+      }
+
+  </style>
 
 </head>
 
 <body>
 
-  <!-- ======= Top Bar ======= -->
-  <div id="topbar" class="fixed-top d-flex align-items-center ">
-    <div class="container d-flex align-items-center justify-content-center justify-content-md-between">
-      <div class="contact-info d-flex align-items-center">
-        <i class="bi bi-envelope-fill"></i>
-        <a href="mailto:notificacionesudes@udes.edu.co">notificacionesudes@udes.edu.co</a>
-        <i class="bi bi-phone-fill phone-icon"></i> (607) 6516500
-      </div>
-    </div>
-  </div>
-
   <!-- ======= Header ======= -->
   <header id="header" class="fixed-top d-flex align-items-center ">
     <div class="container d-flex align-items-center justify-content-between">
 
-      <h1 class="logo"><a href="index.php"> S O F I </a>  = >  Software Financiero </h1>
+      <!-- Nuevo logo -->
+      <h1 class="logo">
+        <a href="index.php">
+          <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
+          Software Financiero
+        </a>
+      </h1>
+
+      <!-- Navbar -->
       <nav id="navbar" class="navbar">
         <ul>
           <form action="login.php" method="get">
-            <button type="submit" class="btn btn-primary">Iniciar Sesión</button>
+            <button type="submit" class="button nav-link scrollto active" style="color: darkblue;">Iniciar Sesión</button>
           </form>
         </ul>
-        <i class="bi bi-list mobile-nav-toggle"></i>
       </nav><!-- .navbar -->
 
     </div>
   </header><!-- End Header -->
 
-  <!-- ======= Hero Section ======= -->
-  <section id="hero" class="d-flex justify-cntent-center align-items-center">
+  <!-- ======= Hero Section (Carrusel) ======= -->
+  <section id="hero" class="d-flex justify-content-center align-items-center">
     <div id="heroCarousel" data-bs-interval="5000" class="container carousel carousel-fade" data-bs-ride="carousel">
 
       <!-- Slide 1 -->
       <div class="carousel-item active">
-        <div class="carousel-container">
-          <h2 class="animate__animated animate__fadeInDown"><span>Universidad de Santander</span> <br> #1 </h2>
+        <div class="carousel-container text-center">
+          <h2 class="animate__animated animate__fadeInDown">
+            <span>Universidad de Santander</span> <br> #1
+          </h2>
           <p class="animate__animated animate__fadeInUp">
             En capacidad para generar producción científica de excelencia.<br>
             Con mayor producción en colaboración internacional.<br>
-            Con publicaciones en revistas científicas más influyentes del mundo.<br></p>
-          <a href="login.php" class="btn-get-started animate__animated animate__fadeInUp scrollto">Iniciar Sesión</a>
+            Con publicaciones en revistas científicas más influyentes del mundo.
+          </p>
         </div>
       </div>
 
       <!-- Slide 2 -->
       <div class="carousel-item">
-        <div class="carousel-container">
-          <h2 class="animate__animated animate__fadeInDown"><span>Universidad de Santander</span> <br> #17 en Colombia </h2>
-          <p class="animate__animated animate__fadeInUp">Según el Scimago Institutions Rankings 2021, la Universidad de Santander se sitúa en el puesto 17 entre las mejores universidades de Colombia en investigación, evidenciando el impacto de su producción científica, lo que le permitió ubicarse también en el puesto 93 en Latinoamérica y en el 765 a nivel mundial.
-          <br>
-          El ranking internacional incluyó este año a un selecto grupo de 43 instituciones de educación superior del país que participaron en la medición, y que evidencia la alta calidad de los procesos de investigación e innovación.</p>
-          <a href="login.php" class="btn-get-started animate__animated animate__fadeInUp scrollto">Iniciar Sesión</a>
+        <div class="carousel-container text-center">
+          <h2 class="animate__animated animate__fadeInDown">
+            <span>Universidad de Santander</span> <br> #17 en Colombia
+          </h2>
+          <p class="animate__animated animate__fadeInUp">
+            Según el Scimago Institutions Rankings 2021, la Universidad de Santander se sitúa en el puesto 17 entre las mejores universidades de Colombia en investigación.
+          </p>
         </div>
       </div>
 
       <!-- Slide 3 -->
       <div class="carousel-item">
-        <div class="carousel-container">
-          <h2 class="animate__animated animate__fadeInDown"><span>Universidad de Santander</span> <br> En cifras </h2>
+        <div class="carousel-container text-center">
+          <h2 class="animate__animated animate__fadeInDown">
+            <span>Universidad de Santander</span> <br> En cifras
+          </h2>
           <p class="animate__animated animate__fadeInUp">
-            110 - Investigadores categorizados por Minciencias (2021) <br> 
-            179 - Artículos científicos publicados en revistas indexadas en Scopus (2021) <br> 
-            26 - Grupos de investigación categorizados por Minciencias (Convocatoria 894-21) <br> 
-            124 - Semilleros de investigación activos en el 2022A <br> 
+            110 - Investigadores categorizados por Minciencias (2021) <br>
+            179 - Artículos científicos publicados en Scopus (2021) <br>
+            26 - Grupos de investigación categorizados (Convocatoria 894-21) <br>
+            124 - Semilleros de investigación activos en 2022A
           </p>
-          <a href="login.php" class="btn-get-started animate__animated animate__fadeInUp scrollto">Iniciar Sesión</a>
         </div>
       </div>
 
+      <!-- Controles del carrusel -->
       <a class="carousel-control-prev" href="#heroCarousel" role="button" data-bs-slide="prev">
         <span class="carousel-control-prev-icon bx bx-chevron-left" aria-hidden="true"></span>
       </a>
@@ -109,69 +154,15 @@
       <a class="carousel-control-next" href="#heroCarousel" role="button" data-bs-slide="next">
         <span class="carousel-control-next-icon bx bx-chevron-right" aria-hidden="true"></span>
       </a>
-
     </div>
   </section><!-- End Hero -->
 
-  <!-- ======= Footer ======= -->
-  <footer id="footer">
-    <div class="footer-top">
-      <div class="container">
-        <div class="row">
-
-          <div class="col-lg-3 col-md-6 footer-links">
-            <h4>Useful Links</h4>
-            <ul>
-              <li><i class="bx bx-chevron-right"></i> <a target="_blank" href="https://udes.edu.co">UDES</a></li>
-              <li><i class="bx bx-chevron-right"></i> <a target="_blank" href="https://bucaramanga.udes.edu.co/estudia/pregrados/contaduria-publica">CONTADURIA PUBLICA</a></li>
-            </ul>
-          </div>
-
-          <div class="col-lg-3 col-md-6 footer-links">
-            <h4>Ubicación</h4>
-            <p>
-              Calle 70 N° 55-210, <br>
-              Bucaramanga, <br>
-              Santander <br><br>
-            </p>
-          </div>
-
-          <div class="col-lg-3 col-md-6 footer-contact">
-            <h4>Contactenos</h4>
-            <p>
-              <strong>Teléfono:</strong> (607) 6516500 <br>
-              <strong>Email:</strong> notificacionesudes@udes.edu.co <br>
-            </p>
-          </div>
-
-          <div class="col-lg-3 col-md-6 footer-info">
-            <h3>Redes Sociales</h3>
-            <p>A través de los siguientes link´s puedes seguirnos.</p>
-            <div class="social-links mt-3">
-              <a href="#" class="twitter"><i class="bx bxl-twitter"></i></a>
-              <a href="#" class="facebook"><i class="bx bxl-facebook"></i></a>
-              <a href="#" class="instagram"><i class="bx bxl-instagram"></i></a>
-              <a href="#" class="google-plus"><i class="bx bxl-skype"></i></a>
-              <a href="#" class="linkedin"><i class="bx bxl-linkedin"></i></a>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-
-    <div class="container">
-      <div class="copyright">
-        &copy; Copyright 2023 <strong><span> UNIVERSIDAD DE SANTANDER </span></strong>. All Rights Reserved
-      </div>
-      <div class="credits">
-        Creado por iniciativa del programa de <a href="https://bucaramanga.udes.edu.co/estudia/pregrados/contaduria-publica">Contaduría Pública</a>
-      </div>
-    </div>
-  </footer><!-- End Footer -->
-
-  <div id="preloader"></div>
-  <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
+  <!-- ======= Footer Minimalista ======= -->
+  <footer id="footer" class="footer-minimalista">
+    <p>Universidad de Santander - Ingeniería de Software</p>
+    <p>Todos los derechos reservados © 2025</p>
+    <p>Creado por iniciativa del programa de Contaduría Pública</p>
+  </footer>
 
   <!-- Vendor JS Files -->
   <script src="assets/vendor/aos/aos.js"></script>
@@ -185,5 +176,4 @@
   <script src="assets/js/main.js"></script>
 
 </body>
-
 </html>

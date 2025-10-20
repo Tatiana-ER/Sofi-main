@@ -12,13 +12,30 @@
 
     <!-- SweetAlert2 -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!--Estilos de nuevo logo SOFI UDES -->
+    <style>
+        .leftside {
+            display: flex;
+            align-items: center; 
+            gap: 15px;
+        }
+        .leftside img {
+            max-width: 2000px;
+            margin-left: 170px;
+            margin-right: 100px;
+            margin-top: -60px;
+        }
+
+    </style>
 </head>
 <body>
 
     <div class="form">
         <div class="leftside">
-            <img src="./Img/welcome.png" alt="Bienvenido">
-            <h1>SOFI UDES</h1>
+            <!-- Nuevo logo SOFI UDES, creadro por Tatiana y Catalina-->
+            <img src="./Img/sofilogo5.png" alt="Bienvenido">
+            <!--<h1>SOFI UDES</h1>-->
         </div>
 
         <div class="rightside">

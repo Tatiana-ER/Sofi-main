@@ -1,4 +1,4 @@
-/* SOFI Dashboard - Improved Modern Design */
+/* Nuevo archivo css de SOFI, creado por Tatiana y Catalina */
 
 /* Import Google Fonts for better typography */
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap");
@@ -48,16 +48,12 @@ body {
   font-family: "Poppins", sans-serif;
   font-weight: 700;
   font-size: 1.5rem;
-  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  background: #1841b3;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   text-decoration: none;
   transition: all 0.3s ease;
-}
-
-#header .logo a:hover {
-  transform: translateY(-1px);
 }
 
 /* Navigation Improvements */
@@ -90,7 +86,6 @@ body {
 .navbar ul li a:hover {
   background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
   color: white !important;
-  transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
 
@@ -107,6 +102,31 @@ body {
 
 .navbar ul li a:hover::before {
   left: 100%;
+}
+
+/* Boton inicio de sesión / Pagina inicio */
+.navbar ul form button {
+  margin: 0 !important;
+  font-weight: 500;
+  padding: 10px 20px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.navbar ul form button:hover {
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+  color: white !important;
+  box-shadow: var(--shadow-md);
+}
+
+button {
+  border: none;          /* elimina el borde negro */
+  outline: none;         /* elimina el borde al hacer clic o foco */
+  box-shadow: none;      /* elimina posibles sombras */
 }
 
 /* Services Section Improvements */
@@ -161,6 +181,56 @@ body {
   max-width: 600px;
   margin: 0 auto;
   line-height: 1.7;
+}
+
+/* Ajuste del carrusel (Hero section) */
+#hero {
+  width: 100%;
+  height: 100vh;
+  background: url("../img/hero-bg.jpg") no-repeat center center/cover;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  overflow: hidden;
+}
+
+/* Capa oscura sobre la imagen para dar contraste */
+#hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 25, 70, 0.887); /* azul oscuro semitransparente */
+  z-index: 1;
+}
+
+/* Contenedor del contenido (texto, botones, etc.) */
+#hero .carousel-container {
+  position: relative;
+  z-index: 2;
+  color: #ffffff;
+}
+
+#hero h2 {
+  font-size: 40px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: #fff;
+  text-shadow: 2px 2px 8px rgba(0,0,0,0.4);
+}
+
+#hero p {
+  font-size: 18px;
+  color: #e3e8ff;
+  text-shadow: 1px 1px 6px rgba(0,0,0,0.4);
+}
+
+/* Ajusta el tamaño de los controles del carrusel */
+.carousel-control-prev-icon,
+.carousel-control-next-icon {
+  font-size: 2rem;
+  color: #095bc6;
 }
 
 /* Icon Box Improvements */
@@ -263,8 +333,9 @@ body {
 
 /* Footer Improvements */
 #footer {
-  background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+  background:#050d63;
   color: #e5e7eb;
+  text-align: center;
   position: relative;
 }
 
@@ -282,85 +353,12 @@ body {
   padding: 60px 0 40px;
 }
 
-.footer-links h4,
-.footer-contact h4,
-.footer-info h3 {
-  font-family: "Poppins", sans-serif;
-  font-weight: 600;
-  color: #f9fafb;
-  margin-bottom: 20px;
-  position: relative;
-}
-
-.footer-links h4::after,
-.footer-contact h4::after,
-.footer-info h3::after {
-  content: "";
-  position: absolute;
-  bottom: -5px;
-  left: 0;
-  width: 30px;
-  height: 2px;
-  background: var(--secondary-color);
-}
-
-.footer-links ul li {
-  margin-bottom: 8px;
-}
-
-.footer-links ul li a {
-  color: #d1d5db;
-  transition: all 0.3s ease;
-  text-decoration: none;
-}
-
-.footer-links ul li a:hover {
-  color: var(--secondary-color);
-  padding-left: 5px;
-}
-
-.social-links a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
-  color: #d1d5db;
-  margin-right: 10px;
-  transition: all 0.3s ease;
-  text-decoration: none;
-}
-
-.social-links a:hover {
-  background: var(--secondary-color);
-  color: white;
-  transform: translateY(-3px);
-}
-
 .copyright {
   text-align: center;
   padding: 30px 0;
   border-top: 1px solid #374151;
   margin-top: 40px;
   color: #9ca3af;
-}
-
-.credits {
-  text-align: center;
-  color: #9ca3af;
-  padding-bottom: 20px;
-}
-
-.credits a {
-  color: var(--secondary-color);
-  text-decoration: none;
-  transition: color 0.3s ease;
-}
-
-.credits a:hover {
-  color: #fbbf24;
 }
 
 /* Back to top button */
@@ -478,3 +476,108 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary-dark);
 }
+
+/* Estilos mejorados para las tablas */
+.table-container {
+  margin: 20px auto;
+  padding: 20px;
+  width: 100%;                  /* Ocupa todo el ancho disponible */
+  max-width: 100%;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  overflow-x: auto;             /* Permite scroll horizontal */
+}
+
+table {
+  border-collapse: collapse;
+  font-size: 14px;
+  min-width: 1px;              /* Puedes ajustar este valor */
+  text-align: center;
+}
+
+th, td {
+  border: 1px solid #ccc;
+  padding: 8px 10px;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+th {
+  background-color: #007bff;
+  color: #fff;
+  font-weight: bold;
+}
+
+tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+/* Alinear los botones dentro de la celda de las tablas */
+td form {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Estilos de los botones de las tabla*/
+.btn-editar,
+.btn-eliminar {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 5px;
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  transition: 0.2s;
+}
+
+.btn-editar {
+  background-color: #717579;
+}
+
+.btn-eliminar {
+  background-color: #ff3737;
+}
+
+/* Estilos del logo en el nav */
+.logo {
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.logo a {
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo-icon {
+  width: 70px;
+  height: auto;
+}
+
+/* Estilos del botón regresar */
+.btn-ir {
+      background-color: #054a85;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: 0.3s;
+      margin-left: 50px;
+    }
+    .btn-ir::before {
+      margin-right: 8px;
+      font-size: 18px;
+    }
+
+    .btn-ir:hover {
+      background-color: #4c82b0ff;
+    }

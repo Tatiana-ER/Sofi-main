@@ -1,118 +1,182 @@
 <?php
-
-include ("connection.php");
+include("connection.php");
 
 $conn = new connection();
 $pdo = $conn->connect();
 
-$txtId=(isset($_POST['txtId']))?$_POST['txtId']:"";
-$tipoTercero=(isset($_POST['tipoTercero']))?$_POST['tipoTercero']:"";
-$tipoPersona=(isset($_POST['tipoPersona']))?$_POST['tipoPersona']:"";
-$cedula=(isset($_POST['cedula']))?$_POST['cedula']:"";
-$digito=(isset($_POST['digito']))?$_POST['digito']:"";
-$nombres=(isset($_POST['nombres']))?$_POST['nombres']:"";
-$apellidos=(isset($_POST['apellidos']))?$_POST['apellidos']:"";
-$razonSocial=(isset($_POST['razonSocial']))?$_POST['razonSocial']:"";
-$departamento=(isset($_POST['departamento']))?$_POST['departamento']:"";
-$ciudad=(isset($_POST['ciudad']))?$_POST['ciudad']:"";
-$direccion=(isset($_POST['direccion']))?$_POST['direccion']:"";
-$telefono=(isset($_POST['telefono']))?$_POST['telefono']:"";
-$correo=(isset($_POST['correo']))?$_POST['correo']:"";
-$tipoRegimen=(isset($_POST['tipoRegimen']))?$_POST['tipoRegimen']:"";
-$actividadEconomica=(isset($_POST['actividadEconomica']))?$_POST['actividadEconomica']:"";
-$activo=(isset($_POST['activo']))?$_POST['activo']:"";
+// Sanitizar entrada
+function limpiar($valor) {
+  return htmlspecialchars(trim($valor));
+}
 
-$accion=(isset($_POST['accion']))?$_POST['accion']:"";
+// Recibir datos del formulario
+$txtId = limpiar($_POST['txtId'] ?? "");
+$tipoTercero = limpiar($_POST['tipoTercero'] ?? "");
+$tipoPersona = limpiar($_POST['tipoPersona'] ?? "");
+$cedula = limpiar($_POST['cedula'] ?? "");
+$digito = limpiar($_POST['digito'] ?? "");
+$nombres = limpiar($_POST['nombres'] ?? "");
+$apellidos = limpiar($_POST['apellidos'] ?? "");
+$razonSocial = limpiar($_POST['razonSocial'] ?? "");
+$departamento = limpiar($_POST['departamento'] ?? "");
+$ciudad = limpiar($_POST['ciudad'] ?? "");
+$direccion = limpiar($_POST['direccion'] ?? "");
+$telefono = limpiar($_POST['telefono'] ?? "");
+$correo = limpiar($_POST['correo'] ?? "");
+$tipoRegimen = limpiar($_POST['tipoRegimen'] ?? "");
+$actividadEconomica = limpiar($_POST['actividadEconomica'] ?? "");
+$activo = isset($_POST['activo']) ? 1 : 0; // checkbox
+$accion = $_POST['accion'] ?? "";
 
-switch($accion){
+// Validar teléfono
+if ($telefono && !preg_match('/^[0-9]{7,10}$/', $telefono)) {
+  header("Location: ".$_SERVER['PHP_SELF']."?msg=telefono_invalido");
+  $accion = ""; // Detener cualquier acción
+}
+
+switch ($accion) {
   case "btnAgregar":
+    // Validaciones únicas
+    $verificar = $pdo->prepare("SELECT COUNT(*) FROM catalogosterceros WHERE cedula = :cedula OR correo = :correo OR telefono = :telefono");
+    $verificar->bindParam(':cedula', $cedula);
+    $verificar->bindParam(':correo', $correo);
+    $verificar->bindParam(':telefono', $telefono);
+    $verificar->execute();
+    $existe = $verificar->fetchColumn();
 
-      $sentencia=$pdo->prepare("INSERT INTO catalogosterceros(tipoTercero,tipoPersona,cedula,digito,nombres,apellidos,razonSocial,departamento,ciudad,direccion,telefono,correo,
-      tipoRegimen,actividadEconomica,activo) 
-      VALUES (:tipoTercero,:tipoPersona,:cedula,:digito,:nombres,:apellidos,:razonSocial,:departamento,:ciudad,:direccion,:telefono,:correo,:tipoRegimen,:actividadEconomica,:activo)");
-      
+    if ($existe > 0) {
+      header("Location: ".$_SERVER['PHP_SELF']."?msg=duplicado");
+      break;
+    }
 
-      $sentencia->bindParam(':tipoTercero',$tipoTercero);
-      $sentencia->bindParam(':tipoPersona',$tipoPersona);
-      $sentencia->bindParam(':cedula',$cedula);
-      $sentencia->bindParam(':digito',$digito);
-      $sentencia->bindParam(':nombres',$nombres);
-      $sentencia->bindParam(':apellidos',$apellidos);
-      $sentencia->bindParam(':razonSocial',$razonSocial);
-      $sentencia->bindParam(':departamento',$departamento);
-      $sentencia->bindParam(':ciudad',$ciudad);
-      $sentencia->bindParam(':direccion',$direccion);
-      $sentencia->bindParam(':telefono',$telefono);
-      $sentencia->bindParam(':correo',$correo);
-      $sentencia->bindParam(':tipoRegimen',$tipoRegimen);
-      $sentencia->bindParam(':actividadEconomica',$actividadEconomica);
-      $sentencia->bindParam(':activo',$activo);
-      $sentencia->execute();
+    $sentencia = $pdo->prepare("INSERT INTO catalogosterceros 
+      (tipoTercero, tipoPersona, cedula, digito, nombres, apellidos, razonSocial, departamento, ciudad, direccion, telefono, correo, tipoRegimen, actividadEconomica, activo) 
+      VALUES 
+      (:tipoTercero, :tipoPersona, :cedula, :digito, :nombres, :apellidos, :razonSocial, :departamento, :ciudad, :direccion, :telefono, :correo, :tipoRegimen, :actividadEconomica, :activo)");
 
+    $sentencia->bindParam(':tipoTercero', $tipoTercero);
+    $sentencia->bindParam(':tipoPersona', $tipoPersona);
+    $sentencia->bindParam(':cedula', $cedula);
+    $sentencia->bindParam(':digito', $digito);
+    $sentencia->bindParam(':nombres', $nombres);
+    $sentencia->bindParam(':apellidos', $apellidos);
+    $sentencia->bindParam(':razonSocial', $razonSocial);
+    $sentencia->bindParam(':departamento', $departamento);
+    $sentencia->bindParam(':ciudad', $ciudad);
+    $sentencia->bindParam(':direccion', $direccion);
+    $sentencia->bindParam(':telefono', $telefono);
+    $sentencia->bindParam(':correo', $correo);
+    $sentencia->bindParam(':tipoRegimen', $tipoRegimen);
+    $sentencia->bindParam(':actividadEconomica', $actividadEconomica);
+    $sentencia->bindParam(':activo', $activo);
+    $sentencia->execute();
+
+    header("Location: ".$_SERVER['PHP_SELF']."?msg=agregado");
+    exit; // Evita reenvío del formulario
   break;
 
   case "btnModificar":
-        $sentencia = $pdo->prepare("UPDATE catalogosterceros 
-                                    SET tipoTercero = :tipoTercero,
-                                        tipoPersona = :tipoPersona,
-                                        cedula = :cedula,
-                                        digito = :digito,
-                                        nombres = :nombres,
-                                        apellidos = :apellidos,
-                                        razonSocial = :razonSocial,
-                                        departamento = :departamento,
-                                        ciudad = :ciudad,
-                                        direccion = :direccion,
-                                        telefono = :telefono,
-                                        correo = :correo,
-                                        tipoRegimen = :tipoRegimen,
-                                        actividadEconomica = :actividadEconomica,
-                                        activo = :activo
-                                    WHERE id = :id");
+    $sentencia = $pdo->prepare("UPDATE catalogosterceros SET 
+      tipoTercero = :tipoTercero, tipoPersona = :tipoPersona, cedula = :cedula, digito = :digito, nombres = :nombres,
+      apellidos = :apellidos, razonSocial = :razonSocial, departamento = :departamento, ciudad = :ciudad,
+      direccion = :direccion, telefono = :telefono, correo = :correo, tipoRegimen = :tipoRegimen,
+      actividadEconomica = :actividadEconomica, activo = :activo
+      WHERE id = :id");
 
-        // Enlazamos los parámetros 
+    $sentencia->bindParam(':tipoTercero', $tipoTercero);
+    $sentencia->bindParam(':tipoPersona', $tipoPersona);
+    $sentencia->bindParam(':cedula', $cedula);
+    $sentencia->bindParam(':digito', $digito);
+    $sentencia->bindParam(':nombres', $nombres);
+    $sentencia->bindParam(':apellidos', $apellidos);
+    $sentencia->bindParam(':razonSocial', $razonSocial);
+    $sentencia->bindParam(':departamento', $departamento);
+    $sentencia->bindParam(':ciudad', $ciudad);
+    $sentencia->bindParam(':direccion', $direccion);
+    $sentencia->bindParam(':telefono', $telefono);
+    $sentencia->bindParam(':correo', $correo);
+    $sentencia->bindParam(':tipoRegimen', $tipoRegimen);
+    $sentencia->bindParam(':actividadEconomica', $actividadEconomica);
+    $sentencia->bindParam(':activo', $activo);
+    $sentencia->bindParam(':id', $txtId);
+    $sentencia->execute();
 
-        $sentencia->bindParam(':tipoTercero', $tipoTercero);
-        $sentencia->bindParam(':tipoPersona', $tipoPersona);
-        $sentencia->bindParam(':cedula', $cedula);
-        $sentencia->bindParam(':digito', $digito);
-        $sentencia->bindParam(':nombres', $nombres);
-        $sentencia->bindParam(':apellidos', $apellidos);
-        $sentencia->bindParam(':razonSocial', $razonSocial);
-        $sentencia->bindParam(':departamento', $departamento);
-        $sentencia->bindParam(':ciudad', $ciudad);
-        $sentencia->bindParam(':direccion', $direccion);
-        $sentencia->bindParam(':telefono', $telefono);
-        $sentencia->bindParam(':correo', $correo);
-        $sentencia->bindParam(':tipoRegimen', $tipoRegimen);
-        $sentencia->bindParam(':actividadEconomica', $actividadEconomica);
-        $sentencia->bindParam(':activo', $activo);
-        $sentencia->bindParam(':id', $txtId);
+    // Redirigir y mostrar alerta
+    header("Location: ".$_SERVER['PHP_SELF']."?msg=modificado");
+    exit;
+  break;
 
-        // Ejecutamos la sentencia
-        $sentencia->execute();
-
-        // Opcional: Redirigir o mostrar mensaje de éxito
-        echo "<script>alert('Datos actualizados correctamente');</script>";
-
-    break;
-
-    case "btnEliminar":
-
-      $sentencia = $pdo->prepare("DELETE FROM catalogosterceros WHERE id = :id");
-      $sentencia->bindParam(':id', $txtId);
-      $sentencia->execute();
-
-
-    break;
-
+  case "btnEliminar":
+    $sentencia = $pdo->prepare("DELETE FROM catalogosterceros WHERE id = :id");
+    $sentencia->bindParam(':id', $txtId);
+    $sentencia->execute();
+    header("Location: ".$_SERVER['PHP_SELF']."?msg=eliminado");
+    exit;
+  break;
 }
 
-  $sentencia= $pdo->prepare("SELECT * FROM `catalogosterceros` WHERE 1");
-  $sentencia->execute();
-  $lista=$sentencia->fetchALL(PDO::FETCH_ASSOC);
-
+$sentencia = $pdo->prepare("SELECT * FROM catalogosterceros ORDER BY id DESC");
+$sentencia->execute();
+$lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
 ?>
+
+<?php if (isset($_GET['msg'])): ?>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  switch ("<?= $_GET['msg'] ?>") {
+    case "agregado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Guardado exitosamente',
+        text: 'La cuenta contable se ha agregado correctamente',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "modificado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Modificado correctamente',
+        text: 'Los datos se actualizaron con éxito',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "eliminado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Eliminado correctamente',
+        text: 'La cuenta contable fue eliminada del registro',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+    case "duplicado":
+      Swal.fire({
+        icon: 'error',
+        title: 'Error al guardar',
+        text: 'Ya existe un tercero con la misma cédula, correo o teléfono.',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+    case "telefono_invalido":
+      Swal.fire({
+        icon: 'error',
+        title: 'Teléfono no válido',
+        text: 'El número de teléfono debe tener entre 7 y 10 dígitos.',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+  }
+
+  // Quita el parámetro ?msg=... de la URL sin recargar
+  if (window.history.replaceState) {
+    const url = new URL(window.location);
+    url.searchParams.delete('msg');
+    window.history.replaceState({}, document.title, url);
+  }
+});
+</script>
+<?php endif; ?>
 
 <!DOCTYPE html>
 <html lang="en">
@@ -141,63 +205,31 @@ switch($accion){
   <link href="assets/vendor/glightbox/css/glightbox.min.css" rel="stylesheet">
   <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
-
-  <link href="assets/css/style.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  
+  <link href="assets/css/improved-style.css" rel="stylesheet">
 
   <style> 
-    .table-container {
-      margin: 0 auto;
-      padding: 20px;
-      max-width: 95%;
-      width: 100%;
-      box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
-      background-color: #ffffff;
-      border-radius: 5px;
-      overflow-x: auto; /* Importante: activa el scroll horizontal */
-    }
-
-    table {
-      min-width: 1000px; /* O el valor mínimo que quieras para permitir el scroll */
-      width: max-content; /* Se adapta al contenido */
-      border-collapse: collapse;
-    }
-
-    th, td {
-      border: 1px solid black;
-      padding: 10px;
-      text-align: center;
-      white-space: nowrap; /* Evita que el texto se rompa en varias líneas */
-    }
-
-    th {
-      background-color: #f2f2f2;
-    }
-
     input[type="text"] {
       width: 100%;
       box-sizing: border-box;
       padding: 5px;
     }
-
-    .add-row-btn {
-      cursor: pointer;
-      background-color: #0d6efd;
-      color: white;
-      border: none;
-      padding: 10px;
-      font-size: 18px;
-      margin-top: 20px;
-    }
   </style>
 
 </head>
-
 <body>
 
   <!-- ======= Header ======= -->
   <header id="header" class="fixed-top d-flex align-items-center ">
     <div class="container d-flex align-items-center justify-content-between">
-      <h1 class="logo"><a href="dashboard.php"> S O F I </a>  = >  Software Financiero </h1>
+      <h1 class="logo">
+        <a href="dashboard.php">
+          <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
+          Software Financiero
+        </a>
+      </h1>
       <nav id="navbar" class="navbar">
         <ul>
           <li>
@@ -210,132 +242,175 @@ switch($accion){
             <a class="nav-link scrollto active" href="index.php" style="color: darkblue;">Cerrar Sesión</a>
           </li>
         </ul>
-        <i class="bi bi-list mobile-nav-toggle"></i>
       </nav><!-- .navbar -->
     </div>
   </header><!-- End Header -->
 
     <!-- ======= Services Section ======= -->
     <section id="services" class="services">
+      <button class="btn-ir" onclick="window.location.href='menucatalogos.php'">
+        <i class="fa-solid fa-arrow-left"></i> Regresar
+      </button>
+
       <div class="container" data-aos="fade-up">
 
         <div class="section-title">
-          <br><br><br><br><br>
           <h2>CATÁLOGO DE TERCEROS </h2>
           <p>A continuación puede ingresar a los catálogos configurados para su usuario en el sistema.</p>
           <p>(Los campos marcados con * son obligatorios)</p>
         </div>
 
-        <form id="formularioTercero" action="" method="post">
-          <div>
-            <label for="id" class="form-label">ID:</label>
-            <input type="text" class="form-control" value="<?php echo $txtId;?>" id="txtId" name="txtId" readonly>
-          </div><br>
-          <div>
-            <label for="label3" class="form-label">Tipo de tercero*</label>
-            <br>
-            <label>
-              <input type="radio" value="<?php echo $tipoTercero;?>" name="tipoTercero" value="cliente" onclick="toggleTipoTercero()">
-              Cliente
-            </label>
-            <label>
-              <input type="radio" value="<?php echo $tipoTercero;?>" name="tipoTercero" value="proveedor" onclick="toggleTipoTercero()">
-              Proveedor
-            </label>
-            <label>
-              <input type="radio" value="<?php echo $tipoTercero;?>" name="tipoTercero" value="otro" onclick="toggleTipoTercero()">
-              Otro
-            </label>
+        <form id="formularioTercero" action="" method="post" class="container mt-3">
+        <!-- ID oculto -->
+        <input type="hidden" value="<?php echo $txtId; ?>" id="txtId" name="txtId">
+
+        <div class="row g-3">
+          <!-- Tipo de tercero -->
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Tipo de tercero*</label><br>
+            <div class="form-check form-check-inline">
+              <input type="radio" class="form-check-input" name="tipoTercero" value="Cliente"
+                    <?php if ($tipoTercero == 'Cliente') echo 'checked'; ?> onclick="toggleFields()">
+              <label class="form-check-label">Cliente</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input type="radio" class="form-check-input" name="tipoTercero" value="Proveedor"
+                    <?php if ($tipoTercero == 'Proveedor') echo 'checked'; ?> onclick="toggleFields()">
+              <label class="form-check-label">Proveedor</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input type="radio" class="form-check-input" name="tipoTercero" value="otro"
+                    <?php if ($tipoTercero == 'otro') echo 'checked'; ?> onclick="toggleFields()">
+              <label class="form-check-label">Otro</label>
+            </div>
           </div>
-          <br>
-          <div>
-            <label for="label3" class="form-label">Tipo de persona*</label>
-            <br>
-            <label>
-              <input type="radio" value="<?php echo $tipoPersona;?>" id="personaNatural" name="tipoPersona" value="natural" onclick="toggleFields()">
-              Persona Natural
-            </label>
-            <label>
-              <input type="radio" value="<?php echo $tipoPersona;?>" id="personaJuridica" name="tipoPersona" value="juridica" onclick="toggleFields()">
-              Persona Jurídica
-            </label>
+
+          <!-- Tipo de persona -->
+          <div class="col-md-4">
+            <label class="form-label fw-bold">Tipo de persona*</label><br>
+            <div class="form-check form-check-inline">
+              <input type="radio" class="form-check-input" id="personaNatural" name="tipoPersona" value="Natural"
+                    <?php if ($tipoPersona == 'Natural') echo 'checked'; ?> onclick="toggleFields()">
+              <label class="form-check-label">Persona Natural</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input type="radio" class="form-check-input" id="personaJuridica" name="tipoPersona" value="Juridica"
+                    <?php if ($tipoPersona == 'Juridica') echo 'checked'; ?> onclick="toggleFields()">
+              <label class="form-check-label">Persona Jurídica</label>
+            </div>
           </div>
-          <br> 
-          <div>
-            <label for="cedula" class="form-label">Cédula de Ciudadanía o NIT*</label>
-            <input type="number" class="form-control" value="<?php echo $cedula;?>" id="cedula" name="cedula" required>
+        </div>
+
+        <!-- Cédula y dígito -->
+        <div class="row g-3 mt-2">
+          <div class="col-md-8">
+            <label for="cedula" class="form-label">Cédula o NIT*</label>
+            <input type="number" class="form-control" id="cedula" name="cedula"
+                  value="<?php echo $cedula; ?>" required>
           </div>
-          <br>
-          <div>
-          <label for="digito" class="form-label">Digito de verificación</label>
-          <input type="text"class="form-control" value="<?php echo $digito;?>" id="digito" name="digito" maxlength="1" pattern="[1-9]" title="Solo se permite un dígito entre 1 y 9" placeholder="Dígito entre 1 y 9">
-          <br>
+          <div class="col-md-4">
+            <label for="digito" class="form-label">Dígito de verificación</label>
+            <input type="text" class="form-control" id="digito" name="digito" maxlength="1"
+                  pattern="[1-9]" title="Solo se permite un dígito entre 1 y 9"
+                  value="<?php echo $digito; ?>" placeholder="1-9">
           </div>
-          <div>
+        </div>
+
+        <!-- Nombres, apellidos y razón social -->
+        <div class="row g-3 mt-2">
+          <div class="col-md-4">
             <label for="nombres" class="form-label">Nombres</label>
-            <input type="text" class="form-control" value="<?php echo $nombres;?>" id="nombres"  name="nombres" disabled>
+            <input type="text" class="form-control" id="nombres" name="nombres"
+                  value="<?php echo $nombres; ?>" disabled>
           </div>
-          <div>
+          <div class="col-md-4">
             <label for="apellidos" class="form-label">Apellidos</label>
-            <input type="text" class="form-control" value="<?php echo $apellidos;?>" id="apellidos" name="apellidos" disabled>
+            <input type="text" class="form-control" id="apellidos" name="apellidos"
+                  value="<?php echo $apellidos; ?>" disabled>
           </div>
-          <div>
+          <div class="col-md-4">
             <label for="razonSocial" class="form-label">Razón Social</label>
-            <input type="text" class="form-control" value="<?php echo $razonSocial;?>" id="razonSocial" name="razonSocial" disabled>       
+            <input type="text" class="form-control" id="razonSocial" name="razonSocial"
+                  value="<?php echo $razonSocial; ?>" disabled>
           </div>
-          <br>
-          <div class="form-group">
+        </div>
+
+        <!-- Departamento y ciudad -->
+        <div class="row g-3 mt-2">
+          <div class="col-md-6">
             <label for="departamento" class="form-label">Departamento*</label>
-            <input type="text" value="<?php echo $departamento;?>" id="departamento" name="departamento" class="form-control" placeholder="Buscar departamento..." autocomplete="off" required>
+            <input type="text" class="form-control" id="departamento" name="departamento"
+                  placeholder="Buscar departamento..." autocomplete="off"
+                  value="<?php echo $departamento; ?>" required>
           </div>
-          <div class="form-group mt-3">
+          <div class="col-md-6">
             <label for="ciudad" class="form-label">Ciudad*</label>
-            <select value="<?php echo $ciudad;?>" id="ciudad" name="ciudad" class="form-control" disabled>
-                <option value="">Selecciona una ciudad...</option>
+            <select id="ciudad" name="ciudad" class="form-control" disabled>
+              <option value="">Selecciona una ciudad...</option>
             </select>
           </div>
-          <br>
-          <div class="mb-3">
+        </div>
+
+        <!-- Dirección, teléfono y correo -->
+        <div class="row g-3 mt-2">
+          <div class="col-md-4">
             <label for="direccion" class="form-label">Dirección*</label>
-            <input type="text" class="form-control" value="<?php echo $direccion;?>" id="direccion"  name="direccion" placeholder="ej: Cll 12 #52-16" required>
+            <input type="text" class="form-control" id="direccion" name="direccion"
+                  placeholder="ej: Cll 12 #52-16"
+                  value="<?php echo $direccion; ?>" required>
           </div>
-          <div class="mb-3">
+          <div class="col-md-4">
             <label for="telefono" class="form-label">Teléfono</label>
-            <input type="number" class="form-control" value="<?php echo $telefono;?>" id="telefono" name="telefono" placeholder="">
+            <input type="number" class="form-control" id="telefono" name="telefono"
+                  value="<?php echo $telefono; ?>">
           </div>
-          <div class="mb-3">
-            <label for="correo" class="form-label">Correo Electronico*</label>
-            <input type="email" class="form-control" value="<?php echo $correo;?>" id="correo" name="correo" placeholder="example@correo.com" required>
+          <div class="col-md-4">
+            <label for="correo" class="form-label">Correo electrónico*</label>
+            <input type="email" class="form-control" id="correo" name="correo"
+                  placeholder="example@correo.com"
+                  value="<?php echo $correo; ?>" required>
           </div>
-          <div>
-            <label for="exampleFormControlInput1" class="form-label">Tipo de regimen*</label>
-            <select class="form-select" value="<?php echo $tipoRegimen;?>" id=tipoRegimen name="tipoRegimen" aria-label="Default select example" required>
-              <option selected>Seleccione un tipo de regimen</option>
+        </div>
+
+        <!-- Régimen y actividad -->
+        <div class="row g-3 mt-2">
+          <div class="col-md-6">
+            <label for="tipoRegimen" class="form-label">Tipo de régimen*</label>
+            <select class="form-select" id="tipoRegimen" name="tipoRegimen" required>
+              <option selected>Seleccione un tipo de régimen</option>
               <option value="Responsable de IVA">Responsable de IVA</option>
               <option value="No responsable de IVA">No responsable de IVA</option>
-              <option value="Regimen simple de tributación">Regimen simple de tributación</option>
-              <option value="Regimen simple de tributación">Regimen especial</option>
+              <option value="Regimen simple de tributación">Régimen simple de tributación</option>
+              <option value="Regimen especial">Régimen especial</option>
             </select>
           </div>
-          <br>
-          <div>
-            <label for="actividadEconomica" class="form-label">Actividad Económica</label>
-            <input type="text" class="form-control" value="<?php echo $actividadEconomica;?>" id="actividadEconomica" name="actividadEconomica" disabled>
+          <div class="col-md-6">
+            <label for="actividadEconomica" class="form-label">Actividad económica</label>
+            <input type="text" class="form-control" id="actividadEconomica" name="actividadEconomica"
+                  value="<?php echo $actividadEconomica; ?>" disabled>
           </div>
-          <br>
-          <div class="mb-3">
-            <label for="activo" class="form-label">Activo</label>
-            <input type="checkbox" class="" value="<?php echo $activo;?>" id="activo" name="activo" placeholder="">
-          </div>
-          <br>
-          <button value="btnAgregar" type="submit" class="btn btn-primary"  name="accion" >Agregar</button>
-          <button value="btnModificar" type="submit" class="btn btn-primary"  name="accion" >Modificar</button>
-          <button value="btnEliminar" type="submit" class="btn btn-primary"  name="accion" >Eliminar</button>
-        </form>
+        </div>
+
+        <!-- Activo -->
+        <div class="form-check mt-3">
+          <input type="checkbox" class="form-check-input" id="activo" name="activo"
+                <?php if ($activo) echo 'checked'; ?>>
+          <label class="form-check-label" for="activo">Activo</label>
+        </div>
+
+        <!-- Botones -->
+        <div class="mt-4">
+          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
+          <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion" style="display:none;">Modificar</button>
+          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-danger" name="accion" style="display:none;">Eliminar</button>
+          <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">Cancelar</button>
+        </div>
+      </form>
+
+        <br>
 
         <div class="row">
           <div class="table-container">
-
             <table>
               <thead>
                 <tr>
@@ -371,49 +446,39 @@ switch($accion){
                 <td><?php echo $usuario['ciudad']; ?></td>
                 <td><?php echo $usuario['direccion']; ?></td>
                 <td><?php echo $usuario['telefono']; ?></td>
-                <td><?php echo $usuario['tipoRegimen']; ?></td>
                 <td><?php echo $usuario['correo']; ?></td>
+                <td><?php echo $usuario['tipoRegimen']; ?></td>
                 <td><?php echo $usuario['actividadEconomica']; ?></td>
                 <td><?php echo $usuario['activo']; ?></td>
                 <td>
+                  <form action="" method="post" style="display: flex; justify-content: center; gap: 6px;">
+                    <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                    <input type="hidden" name="tipoTercero" value="<?php echo $usuario['tipoTercero']; ?>">
+                    <input type="hidden" name="tipoPersona" value="<?php echo $usuario['tipoPersona']; ?>">
+                    <input type="hidden" name="cedula" value="<?php echo $usuario['cedula']; ?>">
+                    <input type="hidden" name="digito" value="<?php echo $usuario['digito']; ?>">
+                    <input type="hidden" name="nombres" value="<?php echo $usuario['nombres']; ?>">
+                    <input type="hidden" name="apellidos" value="<?php echo $usuario['apellidos']; ?>">
+                    <input type="hidden" name="razonSocial" value="<?php echo $usuario['razonSocial']; ?>">
+                    <input type="hidden" name="departamento" value="<?php echo $usuario['departamento']; ?>">
+                    <input type="hidden" name="ciudad" value="<?php echo $usuario['ciudad']; ?>">
+                    <input type="hidden" name="direccion" value="<?php echo $usuario['direccion']; ?>">
+                    <input type="hidden" name="telefono" value="<?php echo $usuario['telefono']; ?>">
+                    <input type="hidden" name="correo" value="<?php echo $usuario['correo']; ?>">
+                    <input type="hidden" name="tipoRegimen" value="<?php echo $usuario['tipoRegimen']; ?>">
+                    <input type="hidden" name="actividadEconomica" value="<?php echo $usuario['actividadEconomica']; ?>">
+                    <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>">
 
-                <form action="" method="post">
-
-                <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>" >
-                <input type="hidden" name="tipoTercero" value="<?php echo $usuario['tipoTercero']; ?>" >
-                <input type="hidden" name="tipoPersona" value="<?php echo $usuario['tipoPersona']; ?>" >
-                <input type="hidden" name="cedula" value="<?php echo $usuario['cedula']; ?>" >
-                <input type="hidden" name="digito" value="<?php echo $usuario['digito']; ?>" >
-                <input type="hidden" name="nombres" value="<?php echo $usuario['nombres']; ?>" >
-                <input type="hidden" name="apellidos" value="<?php echo $usuario['apellidos']; ?>" >
-                <input type="hidden" name="razonSocial" value="<?php echo $usuario['razonSocial']; ?>" >
-                <input type="hidden" name="departamento" value="<?php echo $usuario['departamento']; ?>" >
-                <input type="hidden" name="ciudad" value="<?php echo $usuario['ciudad']; ?>" >
-                <input type="hidden" name="direccion" value="<?php echo $usuario['direccion']; ?>" >
-                <input type="hidden" name="telefono" value="<?php echo $usuario['telefono']; ?>" >
-                <input type="hidden" name="correo" value="<?php echo $usuario['correo']; ?>" >
-                <input type="hidden" name="tipoRegimen" value="<?php echo $usuario['tipoRegimen']; ?>" >
-                <input type="hidden" name="actividadEconomica" value="<?php echo $usuario['actividadEconomica']; ?>" >
-                <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>" >
-                <input type="submit" value="Editar" name="accion">
-                <button value="btnEliminar" type="submit" class="btn btn-primary"  name="accion" >Eliminar</button>
-                </form>
-
+                    <button type="submit" name="accion" value="Editar" class="btn-editar">Editar</button>
+                    <button type="submit" name="accion" value="btnEliminar" class="btn-eliminar">Eliminar</button>
+                  </form>
                 </td>
-
               </tr>
             <?php } ?>
-            </table>
-
-          
-          </div>
-          
+            </table>     
+          </div>         
         </div>
-
-
-
       <script>
-
 
         document.addEventListener('DOMContentLoaded', function () {
             const departamentos = {
@@ -808,8 +873,8 @@ switch($accion){
 
           // Habilitar campo de actividad económica si es Cliente o Proveedor
           if (tipoTercero) {
-              const isCliente = tipoTercero.value === "cliente";
-              const isProveedor = tipoTercero.value === "proveedor";
+              const isCliente = tipoTercero.value === "Cliente";
+              const isProveedor = tipoTercero.value === "Proveedor";
 
               document.getElementById("actividadEconomica").disabled = !(isCliente || isProveedor);
           }
@@ -817,70 +882,174 @@ switch($accion){
 
       function toggleTipoTercero() {
           const tipoTercero = document.querySelector('input[name="tipoTercero"]:checked');
-          document.getElementById("actividadEconomica").disabled = !(tipoTercero && (tipoTercero.value === "cliente" || tipoTercero.value === "proveedor"));
+          document.getElementById("actividadEconomica").disabled = !(tipoTercero && (tipoTercero.value === "Cliente" || tipoTercero.value === "Proveedor"));
       }
-    </script>
+      
+      // Script para alternar botones
+      document.addEventListener("DOMContentLoaded", function() {
+        const id = document.getElementById("txtId").value;
+        const btnAgregar = document.getElementById("btnAgregar");
+        const btnModificar = document.getElementById("btnModificar");
+        const btnEliminar = document.getElementById("btnEliminar");
+        const btnCancelar = document.getElementById("btnCancelar");
+        const form = document.getElementById("formularioTercero");
 
+        function modoAgregar() {
+          // Ocultar/mostrar botones
+          btnAgregar.style.display = "inline-block";
+          btnModificar.style.display = "none";
+          btnEliminar.style.display = "none";
+          btnCancelar.style.display = "none";
+
+          // Limpiar todos los campos manualmente
+          form.querySelectorAll("input, select, textarea").forEach(el => {
+            if (el.type === "radio" || el.type === "checkbox") {
+              el.checked = false;
+            } else {
+              el.value = "";
+            }
+          });
+
+          // Si tienes checkbox "Activo", lo marcamos por defecto
+          const chkActivo = document.querySelector('input[name="activo"]');
+          if (chkActivo) chkActivo.checked = true;
+
+          // Asegurar que el ID quede vacío
+          const txtId = document.getElementById("txtId");
+          if (txtId) txtId.value = "";
+        }
+
+        // Estado inicial (modo modificar o agregar)
+        if (id && id.trim() !== "") {
+          btnAgregar.style.display = "none";
+          btnModificar.style.display = "inline-block";
+          btnEliminar.style.display = "inline-block";
+          btnCancelar.style.display = "inline-block";
+        } else {
+          modoAgregar();
+        }
+
+        // Evento cancelar
+        btnCancelar.addEventListener("click", function(e) {
+          e.preventDefault();
+          modoAgregar();
+        });
+      });
+
+      document.addEventListener('DOMContentLoaded', function () {
+        const departamentos = {
+          'Amazonas': ['Leticia', 'El Encanto', 'La Chorrera', 'La Pedrera', 'La Victoria', 'Mirití - Paraná', 'Puerto Alegría', 'Puerto Arica', 'Puerto Nariño', 'Puerto Santander', 'Tarapacá'],
+          'Antioquia': ['Medellín', 'Abejorral', 'Abriaqui', 'Alejandria', 'Amaga', 'Amalfi'],
+          'Arauca': ['Arauca', 'Arauquita', 'Cravo Norte', 'Fortul', 'Puerto Rondon', 'Saravena', 'Tame']
+        };
+
+        const inputDepto = document.getElementById('departamento');
+        const selectCiudad = document.getElementById('ciudad');
+        const ciudadActual = "<?php echo $ciudad; ?>";
+
+        // --- Si el formulario está cargado con un departamento (modo edición) ---
+        if (inputDepto.value && departamentos[inputDepto.value]) {
+          selectCiudad.innerHTML = '<option value="">Selecciona una ciudad...</option>';
+          departamentos[inputDepto.value].forEach(ciudad => {
+            const option = document.createElement('option');
+            option.value = ciudad;
+            option.textContent = ciudad;
+            if (ciudad === ciudadActual) option.selected = true;
+            selectCiudad.appendChild(option);
+          });
+          selectCiudad.disabled = false;
+        }
+
+        // --- Activar campos según tipoPersona en modo edición ---
+        toggleFields();
+      });
+      </script>
+
+      <script>
+      function toggleFields() {
+        const personaNatural = document.getElementById("personaNatural").checked;
+        const personaJuridica = document.getElementById("personaJuridica").checked;
+
+        const nombres = document.getElementById("nombres");
+        const apellidos = document.getElementById("apellidos");
+        const razonSocial = document.getElementById("razonSocial");
+        const actividad = document.getElementById("actividadEconomica");
+
+        if (personaNatural) {
+          nombres.disabled = false;
+          apellidos.disabled = false;
+          razonSocial.disabled = true;
+          actividad.disabled = false;
+        } else if (personaJuridica) {
+          nombres.disabled = true;
+          apellidos.disabled = true;
+          razonSocial.disabled = false;
+          actividad.disabled = false;
+        } else {
+          nombres.disabled = true;
+          apellidos.disabled = true;
+          razonSocial.disabled = true;
+          actividad.disabled = true;
+        }
+      }
+      
+      // Funciones de confirmación con SweetAlert2
+      document.addEventListener("DOMContentLoaded", () => {
+        // Selecciona TODOS los formularios de la página
+        const forms = document.querySelectorAll("form");
+
+        forms.forEach((form) => {
+          form.addEventListener("submit", function (e) {
+            const boton = e.submitter; // botón que disparó el envío
+            const accion = boton?.value;
+
+            // Solo mostrar confirmación para modificar o eliminar
+            if (accion === "btnModificar" || accion === "btnEliminar") {
+              e.preventDefault(); // detener envío temporalmente
+
+              let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar registro?";
+              let texto = accion === "btnModificar"
+                ? "Se actualizarán los datos de esta cuenta contable."
+                : "Esta acción eliminará el registro permanentemente.";
+
+              Swal.fire({
+                title: titulo,
+                text: texto,
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonText: "Sí, continuar",
+                cancelButtonText: "Cancelar",
+                confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+                cancelButtonColor: "#6c757d",
+              }).then((result) => {
+                if (result.isConfirmed) {
+                  // 🔹 Crear (si no existe) un campo oculto con la acción seleccionada
+                  let inputAccion = form.querySelector("input[name='accionOculta']");
+                  if (!inputAccion) {
+                    inputAccion = document.createElement("input");
+                    inputAccion.type = "hidden";
+                    inputAccion.name = "accion";
+                    form.appendChild(inputAccion);
+                  }
+                  inputAccion.value = accion;
+
+                  form.submit(); // Enviar el formulario correspondiente
+                }
+              });
+            }
+          });
+        });
+      });
+    </script>
 
     </section><!-- End Services Section -->
 
   <!-- ======= Footer ======= -->
-  <footer id="footer">
-    <div class="footer-top">
-      <div class="container">
-        <div class="row">
-
-          <div class="col-lg-3 col-md-6 footer-links">
-            <h4>Useful Links</h4>
-            <ul>
-              <li><i class="bx bx-chevron-right"></i> <a target="_blank" href="https://udes.edu.co">UDES</a></li>
-              <li><i class="bx bx-chevron-right"></i> <a target="_blank" href="https://bucaramanga.udes.edu.co/estudia/pregrados/contaduria-publica">CONTADURIA PUBLICA</a></li>
-            </ul>
-          </div>
-
-          <div class="col-lg-3 col-md-6 footer-links">
-            <h4>Ubicación</h4>
-            <p>
-              Calle 70 N° 55-210, <br>
-              Bucaramanga, <br>
-              Santander <br><br>
-            </p>
-          </div>
-
-          <div class="col-lg-3 col-md-6 footer-contact">
-            <h4>Contactenos</h4>
-            <p>
-              <strong>Teléfono:</strong> (607) 6516500 <br>
-              <strong>Email:</strong> notificacionesudes@udes.edu.co <br>
-            </p>
-          </div>
-
-          <div class="col-lg-3 col-md-6 footer-info">
-            <h3>Redes Sociales</h3>
-            <p>A través de los siguientes link´s puedes seguirnos.</p>
-            <div class="social-links mt-3">
-              <a href="#" class="twitter"><i class="bx bxl-twitter"></i></a>
-              <a href="#" class="facebook"><i class="bx bxl-facebook"></i></a>
-              <a href="#" class="instagram"><i class="bx bxl-instagram"></i></a>
-              <a href="#" class="google-plus"><i class="bx bxl-skype"></i></a>
-              <a href="#" class="linkedin"><i class="bx bxl-linkedin"></i></a>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-
-    <div class="container">
-      <div class="copyright">
-        &copy; Copyright 2023 <strong><span> UNIVERSIDAD DE SANTANDER </span></strong>. All Rights Reserved
-      </div>
-      <div class="credits">
-        Creado por iniciativa del programa de <a href="https://bucaramanga.udes.edu.co/estudia/pregrados/contaduria-publica">Contaduría Pública</a>
-      </div>
-    </div>
+  <footer id="footer" class="footer-minimalista">
+    <p>Universidad de Santander - Ingeniería de Software</p>
+    <p>Todos los derechos reservados © 2025</p>
+    <p>Creado por iniciativa del programa de Contaduría Pública</p>
   </footer><!-- End Footer -->
-
 
   <div id="preloader"></div>
   <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
@@ -897,5 +1066,4 @@ switch($accion){
   <script src="assets/js/main.js"></script>
 
 </body>
-
 </html>

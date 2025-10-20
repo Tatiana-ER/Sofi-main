@@ -1,3 +1,4 @@
+<!-- Conexion a la base de datos de prueba, creada por Tatiana y Catalina para el modulo de libros-->
 <?php
 
     class connection{
