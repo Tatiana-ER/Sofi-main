@@ -202,6 +202,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <a class="nav-link scrollto active" href="index.php" style="color: darkblue;">Cerrar Sesión</a>
           </li>
         </ul>
+        <i class="bi bi-list mobile-nav-toggle"></i>
       </nav><!-- .navbar -->
     </div>
   </header><!-- End Header -->
@@ -786,6 +787,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   <!-- Template Main JS File -->
   <script src="assets/js/main.js"></script>
+
+    <!-- Script para el menú móvil -->
+  <script>
+  document.addEventListener("DOMContentLoaded", function() {
+    const toggle = document.querySelector(".mobile-nav-toggle");
+    const navMenu = document.querySelector(".navbar ul");
+
+    toggle.addEventListener("click", () => {
+      navMenu.classList.toggle("show");
+    });
+  });
+  </script>
 
 </body>
 

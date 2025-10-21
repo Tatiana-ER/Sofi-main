@@ -170,7 +170,7 @@ button {
 
 /* Services Section Improvements */
 #services {
-  padding: 120px 0 80px;
+  padding: 70px 0 60px;
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f1f5f9 100%);
   position: relative;
 }
@@ -602,21 +602,34 @@ td form {
 
 /* Estilos del botón regresar */
 .btn-ir {
-      background-color: #054a85;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 20px;
-      cursor: pointer;
-      font-size: 16px;
-      transition: 0.3s;
-      margin-left: 50px;
-    }
-    .btn-ir::before {
-      margin-right: 8px;
-      font-size: 18px;
-    }
+  background-color: #054a85;
+  color: white;
+  padding: 10px 25px;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-left: 40px; /* alineado a la izquierda */
+  margin-top: 15px;
+}
 
-    .btn-ir:hover {
-      background-color: #4c82b0ff;
-    }
+/* Hover effect */
+.btn-ir:hover {
+  background-color: #4c82b0ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+/* Responsive ajustes */
+@media (max-width: 768px) {
+  .btn-ir {
+    margin-left: 15px; /* reduce margen en móvil */
+    font-size: 15px;
+    padding: 10px 20px;
+  }
+}
