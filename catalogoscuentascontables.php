@@ -73,6 +73,7 @@ switch($accion){
     $sentencia = $pdo->prepare("DELETE FROM catalogoscuentascontables WHERE id = :id");
     $sentencia->bindParam(':id', $txtId);
     $sentencia->execute();
+    
     header("Location: ".$_SERVER['PHP_SELF']."?msg=eliminado");
     exit;
 
@@ -669,7 +670,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-        // Script para alternar botones
+      // Script para alternar botones
       document.addEventListener("DOMContentLoaded", function() {
         const id = document.getElementById("txtId").value;
         const btnAgregar = document.getElementById("btnAgregar");

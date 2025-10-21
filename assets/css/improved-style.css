@@ -170,7 +170,7 @@ button {
 
 /* Services Section Improvements */
 #services {
-  padding: 70px 0 60px;
+  padding: 120px 0 80px;
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f1f5f9 100%);
   position: relative;
 }
@@ -615,7 +615,7 @@ td form {
   justify-content: center;
   gap: 8px;
   margin-left: 40px; /* alineado a la izquierda */
-  margin-top: 15px;
+  margin-top: 1px;
 }
 
 /* Hover effect */
@@ -632,4 +632,23 @@ td form {
     font-size: 15px;
     padding: 10px 20px;
   }
+}
+
+/* Espaciado inferior para los formularios en las tablas */
+form {
+  margin-bottom: 4rem;
+}
+
+/* Estilos para las sugerencias de búsqueda */
+.sugerencias li:hover,
+.sugerencias li:focus,
+.sugerencias li.active {
+  background-color: #e9ecef; /* color de fondo suave al pasar el mouse */
+  color: #212529 !important; /* texto oscuro siempre visible */
+  cursor: pointer;
+}
+
+.sugerencias li {
+  color: #212529; /* color del texto normal */
+  background-color: #fff; /* fondo blanco por defecto */
 }

@@ -22,19 +22,28 @@ $descripcionProducto=(isset($_POST['descripcionProducto']))?$_POST['descripcionP
 $unidadMedida=(isset($_POST['unidadMedida']))?$_POST['unidadMedida']:"";
 $cantidad=(isset($_POST['cantidad']))?$_POST['cantidad']:"";
 $productoIva=(isset($_POST['productoIva']))?$_POST['productoIva']:"";
-$tipoTercero=(isset($_POST['tipoTercero']))?$_POST['tipoTercero']:"";
+$tipoItem=(isset($_POST['tipoItem']))?$_POST['tipoItem']:"";
 $facturacionCero=(isset($_POST['facturacionCero']))?$_POST['facturacionCero']:"";
 $activo=(isset($_POST['activo']))?$_POST['activo']:"";
 
 
 $accion=(isset($_POST['accion']))?$_POST['accion']:"";
 
+// Obtener todas las categorías registradas
+$sentenciaCategorias = $pdo->prepare("SELECT id, categoria FROM categoriainventarios ORDER BY categoria ASC");
+$sentenciaCategorias->execute();
+$categorias = $sentenciaCategorias->fetchAll(PDO::FETCH_ASSOC);
+
+// Convertir checkboxes a valores binarios
+$productoIva = isset($_POST['productoIva']) ? 1 : 0;
+$facturacionCero = isset($_POST['facturacionCero']) ? 1 : 0;
+$activo = isset($_POST['activo']) ? 1 : 0;
+
 switch($accion){
   case "btnAgregarCategoria":
 
       $sentencia=$pdo->prepare("INSERT INTO categoriainventarios(categoria,codigoCuentaVentas,cuentaVentas,codigoCuentaInventarios,cuentaInventarios,codigoCuentaCostos,cuentaCostos,codigoCuentaDevoluciones,cuentaDevoluciones) 
       VALUES (:categoria,:codigoCuentaVentas,:cuentaVentas,:codigoCuentaInventarios,:cuentaInventarios,:codigoCuentaCostos,:cuentaCostos,:codigoCuentaDevoluciones,:cuentaDevoluciones)");
-      
 
       $sentencia->bindParam(':categoria',$categoria);
       $sentencia->bindParam(':codigoCuentaVentas',$codigoCuentaVentas);
@@ -47,13 +56,15 @@ switch($accion){
       $sentencia->bindParam(':cuentaDevoluciones',$cuentaDevoluciones);
       $sentencia->execute();
 
-  echo "Presionaste"; 
+      header("Location: ".$_SERVER['PHP_SELF']."?msg=agregado");
+      exit; // Evita reenvío del formulario
+
   break;
 
   case "btnAgregarProducto":
 
-    $sentencia=$pdo->prepare("INSERT INTO productoinventarios(categoriaInventarios,codigoProducto,descripcionProducto,unidadMedida,cantidad,productoIva,tipoTercero,facturacionCero,activo) 
-    VALUES (:categoriaInventarios,:codigoProducto,:descripcionProducto,:unidadMedida,:cantidad,:productoIva,:tipoTercero,:facturacionCero,:activo)");
+    $sentencia=$pdo->prepare("INSERT INTO productoinventarios(categoriaInventarios,codigoProducto,descripcionProducto,unidadMedida,cantidad,productoIva,tipoItem,facturacionCero,activo) 
+    VALUES (:categoriaInventarios,:codigoProducto,:descripcionProducto,:unidadMedida,:cantidad,:productoIva,:tipoItem,:facturacionCero,:activo)");
     
 
     $sentencia->bindParam(':categoriaInventarios',$categoriaInventarios);
@@ -62,17 +73,69 @@ switch($accion){
     $sentencia->bindParam(':unidadMedida',$unidadMedida);
     $sentencia->bindParam(':cantidad',$cantidad);
     $sentencia->bindParam(':productoIva',$productoIva);
-    $sentencia->bindParam(':tipoTercero',$tipoTercero);
+    $sentencia->bindParam(':tipoItem',$tipoItem);
     $sentencia->bindParam(':facturacionCero',$facturacionCero);
     $sentencia->bindParam(':activo',$activo);
 
     $sentencia->execute();
 
-  echo "Presionaste"; 
+    header("Location: ".$_SERVER['PHP_SELF']."?msg=agregadoProducto");
+    exit; // Evita reenvío del formulario
+
   break;
 }
-
 ?>
+
+<?php if (isset($_GET['msg'])): ?>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  switch ("<?= $_GET['msg'] ?>") {
+    case "agregado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Guardada exitosamente',
+        text: 'La categoria se ha agregado correctamente',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+    
+    case "agregadoProducto":
+      Swal.fire({
+        icon: 'success',
+        title: 'Guardado exitosamente',
+        text: 'El producto se ha agregado correctamente',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "modificado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Modificado correctamente',
+        text: 'Los datos se actualizaron con éxito',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "eliminado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Eliminada correctamente',
+        text: 'La categoria fue eliminada del registro',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+  }
+
+  // Quita el parámetro ?msg=... de la URL sin recargar
+  if (window.history.replaceState) {
+    const url = new URL(window.location);
+    url.searchParams.delete('msg');
+    window.history.replaceState({}, document.title, url);
+  }
+});
+</script>
+<?php endif; ?>
 
 <!DOCTYPE html>
 <html lang="en">
@@ -101,6 +164,8 @@ switch($accion){
   <link href="assets/vendor/glightbox/css/glightbox.min.css" rel="stylesheet">
   <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
@@ -165,126 +230,190 @@ switch($accion){
 
     <!-- ======= Services Section ======= -->
     <section id="services" class="services">
-      <div class="container" data-aos="fade-up">
 
+      <button class="btn-ir" onclick="window.location.href='menucatalogos.php'">
+        <i class="fa-solid fa-arrow-left"></i> Regresar
+      </button>
+
+      <div class="container" data-aos="fade-up">
         <div class="section-title">
-          <br><br><br><br><br>
           <h2>CATÁLOGO DE INVENTARIOS</h2>
+          <p>Para crear una nueva categoría de inventarios diligencie los campos a continuación:</p>
+          <p class="text-muted">(Los campos marcados con * son obligatorios)</p>
         </div>
 
-        <div>
+        <!-- CATEGORÍAS -->
+        <div class="mt-4">
 
-          <div class="section-title"> 
-            <p>Para crear una nueva categoría de inventarios diligencie los campos a continuación:</p>
-            <p>(Los campos marcados con * son obligatorios)</p>
-          </div>
-          
-          <form action="" method="post">
+          <form action="" method="post" id="formCategorias">
+            <div class="row g-3">
+              <div class="col-md-3">
+                <label for="idcategoria" class="form-label fw-bold">Código Categoría*</label>
+                <input type="text" class="form-control" id="idcategoria" name="idcategoria"
+                      placeholder="Ej: 001" required>
+              </div>
 
-            <div class="mb-3">
-              <label for="categoria" class="form-label">Categoría*</label>
-              <input type="text" class="form-control" id="idcategoria" name="idcategoria" placeholder="Ingresa el codigo de la categoría" required>
-              <input type="text" class="form-control" id="categoria" name="categoria" placeholder="Ingresa el nombre de la categoría" required>
+              <div class="col-md-5">
+                <label for="categoria" class="form-label fw-bold">Nombre de la Categoría*</label>
+                <input type="text" class="form-control" id="categoria" name="categoria"
+                      placeholder="Ej: Electrodomésticos" required>
+              </div>
             </div>
 
-            <!-- Campo Ventas -->
-            <div class="form-group position-relative mb-4">
-              <label for="ventas">Código Ventas:</label>
-              <input type="text" class="form-control" id="ventas" placeholder="Ingresa código ventas" autocomplete="off">
-              <input type="text" class="form-control mt-1" id="nombre_ventas" placeholder="Nombre cuenta ventas" readonly>
+            <!-- Códigos contables asociados -->
+            <div class="row g-3 mt-2">
+              <div class="col-md-6">
+                <label for="ventas" class="form-label fw-bold">Código Ventas</label>
+                <input type="text" class="form-control" id="codigoCuentaVentas" name="codigoCuentaVentas" placeholder="Ingresa código ventas">
+                <input type="text" class="form-control mt-1" id="cuentaVentas" name="cuentaVentas" placeholder="Nombre cuenta ventas" readonly>
+              </div>
+
+              <div class="col-md-6">
+                <label for="inventarios" class="form-label fw-bold">Código Inventarios</label>
+                <input type="text" class="form-control" id="codigoCuentaInventarios" name="codigoCuentaInventarios" placeholder="Ingresa código inventarios">
+                <input type="text" class="form-control mt-1" id="cuentaInventarios" name="cuentaInventarios" placeholder="Nombre cuenta inventarios" readonly>
+              </div>
             </div>
 
-            <!-- Campo Inventarios -->
-            <div class="form-group position-relative mb-4">
-              <label for="inventarios">Código Inventarios:</label>
-              <input type="text" class="form-control" id="inventarios" placeholder="Ingresa código inventarios" autocomplete="off">
-              <input type="text" class="form-control mt-1" id="nombre_inventarios" placeholder="Nombre cuenta inventarios" readonly>
+            <div class="row g-3 mt-2">
+              <div class="col-md-6">
+                <label for="costos" class="form-label fw-bold">Código Costos</label>
+                <input type="text" class="form-control" id="codigoCuentaCostos" name="codigoCuentaCostos" placeholder="Ingresa código costos">
+                <input type="text" class="form-control mt-1" id="cuentaCostos" name="cuentaCostos" placeholder="Nombre cuenta costos" readonly>
+              </div>
+
+              <div class="col-md-6">
+                <label for="devoluciones" class="form-label fw-bold">Código Devoluciones</label>
+                <input type="text" class="form-control" id="codigoCuentaDevoluciones" name="codigoCuentaDevoluciones" placeholder="Ingresa código devoluciones">
+                <input type="text" class="form-control mt-1" id="cuentaDevoluciones" name="cuentaDevoluciones" placeholder="Nombre cuenta devoluciones" readonly>
+              </div>
             </div>
 
-            <!-- Campo Costos -->
-            <div class="form-group position-relative mb-4">
-              <label for="costos">Código Costos:</label>
-              <input type="text" class="form-control" id="costos" placeholder="Ingresa código costos" autocomplete="off">
-              <input type="text" class="form-control mt-1" id="nombre_costos" placeholder="Nombre cuenta costos" readonly>
+            <!-- Botón -->
+            <div class="mt-4">
+              <button id="btnAgregarCategoria" value="btnAgregarCategoria" type="submit" class="btn btn-primary" name="accion">
+                Guardar Categoría
+              </button>
             </div>
-
-            <!-- Campo Devoluciones -->
-            <div class="form-group position-relative mb-4">
-              <label for="devoluciones">Código Devoluciones:</label>
-              <input type="text" class="form-control" id="devoluciones" placeholder="Ingresa código devoluciones" autocomplete="off">
-              <input type="text" class="form-control mt-1" id="nombre_devoluciones" placeholder="Nombre cuenta devoluciones" readonly>
-            </div>
-            <button value="btnAgregarCategoria" type="submit" class="btn btn-primary"  name="accion" >Guardar Categoría</button>
-
           </form>
+        </div>
 
-        </div>  
-
-        <div>
-
-          <div class="section-title">
-            <br><br>
+        <!-- PRODUCTOS -->
+        <div class="mt-5">
+          <div  class="section-title">
             <p>Para crear un nuevo producto diligencie los campos a continuación:</p>
-            <p>(Los campos marcados con * son obligatorios)</p>
+            <p class="text-muted">(Los campos marcados con * son obligatorios)</p>
           </div>
 
-          
-          <form action="" method="post">
-            <!-- Campo para mostrar las categorías guardadas -->
-            <div class="mb-3">
-              <label for="categoriaInventarios" class="form-label">Categoría de inventarios</label>
-              <select id="categoriaInventarios" name="categoriaInventarios" class="form-control">
-                <option value="">Seleccione una categoría</option>
-              </select>
+          <form action="" method="post" id="formProductos">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="categoriaInventarios" class="form-label fw-bold">Categoría de inventarios*</label>
+                <select id="categoriaInventarios" name="categoriaInventarios" class="form-select" required>
+                  <option value="">Seleccione una categoría...</option>
+                  <?php foreach ($categorias as $cat): ?>
+                    <option value="<?php echo $cat['id']; ?>"><?php echo htmlspecialchars($cat['categoria']); ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
             </div>
 
-            <div class="mb-3">
-              <label for="producto" class="form-label">Código y descripción del producto/servicio</label>
-              <input type="text" class="form-control" id="codigoProducto" name="codigoProducto" placeholder="Ingresa el codigo">
-              <input type="text" class="form-control" id="descripcionProducto" name="descripcionProducto" placeholder="Ingresa el nombre del producto o servicio">
+            <div class="row g-3 mt-2">
+              <div class="col-md-3">
+                <label for="codigoProducto" class="form-label fw-bold">Código del producto*</label>
+                <input type="text" class="form-control" id="codigoProducto" name="codigoProducto"
+                      placeholder="Ej: P-001" required>
+              </div>
+
+              <div class="col-md-5">
+                <label for="descripcionProducto" class="form-label fw-bold">Descripción*</label>
+                <input type="text" class="form-control" id="descripcionProducto" name="descripcionProducto"
+                      placeholder="Nombre del producto o servicio" required>
+              </div>
+
+              <div class="col-md-4">
+                <label for="unidadMedida" class="form-label fw-bold">Unidad de medida</label>
+                <input type="text" class="form-control" id="unidadMedida" name="unidadMedida"
+                      placeholder="Ej: Unidad, Caja, Litro">
+              </div>
             </div>
 
-            <div class="mb-3">
-              <label for="unidadMedida" class="form-label">Unidad de medida</label>
-              <input type="text" class="form-control" id="unidadMedida" name="unidadMedida" placeholder="">
+            <div class="row g-3 mt-2">
+              <div class="col-md-3">
+                <label for="cantidad" class="form-label fw-bold">Cantidad</label>
+                <input type="number" class="form-control" id="cantidad" name="cantidad" min="0">
+              </div>
+
+              <div class="col-md-2 d-flex align-items-center">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input" id="productoIva" name="productoIva">
+                  <label class="form-check-label fw-bold" for="productoIva">Producto con IVA</label>
+                </div>
+              </div>
+
+              <div class="col-md-4 d-flex align-items-center">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input" id="facturacionCero" name="facturacionCero">
+                  <label class="form-check-label fw-bold" for="facturacionCero">
+                    Permite facturación con existencias en cero
+                  </label>
+                </div>
+              </div>
+
+              <div class="col-md-2 d-flex align-items-center">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input" id="activo" name="activo" required>
+                  <label class="form-check-label fw-bold" for="activo">Activo*</label>
+                </div>
+              </div>
             </div>
 
-            <div class="mb-3">
-              <label for="cantidad" class="form-label">Cantidad</label>
-              <input type="number" class="form-control" id="cantidad" name="cantidad" placeholder="">
+            <!-- Radio Buttons -->
+            <div class="row g-3 mt-3">
+              <div class="col-md-6">
+                <label class="form-label fw-bold">Tipo de ítem*</label><br>
+                <div class="form-check form-check-inline">
+                  <input type="radio" class="form-check-input" id="tipoProducto" name="tipoItem" value="producto" required>
+                  <label class="form-check-label" for="tipoProducto">Producto</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input type="radio" class="form-check-input" id="tipoServicio" name="tipoItem" value="servicio">
+                  <label class="form-check-label" for="tipoServicio">Servicio</label>
+                </div>
+              </div>
             </div>
 
-            <div class="mb-3">
-              <label for="productoIva" class="form-label">Producto con IVA?</label>
-              <input type="checkbox" class="" id="productoIva" name="productoIva" placeholder="">
+            <!-- Botón -->
+            <div class="mt-4">
+              <button value="btnAgregarProducto" type="submit" class="btn btn-primary" name="accion">
+                Guardar Producto/Servicio
+              </button>
             </div>
-            <div>
-              <label>
-                <input type="radio" name="tipoTercero" value="producto" onclick="toggleTipoTercero()">
-                Producto
-              </label>
-              <label>
-                <input type="radio" name="tipoTercero" value="servicio" onclick="toggleTipoTercero()">
-                Servicio
-              </label>
-            </div>
-            <br>
-            <div class="mb-3">
-              <label for="facturacionCero" class="form-label">Permite facturación con existencias en cero?</label>
-              <input type="checkbox" class="" id="facturacionCero" name="facturacionCero" placeholder="">
-            </div>
-            <div class="mb-3">
-              <label for="activo" class="form-label">Activo*</label>
-              <input type="checkbox" class="" id="activo" name="activo" placeholder="" required>
-            </div>
-            <button value="btnAgregarProducto" type="submit" class="btn btn-primary"  name="accion" >Guardar Producto/Servicio</button>
           </form>
-        
         </div>
 
         <script>
         document.addEventListener('DOMContentLoaded', function () {
+          // Datos de ejemplo (mantén o carga desde donde quieras)
           const cuentasContables = {
+            'codigoCuentaVentas': [
+              {codigo: '413501', nombre: 'Comercio al por mayor y al detal'},
+              {codigo: '417505', nombre: 'Devolución'},
+              {codigo: '418001', nombre: 'Servicios'}
+            ],
+            'codigoCuentaInventarios': [
+              {codigo: '143501', nombre: 'Mercancías no fabricadas'},
+              {codigo: '149801', nombre: 'Otros'}
+            ],
+            'codigoCuentaCostos': [
+              {codigo: '613505', nombre: 'Comercio al por mayor y al por menor'},
+              {codigo: '618001', nombre: 'Servicios'}
+            ],
+            'codigoCuentaDevoluciones': [
+              {codigo: '417505', nombre: 'Devolución'}
+            ],
+
+            // Soporte para claves antiguas (por si volvieron a usar los ids viejos)
             'ventas': [
               {codigo: '413501', nombre: 'Comercio al por mayor y al detal'},
               {codigo: '417505', nombre: 'Devolución'},
@@ -303,41 +432,133 @@ switch($accion){
             ]
           };
 
-          const keys = ['ventas', 'inventarios', 'costos', 'devoluciones'];
+          // Mapeo explícito: id del input de código -> id del input del nombre
+          const mapping = {
+            // nuevos nombres (recomendados según tu PHP)
+            'codigoCuentaVentas': 'cuentaVentas',
+            'codigoCuentaInventarios': 'cuentaInventarios',
+            'codigoCuentaCostos': 'cuentaCostos',
+            'codigoCuentaDevoluciones': 'cuentaDevoluciones',
 
-          keys.forEach(key => {
-            const input = document.getElementById(key);
-            const inputNombre = document.getElementById('nombre_' + key);
+            // antiguos (por compatibilidad)
+            'ventas': 'nombre_ventas',
+            'inventarios': 'nombre_inventarios',
+            'costos': 'nombre_costos',
+            'devoluciones': 'nombre_devoluciones'
+          };
 
-            input.addEventListener('input', function () {
-              const searchTerm = input.value.toLowerCase();
-              const filtered = cuentasContables[key].filter(c =>
+          // Recorremos las claves del mapping (asegura que chequea inputs viejos y nuevos)
+          Object.keys(mapping).forEach(key => {
+            const inputCodigo = document.getElementById(key);
+            const inputNombre = document.getElementById(mapping[key]);
+
+            // Si no existen ambos campos para esa clave, saltamos
+            if (!inputCodigo || !inputNombre) return;
+
+            // Escuchar 'input' para mostrar sugerencias
+            inputCodigo.addEventListener('input', function () {
+              const searchTerm = inputCodigo.value.trim().toLowerCase();
+              const sourceArray = cuentasContables[key] || [];
+              const filtered = sourceArray.filter(c =>
                 c.codigo.toLowerCase().includes(searchTerm) || c.nombre.toLowerCase().includes(searchTerm)
               );
-              mostrarSugerencias(filtered, input, inputNombre);
+              mostrarSugerencias(filtered, inputCodigo, inputNombre);
+            });
+
+            // También manejar tecla abajo/arriba + Enter (opcional)
+            inputCodigo.addEventListener('keydown', function(e) {
+              const ul = inputCodigo.parentNode.querySelector('.sugerencias');
+              if (!ul) return;
+              const items = Array.from(ul.querySelectorAll('li'));
+              const active = ul.querySelector('li.active');
+              let index = items.indexOf(active);
+
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (index < items.length - 1) index++;
+                else index = 0;
+                setActive(items, index);
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (index > 0) index--;
+                else index = items.length - 1;
+                setActive(items, index);
+              } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (items[index]) {
+                  items[index].dispatchEvent(new Event('selectFromList'));
+                }
+              }
             });
           });
 
-          function mostrarSugerencias(cuentas, input, inputNombre) {
-            limpiarSugerencias(input);
-            if (cuentas.length === 0) return;
+          function setActive(items, idx) {
+            items.forEach(i => i.classList.remove('active'));
+            if (items[idx]) items[idx].classList.add('active');
+          }
+
+          function mostrarSugerencias(cuentas, inputCodigo, inputNombre) {
+            limpiarSugerencias(inputCodigo);
+            if (!cuentas || cuentas.length === 0) return;
 
             const ul = document.createElement('ul');
-            ul.classList.add('sugerencias');
+            ul.classList.add('sugerencias', 'list-group');
+            ul.style.position = 'absolute';
+            ul.style.zIndex = '1000';
+            ul.style.width = '100%';
+            ul.style.maxHeight = '220px';
+            ul.style.overflowY = 'auto';
+            ul.style.marginTop = '6px';
 
             cuentas.forEach(c => {
               const li = document.createElement('li');
               li.textContent = `${c.codigo} - ${c.nombre}`;
-              li.classList.add('list-group-item');
-              li.addEventListener('click', () => {
-                input.value = c.codigo;
+              li.classList.add('list-group-item', 'list-group-item-action');
+              // Usamos pointerdown para que se ejecute ANTES del blur del input
+              li.addEventListener('pointerdown', function (ev) {
+                // Hacemos la asignación directamente
+                inputCodigo.value = c.codigo;
                 inputNombre.value = c.nombre;
-                limpiarSugerencias(input);
+                // Evitamos que otro manejador borre por blur antes
+                ev.preventDefault();
+                limpiarSugerencias(inputCodigo);
               });
+
+              // También permitimos seleccionar por teclado
+              li.addEventListener('selectFromList', function () {
+                inputCodigo.value = c.codigo;
+                inputNombre.value = c.nombre;
+                limpiarSugerencias(inputCodigo);
+              });
+
+              // Hover visual
+              li.addEventListener('mouseenter', () => {
+                li.classList.add('active');
+              });
+              li.addEventListener('mouseleave', () => {
+                li.classList.remove('active');
+              });
+
               ul.appendChild(li);
             });
 
-            input.parentNode.appendChild(ul);
+            // Posicionar el contenedor relativo si es necesario
+            // Esto asume que el padre tiene position: relative; si no, lo colocamos
+            const parent = inputCodigo.parentNode;
+            const computed = window.getComputedStyle(parent);
+            if (computed.position === 'static') {
+              parent.style.position = 'relative';
+            }
+
+            parent.appendChild(ul);
+
+            // Si el usuario hace click en otro lado, cerramos (con un pequeño delay si se quiere)
+            document.addEventListener('click', function onDocClick(e) {
+              if (!parent.contains(e.target)) {
+                limpiarSugerencias(inputCodigo);
+                document.removeEventListener('click', onDocClick);
+              }
+            });
           }
 
           function limpiarSugerencias(input) {
@@ -345,6 +566,54 @@ switch($accion){
             if (prev) prev.remove();
           }
         });
+
+        // Funciones de confirmación con SweetAlert2
+        document.addEventListener("DOMContentLoaded", () => {
+        // Selecciona TODOS los formularios de la página
+        const forms = document.querySelectorAll("form");
+
+        forms.forEach((form) => {
+          form.addEventListener("submit", function (e) {
+            const boton = e.submitter; // botón que disparó el envío
+            const accion = boton?.value;
+
+            // Solo mostrar confirmación para modificar o eliminar
+            if (accion === "btnModificar" || accion === "btnEliminar") {
+              e.preventDefault(); // detener envío temporalmente
+
+              let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar registro?";
+              let texto = accion === "btnModificar"
+                ? "Se actualizarán los datos de esta cuenta contable."
+                : "Esta acción eliminará el registro permanentemente.";
+
+              Swal.fire({
+                title: titulo,
+                text: texto,
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonText: "Sí, continuar",
+                cancelButtonText: "Cancelar",
+                confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+                cancelButtonColor: "#6c757d",
+              }).then((result) => {
+                if (result.isConfirmed) {
+                  // 🔹 Crear (si no existe) un campo oculto con la acción seleccionada
+                  let inputAccion = form.querySelector("input[name='accionOculta']");
+                  if (!inputAccion) {
+                    inputAccion = document.createElement("input");
+                    inputAccion.type = "hidden";
+                    inputAccion.name = "accion";
+                    form.appendChild(inputAccion);
+                  }
+                  inputAccion.value = accion;
+
+                  form.submit(); // Enviar el formulario correspondiente
+                }
+              });
+            }
+          });
+        });
+      });
         </script>
 
       </div>
