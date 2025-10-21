@@ -104,6 +104,45 @@ body {
   left: 100%;
 }
 
+/* ===== Responsive Navbar ===== */
+@media (max-width: 991px) {
+  .navbar ul {
+    display: none !important;
+    flex-direction: column !important;
+    background: white;
+    position: absolute;
+    top: 60px;
+    right: 20px;
+    width: 200px;
+    border-radius: 10px;
+    box-shadow: var(--shadow-md);
+    padding: 15px 0;
+    text-align: center;
+  }
+
+  .navbar ul.show {
+    display: flex !important;
+  }
+
+  .navbar ul li {
+    margin: 10px 0 !important;
+  }
+
+  .mobile-nav-toggle {
+    display: block;
+    font-size: 24px;
+    color: darkblue;
+    cursor: pointer;
+  }
+}
+
+/* En pantallas grandes, el botón del menú se oculta */
+@media (min-width: 992px) {
+  .mobile-nav-toggle {
+    display: none;
+  }
+}
+
 /* Boton inicio de sesión / Pagina inicio */
 .navbar ul form button {
   margin: 0 !important;
