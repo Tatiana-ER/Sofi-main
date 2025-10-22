@@ -21,13 +21,23 @@ switch($accion){
       $sentencia->bindParam(':cuentaContable',$cuentaContable);
 
       $sentencia->execute();
+      
+      header("Location: ".$_SERVER['PHP_SELF']."?msg=agregado");
+      exit; // Evita reenvío del formulario
 
+  break;
+
+  case "Editar":
+    // Rellenar los campos con los valores seleccionados
+    $txtId = $_POST['txtId'];
+    $metodoPago = $_POST['metodoPago'];
+    $cuentaContable = $_POST['cuentaContable'];
   break;
 
   case "btnModificar":
       $sentencia = $pdo->prepare("UPDATE mediosdepago 
                                   SET metodoPago = :metodoPago,
-                                      cuentaContable = :cuentaContable,
+                                      cuentaContable = :cuentaContable
                                   WHERE id = :id");
 
       // Enlazamos los parámetros 
@@ -39,8 +49,9 @@ switch($accion){
       // Ejecutamos la sentencia
       $sentencia->execute();
 
-      // Opcional: Redirigir o mostrar mensaje de éxito
-      echo "<script>alert('Datos actualizados correctamente');</script>";
+    // Redirigir y mostrar alerta
+    header("Location: ".$_SERVER['PHP_SELF']."?msg=modificado");
+    exit;
 
   break;
 
@@ -49,8 +60,8 @@ switch($accion){
     $sentencia = $pdo->prepare("DELETE FROM mediosdepago WHERE id = :id");
     $sentencia->bindParam(':id', $txtId);
     $sentencia->execute();
-
-
+    header("Location: ".$_SERVER['PHP_SELF']."?msg=eliminado");
+    exit;
   break;
 
 }
@@ -60,6 +71,71 @@ switch($accion){
   $lista=$sentencia->fetchALL(PDO::FETCH_ASSOC);
 
 ?>
+
+<?php if (isset($_GET['msg'])): ?>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const msg = "<?= $_GET['msg'] ?>";
+
+  switch (msg) {
+    case "agregado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Guardado exitosamente',
+        text: 'El método de pago se ha agregado correctamente',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "modificado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Modificado correctamente',
+        text: 'Los datos del método de pago se actualizaron con éxito',
+        confirmButtonColor: '#3085d6'
+      }).then(() => {
+        // 🔹 Restablecer el modo agregar
+        const form = document.getElementById("formMetodos");
+        if (form) {
+          form.reset(); // limpia los campos
+          document.getElementById("txtId").value = "";
+        }
+
+        // Mostrar solo el botón de agregar
+        document.getElementById("btnAgregar").style.display = "inline-block";
+        document.getElementById("btnModificar").style.display = "none";
+        document.getElementById("btnEliminar").style.display = "none";
+        document.getElementById("btnCancelar").style.display = "none";
+      });
+      break;
+
+    case "eliminado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Eliminado correctamente',
+        text: 'El método de pago fue eliminado del registro',
+        confirmButtonColor: '#3085d6'
+      }).then(() => {
+        const form = document.getElementById("formMetodos");
+        if (form) form.reset();
+        document.getElementById("btnAgregar").style.display = "inline-block";
+        document.getElementById("btnModificar").style.display = "none";
+        document.getElementById("btnEliminar").style.display = "none";
+        document.getElementById("btnCancelar").style.display = "none";
+      });
+      break;
+  }
+
+  // Quitar el parámetro ?msg=... de la URL
+  if (window.history.replaceState) {
+    const url = new URL(window.location);
+    url.searchParams.delete('msg');
+    window.history.replaceState({}, document.title, url);
+  }
+});
+</script>
+<?php endif; ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -88,38 +164,12 @@ switch($accion){
   <link href="assets/vendor/glightbox/css/glightbox.min.css" rel="stylesheet">
   <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-  <link href="assets/css/style.css" rel="stylesheet">
+  <link href="assets/css/improved-style.css" rel="stylesheet">
 
   <style> 
-    .table-container {
-      margin: 0 auto;
-      padding: 20px;
-      max-width: 95%;
-      width: 100%;
-      box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
-      background-color: #ffffff;
-      border-radius: 5px;
-      overflow-x: auto; /* Importante: activa el scroll horizontal */
-    }
-
-    table {
-      min-width: 1000px; /* O el valor mínimo que quieras para permitir el scroll */
-      width: max-content; /* Se adapta al contenido */
-      border-collapse: collapse;
-    }
-
-    th, td {
-      border: 1px solid black;
-      padding: 10px;
-      text-align: center;
-      white-space: nowrap; /* Evita que el texto se rompa en varias líneas */
-    }
-
-    th {
-      background-color: #f2f2f2;
-    }
-
     input[type="text"] {
       width: 100%;
       box-sizing: border-box;
@@ -143,7 +193,12 @@ switch($accion){
   <!-- ======= Header ======= -->
   <header id="header" class="fixed-top d-flex align-items-center ">
     <div class="container d-flex align-items-center justify-content-between">
-      <h1 class="logo"><a href="dashboard.php"> S O F I </a>  = >  Software Financiero </h1>
+      <h1 class="logo">
+        <a href="dashboard.php">
+          <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
+          Software Financiero
+        </a>
+      </h1>
       <nav id="navbar" class="navbar">
         <ul>
           <li>
@@ -156,179 +211,246 @@ switch($accion){
             <a class="nav-link scrollto active" href="index.php" style="color: darkblue;">Cerrar Sesión</a>
           </li>
         </ul>
-        <i class="bi bi-list mobile-nav-toggle"></i>
       </nav><!-- .navbar -->
     </div>
   </header><!-- End Header -->
 
     <!-- ======= Services Section ======= -->
-    <section id="services" class="services">
-      <div class="container" data-aos="fade-up">
 
-        <div class="section-title">
-          <br><br><br><br><br>
-          <h2>CATALOGO MEDIOS DE PAGO</h2>
-          <p>Para crear nueva forma de pago diligencie los campos a continuación:</p>
-          <p>(Los campos marcados con * son obligatorios)</p>
-        </div>
+<section id="services" class="services">
+  <button class="btn-ir" onclick="window.location.href='menucatalogos.php'">
+    <i class="fa-solid fa-arrow-left"></i> Regresar
+  </button>
+  <div class="container" data-aos="fade-up">
 
-        <form action="" method="post">
-          <div>
-            <label for="id" class="form-label">ID:</label>
-            <input type="text" class="form-control" value="<?php echo $txtId;?>" id="txtId" name="txtId">
-          </div>
-          <div class="container">
-            <label for="metodoPago" class="form-label">Método de Pago:</label>
-            <select id="metodoPago" value="<?php echo $metodoPago;?>" name="metodoPago" onchange="mostrarCuentaContable()" class="form-control">
-                <option value="">Selecciona un método de pago</option>
-                <option value="efectivo">Efectivo</option>
-                <option value="transferencia">Transferencia</option>
-                <option value="credito">Crédito</option>
-            </select>
-            <br>  
-            <label for="cuentaContable" class="form-label">Cuenta Contable:</label>
-            <input type="text" value="<?php echo $cuentaContable;?>" id="cuentaContable" name="cuentaContable" class="form-control">
-          </div>
-          <br>
-          <button value="btnAgregar" type="submit" class="btn btn-primary"  name="accion" >Guardar</button>
-          <button value="btnModificar" type="submit" class="btn btn-primary"  name="accion" >Modificar</button>
-          <button value="btnEliminar" type="submit" class="btn btn-primary"  name="accion" >Eliminar</button>
-        </form>
+    <div class="section-title">
+      <h2>CATÁLOGO MÉTODOS DE PAGO</h2>
+      <p>Para crear una nueva forma de pago diligencie los campos a continuación:</p>
+      <p>(Los campos marcados con * son obligatorios)</p>
+    </div>
 
-        <div class="row">
-          <div class="table-container">
+    <form id="formMetodos" action="" method="post" class="container mt-3">
 
-            <table>
-              <thead>
-                <tr>
-                  <th>Tipo tercero</th>
-                  <th>Tipo persona</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
-              <?php foreach($lista as $usuario){ ?>
-                <tr>
-                  <td><?php echo $usuario['metodoPago']; ?></td>
-                  <td><?php echo $usuario['cuentaContable']; ?></td>
-                  <td>
+      <!-- ID oculto -->
+      <input type="hidden" value="<?php echo $txtId; ?>" id="txtId" name="txtId">
 
-                  <form action="" method="post">
-
-                  <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>" >
-                  <input type="hidden" name="metodoPago" value="<?php echo $usuario['metodoPago']; ?>" >
-                  <input type="hidden" name="cuentaContable" value="<?php echo $usuario['cuentaContable']; ?>" >
-                  <input type="submit" value="Editar" name="accion">
-                  <button value="btnEliminar" type="submit" class="btn btn-primary"  name="accion" >Eliminar</button>
-                  </form>
-
-                  </td>
-
-                </tr>
-              <?php } ?>
-            </table>
-
-
-          </div>
-          
-        </div>
-
-        <script>
-            function mostrarCuentaContable() {
-                // Obtener el valor seleccionado en el select de método de pago
-                var metodoPago = document.getElementById("metodoPago").value;
-    
-                // Referencia al campo de cuenta contable
-                var cuentaContable = document.getElementById("cuentaContable");
-    
-                // Determinar la cuenta contable según el método de pago seleccionado
-                if (metodoPago === "efectivo") {
-                    cuentaContable.value = "Caja";
-                } else if (metodoPago === "transferencia") {
-                    cuentaContable.value = "Cuenta de Ahorros";
-                } else if (metodoPago === "credito") {
-                    cuentaContable.value = "Otros";
-                } else {
-                    cuentaContable.value = ""; // Limpiar si no se selecciona nada
-                }
-            }
-        </script>
-      </div>
-
-
-    </section><!-- End Services Section -->
-
-  <!-- ======= Footer ======= -->
-  <footer id="footer">
-    <div class="footer-top">
       <div class="container">
-        <div class="row">
+        <label for="metodoPago" class="form-label">Método de Pago:</label>
+        <select id="metodoPago" value="<?php echo $metodoPago;?>" name="metodoPago" onchange="mostrarCuentaContable()" class="form-control">
+          <option value="">Selecciona un método de pago</option>
+          <option value="efectivo" <?php if($metodoPago=='efectivo') echo 'selected'; ?>>Efectivo</option>
+          <option value="transferencia" <?php if($metodoPago=='transferencia') echo 'selected'; ?>>Transferencia</option>
+          <option value="credito" <?php if($metodoPago=='credito') echo 'selected'; ?>>Crédito</option>
+        </select>
+        <br>  
+        <label for="cuentaContable" class="form-label">Cuenta Contable:</label>
+        <input type="text" value="<?php echo $cuentaContable;?>" id="cuentaContable" name="cuentaContable" class="form-control">
+      </div>
 
-          <div class="col-lg-3 col-md-6 footer-links">
-            <h4>Useful Links</h4>
-            <ul>
-              <li><i class="bx bx-chevron-right"></i> <a target="_blank" href="https://udes.edu.co">UDES</a></li>
-              <li><i class="bx bx-chevron-right"></i> <a target="_blank" href="https://bucaramanga.udes.edu.co/estudia/pregrados/contaduria-publica">CONTADURIA PUBLICA</a></li>
-            </ul>
-          </div>
+      <!-- Botones -->
+      <div class="mt-4">
+        <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
+        <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion" style="display:none;">Modificar</button>
+        <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-danger" name="accion" style="display:none;">Eliminar</button>
+        <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">Cancelar</button>
+      </div>
+    </form>
 
-          <div class="col-lg-3 col-md-6 footer-links">
-            <h4>Ubicación</h4>
-            <p>
-              Calle 70 N° 55-210, <br>
-              Bucaramanga, <br>
-              Santander <br><br>
-            </p>
-          </div>
-
-          <div class="col-lg-3 col-md-6 footer-contact">
-            <h4>Contactenos</h4>
-            <p>
-              <strong>Teléfono:</strong> (607) 6516500 <br>
-              <strong>Email:</strong> notificacionesudes@udes.edu.co <br>
-            </p>
-          </div>
-
-          <div class="col-lg-3 col-md-6 footer-info">
-            <h3>Redes Sociales</h3>
-            <p>A través de los siguientes link´s puedes seguirnos.</p>
-            <div class="social-links mt-3">
-              <a href="#" class="twitter"><i class="bx bxl-twitter"></i></a>
-              <a href="#" class="facebook"><i class="bx bxl-facebook"></i></a>
-              <a href="#" class="instagram"><i class="bx bxl-instagram"></i></a>
-              <a href="#" class="google-plus"><i class="bx bxl-skype"></i></a>
-              <a href="#" class="linkedin"><i class="bx bxl-linkedin"></i></a>
-            </div>
-          </div>
-
-        </div>
+    <!-- Tabla -->
+    <div class="row">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Método de Pago</th>
+              <th>Cuenta Contable</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <?php foreach($lista as $usuario){ ?>
+          <tr>
+            <td><?php echo $usuario['metodoPago']; ?></td>
+            <td><?php echo $usuario['cuentaContable']; ?></td>
+            <td>
+              <form action="" method="post">
+                <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                <input type="hidden" name="metodoPago" value="<?php echo $usuario['metodoPago']; ?>">
+                <input type="hidden" name="cuentaContable" value="<?php echo $usuario['cuentaContable']; ?>">
+                <button value="btnEditar" type="submit" class="btn-editar" name="accion">Editar</button>
+                <button value="btnEliminar" type="submit" class="btn-eliminar" name="accion">Eliminar</button>
+              </form>
+            </td>
+          </tr>
+          <?php } ?>
+        </table>
       </div>
     </div>
 
-    <div class="container">
-      <div class="copyright">
-        &copy; Copyright 2023 <strong><span> UNIVERSIDAD DE SANTANDER </span></strong>. All Rights Reserved
-      </div>
-      <div class="credits">
-        Creado por iniciativa del programa de <a href="https://bucaramanga.udes.edu.co/estudia/pregrados/contaduria-publica">Contaduría Pública</a>
-      </div>
-    </div>
-  </footer><!-- End Footer -->
+<!-- Scripts -->
+<script>
+  function mostrarCuentaContable() {
+    var metodoPago = document.getElementById("metodoPago").value;
+    var cuentaContable = document.getElementById("cuentaContable");
 
+    if (metodoPago === "efectivo") {
+      cuentaContable.value = "Caja";
+    } else if (metodoPago === "transferencia") {
+      cuentaContable.value = "Cuenta de Ahorros";
+    } else if (metodoPago === "credito") {
+      cuentaContable.value = "Otros";
+    } else {
+      cuentaContable.value = "";
+    }
+  }
 
-  <div id="preloader"></div>
-  <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
+  // Control de botones
+  document.addEventListener("DOMContentLoaded", function() {
+    const id = document.getElementById("txtId").value;
+    const btnAgregar = document.getElementById("btnAgregar");
+    const btnModificar = document.getElementById("btnModificar");
+    const btnEliminar = document.getElementById("btnEliminar");
+    const btnCancelar = document.getElementById("btnCancelar");
+    const form = document.getElementById("formMetodos");
 
-  <!-- Vendor JS Files -->
-  <script src="assets/vendor/aos/aos.js"></script>
-  <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-  <script src="assets/vendor/glightbox/js/glightbox.min.js"></script>
-  <script src="assets/vendor/isotope-layout/isotope.pkgd.min.js"></script>
-  <script src="assets/vendor/swiper/swiper-bundle.min.js"></script>
-  <script src="assets/vendor/php-email-form/validate.js"></script>
+    function modoAgregar() {
+      btnAgregar.style.display = "inline-block";
+      btnModificar.style.display = "none";
+      btnEliminar.style.display = "none";
+      btnCancelar.style.display = "none";
 
-  <!-- Template Main JS File -->
-  <script src="assets/js/main.js"></script>
+      // Limpiar campos
+      form.querySelectorAll("input, select, textarea").forEach(el => {
+        if (el.type === "radio" || el.type === "checkbox") el.checked = false;
+        else el.value = "";
+      });
+      document.getElementById("txtId").value = "";
+    }
+
+    if (id && id.trim() !== "") {
+      btnAgregar.style.display = "none";
+      btnModificar.style.display = "inline-block";
+      btnEliminar.style.display = "inline-block";
+      btnCancelar.style.display = "inline-block";
+    } else {
+      modoAgregar();
+    }
+
+    btnCancelar.addEventListener("click", e => {
+      e.preventDefault();
+      modoAgregar();
+      form.reset();
+      document.getElementById("txtId").value = "";
+    });
+  });
+
+  // Confirmaciones SweetAlert2
+  document.addEventListener("DOMContentLoaded", () => {
+    const forms = document.querySelectorAll("form");
+
+    forms.forEach(form => {
+      form.addEventListener("submit", function(e) {
+        const boton = e.submitter;
+        const accion = boton?.value;
+
+        if (accion === "btnAgregar" || accion === "btnModificar" || accion === "btnEliminar") {
+          e.preventDefault();
+
+          let titulo = "";
+          let texto = "";
+          let icono = "warning";
+          let color = "#3085d6";
+
+          if (accion === "btnAgregar") {
+            titulo = "¿Desea agregar este método de pago?";
+            texto = "El nuevo método será registrado en el sistema.";
+            icono = "question";
+            color = "#198754";
+          } else if (accion === "btnModificar") {
+            titulo = "¿Guardar cambios?";
+            texto = "Se actualizarán los datos del método de pago.";
+          } else if (accion === "btnEliminar") {
+            titulo = "¿Eliminar registro?";
+            texto = "Esta acción eliminará el registro permanentemente.";
+            color = "#d33";
+          }
+
+          Swal.fire({
+            title: titulo,
+            text: texto,
+            icon: icono,
+            showCancelButton: true,
+            confirmButtonText: "Sí, continuar",
+            cancelButtonText: "Cancelar",
+            confirmButtonColor: color,
+            cancelButtonColor: "#6c757d",
+          }).then((result) => {
+            if (result.isConfirmed) {
+              let inputAccion = form.querySelector("input[name='accion']");
+              if (!inputAccion) {
+                inputAccion = document.createElement("input");
+                inputAccion.type = "hidden";
+                inputAccion.name = "accion";
+                form.appendChild(inputAccion);
+              }
+              inputAccion.value = accion;
+              form.submit();
+            }
+          });
+        }
+      });
+    });
+
+    // --- Mostrar mensaje de éxito al regresar de PHP ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const success = urlParams.get("success");
+
+    if (success === "agregado") {
+      Swal.fire({
+        title: "¡Registro guardado!",
+        text: "El método de pago se agregó correctamente.",
+        icon: "success",
+        confirmButtonColor: "#198754"
+      });
+    } else if (success === "modificado") {
+      Swal.fire({
+        title: "¡Cambios guardados!",
+        text: "El método de pago se actualizó correctamente.",
+        icon: "success",
+        confirmButtonColor: "#3085d6"
+      });
+    } else if (success === "eliminado") {
+      Swal.fire({
+        title: "¡Registro eliminado!",
+        text: "El método de pago se eliminó correctamente.",
+        icon: "success",
+        confirmButtonColor: "#d33"
+      });
+    }
+  });
+</script>
+
+<!-- ======= Footer ======= -->
+<footer id="footer" class="footer-minimalista">
+  <p>Universidad de Santander - Ingeniería de Software</p>
+  <p>Todos los derechos reservados © 2025</p>
+  <p>Creado por iniciativa del programa de Contaduría Pública</p>
+</footer><!-- End Footer -->
+
+<div id="preloader"></div>
+<a href="#" class="back-to-top d-flex align-items-center justify-content-center">
+  <i class="bi bi-arrow-up-short"></i>
+</a>
+
+<!-- Vendor JS Files -->
+<script src="assets/vendor/aos/aos.js"></script>
+<script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="assets/vendor/glightbox/js/glightbox.min.js"></script>
+<script src="assets/vendor/isotope-layout/isotope.pkgd.min.js"></script>
+<script src="assets/vendor/swiper/swiper-bundle.min.js"></script>
+<script src="assets/vendor/php-email-form/validate.js"></script>
+
+<!-- Template Main JS File -->
+<script src="assets/js/main.js"></script>
 
 </body>
-
 </html>
