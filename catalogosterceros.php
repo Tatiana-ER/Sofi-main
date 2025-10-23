@@ -11,7 +11,8 @@ function limpiar($valor) {
 
 // Recibir datos del formulario
 $txtId = limpiar($_POST['txtId'] ?? "");
-$tipoTercero = limpiar($_POST['tipoTercero'] ?? "");
+$tipoTerceroArray = $_POST['tipoTercero'] ?? [];
+$tipoTercero = implode(',', $tipoTerceroArray);
 $tipoPersona = limpiar($_POST['tipoPersona'] ?? "");
 $cedula = limpiar($_POST['cedula'] ?? "");
 $digito = limpiar($_POST['digito'] ?? "");
@@ -269,18 +270,18 @@ document.addEventListener("DOMContentLoaded", () => {
           <div class="col-md-4">
             <label class="form-label fw-bold">Tipo de tercero*</label><br>
             <div class="form-check form-check-inline">
-              <input type="radio" class="form-check-input" name="tipoTercero" value="Cliente"
-                    <?php if ($tipoTercero == 'Cliente') echo 'checked'; ?> onclick="toggleFields()">
+              <input type="checkbox" class="form-check-input" name="tipoTercero[]" value="Cliente"
+                    <?php if (strpos($tipoTercero, 'Cliente') !== false) echo 'checked'; ?>>
               <label class="form-check-label">Cliente</label>
             </div>
             <div class="form-check form-check-inline">
-              <input type="radio" class="form-check-input" name="tipoTercero" value="Proveedor"
-                    <?php if ($tipoTercero == 'Proveedor') echo 'checked'; ?> onclick="toggleFields()">
+              <input type="checkbox" class="form-check-input" name="tipoTercero[]" value="Proveedor"
+                    <?php if (strpos($tipoTercero, 'Proveedor') !== false) echo 'checked'; ?>>
               <label class="form-check-label">Proveedor</label>
             </div>
             <div class="form-check form-check-inline">
-              <input type="radio" class="form-check-input" name="tipoTercero" value="otro"
-                    <?php if ($tipoTercero == 'otro') echo 'checked'; ?> onclick="toggleFields()">
+              <input type="checkbox" class="form-check-input" name="tipoTercero[]" value="Otro"
+                    <?php if (strpos($tipoTercero, 'Otro') !== false) echo 'checked'; ?>>
               <label class="form-check-label">Otro</label>
             </div>
           </div>
@@ -852,36 +853,47 @@ document.addEventListener("DOMContentLoaded", () => {
 
     <script>
       function toggleFields() {
-          const personaNatural = document.getElementById("personaNatural").checked;
-          const personaJuridica = document.getElementById("personaJuridica").checked;
-          const tipoTercero = document.querySelector('input[name="tipoTercero"]:checked');
+        const personaNatural = document.getElementById("personaNatural").checked;
+        const personaJuridica = document.getElementById("personaJuridica").checked;
+        const tipoTerceros = document.querySelectorAll('input[name="tipoTercero[]"]:checked');
 
-          // Habilitar campos
-          document.getElementById("nombres").disabled = !personaNatural;
-          document.getElementById("apellidos").disabled = !personaNatural;
-          document.getElementById("razonSocial").disabled = !personaJuridica;
-          
+        // --- Habilitar campos según tipo de persona ---
+        document.getElementById("nombres").disabled = !personaNatural;
+        document.getElementById("apellidos").disabled = !personaNatural;
+        document.getElementById("razonSocial").disabled = !personaJuridica;
 
-          // Limpiar campos no habilitados
-          if (personaNatural) {
-              document.getElementById("nit").value = "";
-          } else if (personaJuridica) {
-              document.getElementById("cedula").value = "";
+        // --- Limpiar campos no habilitados ---
+        if (personaNatural) {
+          document.getElementById("nit").value = "";
+        } else if (personaJuridica) {
+          document.getElementById("cedula").value = "";
+        }
+
+        // --- Habilitar campo de actividad económica si se marca Cliente o Proveedor ---
+        let habilitarActividad = false;
+        tipoTerceros.forEach(tipo => {
+          if (tipo.value === "Cliente" || tipo.value === "Proveedor") {
+            habilitarActividad = true;
           }
+        });
 
-          // Habilitar campo de actividad económica si es Cliente o Proveedor
-          if (tipoTercero) {
-              const isCliente = tipoTercero.value === "Cliente";
-              const isProveedor = tipoTercero.value === "Proveedor";
-
-              document.getElementById("actividadEconomica").disabled = !(isCliente || isProveedor);
-          }
+        document.getElementById("actividadEconomica").disabled = !habilitarActividad;
       }
 
-      function toggleTipoTercero() {
-          const tipoTercero = document.querySelector('input[name="tipoTercero"]:checked');
-          document.getElementById("actividadEconomica").disabled = !(tipoTercero && (tipoTercero.value === "Cliente" || tipoTercero.value === "Proveedor"));
-      }
+      // Llamar cada vez que cambie algo
+      document.addEventListener("DOMContentLoaded", function() {
+        // Detectar cambios en persona natural / jurídica
+        document.getElementById("personaNatural").addEventListener("change", toggleFields);
+        document.getElementById("personaJuridica").addEventListener("change", toggleFields);
+
+        // Detectar cambios en tipo de tercero (Cliente / Proveedor / Otro)
+        document.querySelectorAll('input[name="tipoTercero[]"]').forEach(input => {
+          input.addEventListener("change", toggleFields);
+        });
+
+        // Llamar una vez al inicio
+        toggleFields();
+      });
       
       // Script para alternar botones
       document.addEventListener("DOMContentLoaded", function() {

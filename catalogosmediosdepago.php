@@ -166,6 +166,12 @@ document.addEventListener("DOMContentLoaded", () => {
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <!-- CSS de Select2 -->
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+  <!-- JS: jQuery y Select2 -->
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
@@ -244,7 +250,11 @@ document.addEventListener("DOMContentLoaded", () => {
         </select>
         <br>  
         <label for="cuentaContable" class="form-label">Cuenta Contable:</label>
-        <input type="text" value="<?php echo $cuentaContable;?>" id="cuentaContable" name="cuentaContable" class="form-control">
+        <select id="cuentaContable" name="cuentaContable" class="form-control" required>
+          <option value="">Selecciona una cuenta contable</option>
+          <!-- aquí tus opciones generadas en PHP -->
+        </select>
+
       </div>
 
       <!-- Botones -->
@@ -288,20 +298,90 @@ document.addEventListener("DOMContentLoaded", () => {
 
 <!-- Scripts -->
 <script>
-  function mostrarCuentaContable() {
-    var metodoPago = document.getElementById("metodoPago").value;
-    var cuentaContable = document.getElementById("cuentaContable");
+  document.addEventListener('DOMContentLoaded', function () {
+    const metodoPago = document.getElementById('metodoPago');
+    const cuentaSelect = document.getElementById('cuentaContable');
 
-    if (metodoPago === "efectivo") {
-      cuentaContable.value = "Caja";
-    } else if (metodoPago === "transferencia") {
-      cuentaContable.value = "Cuenta de Ahorros";
-    } else if (metodoPago === "credito") {
-      cuentaContable.value = "Otros";
-    } else {
-      cuentaContable.value = "";
+    // Cargar JSON una sola vez
+    fetch("cuentas_contables.json")
+      .then(response => {
+        if (!response.ok) throw new Error("No se pudo cargar el archivo JSON");
+        return response.json();
+      })
+      .then(datos => {
+        inicializarSelector(datos);
+      })
+      .catch(error => console.error("Error al cargar las cuentas contables:", error));
+
+    function inicializarSelector(datos) {
+      metodoPago.addEventListener('change', function () {
+        const metodo = metodoPago.value;
+        cuentaSelect.innerHTML = '<option value="">Selecciona una cuenta contable</option>';
+
+        // Filtrar las cuentas según el método de pago
+        let clases = [];
+
+        if (metodo === "efectivo") {
+          clases = ["1105-Caja"];
+        } else if (metodo === "transferencia") {
+          clases = ["1110-Bancos", "111005-Moneda nacional", "1120-Cuentas de ahorro"];
+        } else if (metodo === "credito") {
+          clases = ["2205-Nacionales", "2335-Costos y gastos por pagar", "1305-Clientes"];
+        }
+
+        // Recorrer todo el JSON (clase → grupo → cuenta → subcuenta)
+        for (const clase in datos) {
+          for (const grupo in datos[clase]) {
+            for (const cuenta in datos[clase][grupo]) {
+              const contenido = datos[clase][grupo][cuenta];
+
+              // Si la cuenta coincide con las que buscamos (nivel 3)
+              if (clases.includes(cuenta)) {
+                if (Array.isArray(contenido)) {
+                  contenido.forEach(sub => {
+                    const option = document.createElement("option");
+                    option.value = sub;
+                    option.textContent = `${cuenta} → ${sub}`;
+                    cuentaSelect.appendChild(option);
+                  });
+                } else if (typeof contenido === "object") {
+                  // Caso especial: hay un nivel más (como 111005-Moneda nacional)
+                  for (const subcuenta in contenido) {
+                    const subcontenido = contenido[subcuenta];
+                    if (Array.isArray(subcontenido)) {
+                      subcontenido.forEach(item => {
+                        const option = document.createElement("option");
+                        option.value = item;
+                        option.textContent = `${cuenta} → ${subcuenta} → ${item}`;
+                        cuentaSelect.appendChild(option);
+                      });
+                    }
+                  }
+                }
+              }
+
+              // También validar si hay coincidencias en un nivel más profundo (como 111005-Moneda nacional)
+              if (typeof contenido === "object" && !Array.isArray(contenido)) {
+                for (const subcuenta in contenido) {
+                  if (clases.includes(subcuenta)) {
+                    const subcontenido = contenido[subcuenta];
+                    if (Array.isArray(subcontenido)) {
+                      subcontenido.forEach(item => {
+                        const option = document.createElement("option");
+                        option.value = item;
+                        option.textContent = `${subcuenta} → ${item}`;
+                        cuentaSelect.appendChild(option);
+                      });
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
     }
-  }
+  });
 
   // Control de botones
   document.addEventListener("DOMContentLoaded", function() {
@@ -426,6 +506,14 @@ document.addEventListener("DOMContentLoaded", () => {
         confirmButtonColor: "#d33"
       });
     }
+  });
+
+  $(document).ready(function() {
+    $('#cuentaContable').select2({
+      placeholder: "Buscar o seleccionar una cuenta contable",
+      allowClear: true,
+      width: '100%'
+    });
   });
 </script>
   </div>

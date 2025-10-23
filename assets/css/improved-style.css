@@ -695,3 +695,32 @@ form {
   color: #212529; /* color del texto normal */
   background-color: #fff; /* fondo blanco por defecto */
 }
+
+/* Ajustar estilo de Select2 para parecerse al form-control */
+.select2-container--default .select2-selection--single {
+  background-color: #fff;
+  border: 1px solid #ced4da;
+  border-radius: 0.375rem; /* igual a Bootstrap */
+  height: calc(2.25rem + 2px);
+  display: flex;
+  align-items: center;
+  padding-left: 0.75rem;
+  font-size: 1rem;
+  box-shadow: none;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__arrow {
+  height: 100%;
+  right: 10px;
+}
+
+.select2-container--default .select2-selection--single .select2-selection__rendered {
+  color: #212529;
+  line-height: 2.25rem;
+}
+
+/* Cuando está enfocado */
+.select2-container--default.select2-container--focus .select2-selection--single {
+  border-color: #86b7fe;
+  box-shadow: 0 0 0 0.25rem rgba(13,110,253,.25);
+}
