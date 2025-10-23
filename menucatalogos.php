@@ -25,6 +25,8 @@
   <link href="assets/vendor/glightbox/css/glightbox.min.css" rel="stylesheet">
   <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
@@ -79,6 +81,9 @@
 
     <!-- ======= Services Section ======= -->
     <section id="services" class="services">
+      <button class="btn-ir" onclick="window.location.href='dashboard.php'">
+      <i class="fa-solid fa-arrow-left"></i> Regresar
+     </button>
       <div class="container" data-aos="fade-up">
 
         <div class="section-title">
@@ -152,5 +157,5 @@
   <script src="assets/js/main.js"></script>
 
 </body>
-
+    
 </html>

@@ -121,7 +121,7 @@
 
  <!-- Footer Minimalista -->
 <footer id="footer" class="footer-minimalista">
-  <p>Universidad de Santander - Ingeniría de Sotfware</p>
+  <p>Universidad de Santander - Ingeniería de Sotfware</p>
   <p>Todos los derechos reservados © 2025</p>
   <p>Creado por iniciativa del programa de Contaduría Pública</p>
 </footer>
