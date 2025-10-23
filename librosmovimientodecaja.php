@@ -203,8 +203,8 @@ foreach ($datos as $fila) {
         </div>
       </form>
 
-      <!-- ====== TABLA RESULTADOS ====== -->
-      <table class="table table-bordered">
+      <!-- ====== TABLA RESULTADOS --antes era class="table table-bordered" ====== -->
+      <table class="table-container">
         <thead style="background-color:#f8f9fa;">
           <tr>
             <th>Forma de pago</th>

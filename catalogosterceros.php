@@ -407,8 +407,6 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
       </form>
 
-        <br>
-
         <div class="row">
           <div class="table-container">
             <table>

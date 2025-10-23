@@ -166,7 +166,7 @@ $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
 
         <!-- INGRESOS -->
         <h2 class="mt-4">Ingresos</h2>
-        <table class="table table-bordered">
+        <table class="table-container">
           <thead style="background-color:#f8f9fa;">
             <tr>
               <th>Código</th>
@@ -191,7 +191,7 @@ $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
 
         <!-- COSTOS -->
         <h2 class="mt-4">Costos</h2>
-        <table class="table table-bordered">
+        <table class="table-container">
           <thead style="background-color:#f8f9fa;">
             <tr>
               <th>Código</th>
@@ -216,7 +216,7 @@ $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
 
         <!-- GASTOS -->
         <h2 class="mt-4">Gastos</h2>
-        <table class="table table-bordered">
+        <table class="table-container">
           <thead style="background-color:#f8f9fa;">
             <tr>
               <th>Código</th>
@@ -241,7 +241,7 @@ $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
 
         <!-- RESULTADO -->
         <h2 class="mt-4">Resultado del Ejercicio</h2>
-        <table class="table table-bordered">
+        <table class="table-container">
           <tr class="fw-bold">
             <td>Utilidad / (Pérdida)</td>
             <td class="text-end"><?= number_format($resultado_ejercicio,2) ?></td>

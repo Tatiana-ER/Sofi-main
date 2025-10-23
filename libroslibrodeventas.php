@@ -148,7 +148,7 @@ foreach ($ventas as $v) {
       </form>
 
       <!-- ====== TABLA DE RESULTADOS ====== -->
-      <table class="table table-bordered">
+      <table class="table-container">
         <thead style="background-color:#f8f9fa;">
           <tr>
             <th>Comprobante</th>

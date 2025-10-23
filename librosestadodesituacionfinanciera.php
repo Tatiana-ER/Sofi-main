@@ -156,7 +156,7 @@ foreach ($datos as $fila) {
           <div class="row d-flex">
               <div class="col-12">
                   <h2 class="mt-4">Activos</h2>
-                  <table class="table table-bordered">
+                  <table class="table-container">
                       <thead style="background-color:#f8f9fa;">
                           <tr>
                               <th>Código</th>
@@ -182,7 +182,7 @@ foreach ($datos as $fila) {
 
               <div class="col-12">
                   <h2 class="mt-4">Pasivos</h2>
-                  <table class="table table-bordered">
+                  <table class="table-container">
                       <thead style="background-color:#f8f9fa;">
                           <tr>
                               <th>Código</th>
@@ -208,7 +208,7 @@ foreach ($datos as $fila) {
 
               <div class="col-12">
                   <h2 class="mt-4">Patrimonio</h2>
-                  <table class="table table-bordered">
+                  <table class="table-container">
                       <thead style="background-color:#f8f9fa;">
                           <tr>
                               <th>Código</th>
