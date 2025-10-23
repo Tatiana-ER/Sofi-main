@@ -25,6 +25,8 @@
   <link href="assets/vendor/glightbox/css/glightbox.min.css" rel="stylesheet">
   <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>  
 
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
@@ -35,7 +37,12 @@
   <!-- ======= Header ======= -->
   <header id="header" class="fixed-top d-flex align-items-center ">
     <div class="container d-flex align-items-center justify-content-between">
-      <h1 class="logo"><a href="dashboard.php"> S O F I  = >  Software Financiero </a>  </h1>
+      <h1 class="logo">
+        <a href="dashboard.php">
+          <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
+          Software Financiero
+        </a>
+      </h1>
       <nav id="navbar" class="navbar">
         <ul>
           <li>
@@ -54,6 +61,9 @@
 
     <!-- ======= Services Section ======= -->
     <section id="services" class="services">
+            <button class="btn-ir" onclick="window.location.href='dashboard.php'">
+        <i class="fa-solid fa-arrow-left"></i> Regresar
+      </button>
       <div class="container" data-aos="fade-up">
 
         <div class="section-title">
@@ -116,62 +126,12 @@
       </div>
     </section><!-- End Services Section -->
 
-  <!-- ======= Footer ======= -->
-  <footer id="footer">
-    <div class="footer-top">
-      <div class="container">
-        <div class="row">
-
-          <div class="col-lg-3 col-md-6 footer-links">
-            <h4>Useful Links</h4>
-            <ul>
-              <li><i class="bx bx-chevron-right"></i> <a target="_blank" href="https://udes.edu.co">UDES</a></li>
-              <li><i class="bx bx-chevron-right"></i> <a target="_blank" href="https://bucaramanga.udes.edu.co/estudia/pregrados/contaduria-publica">CONTADURIA PUBLICA</a></li>
-            </ul>
-          </div>
-
-          <div class="col-lg-3 col-md-6 footer-links">
-            <h4>Ubicación</h4>
-            <p>
-              Calle 70 N° 55-210, <br>
-              Bucaramanga, <br>
-              Santander <br><br>
-            </p>
-          </div>
-
-          <div class="col-lg-3 col-md-6 footer-contact">
-            <h4>Contactenos</h4>
-            <p>
-              <strong>Teléfono:</strong> (607) 6516500 <br>
-              <strong>Email:</strong> notificacionesudes@udes.edu.co <br>
-            </p>
-          </div>
-
-          <div class="col-lg-3 col-md-6 footer-info">
-            <h3>Redes Sociales</h3>
-            <p>A través de los siguientes link´s puedes seguirnos.</p>
-            <div class="social-links mt-3">
-              <a href="#" class="twitter"><i class="bx bxl-twitter"></i></a>
-              <a href="#" class="facebook"><i class="bx bxl-facebook"></i></a>
-              <a href="#" class="instagram"><i class="bx bxl-instagram"></i></a>
-              <a href="#" class="google-plus"><i class="bx bxl-skype"></i></a>
-              <a href="#" class="linkedin"><i class="bx bxl-linkedin"></i></a>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-
-    <div class="container">
-      <div class="copyright">
-        &copy; Copyright 2023 <strong><span> UNIVERSIDAD DE SANTANDER </span></strong>. All Rights Reserved
-      </div>
-      <div class="credits">
-        Creado por iniciativa del programa de <a href="https://bucaramanga.udes.edu.co/estudia/pregrados/contaduria-publica">Contaduría Pública</a>
-      </div>
-    </div>
-  </footer><!-- End Footer -->
+    <!-- ======= Footer ======= -->
+    <footer id="footer" class="footer-minimalista">
+      <p>Universidad de Santander - Ingeniería de Software</p>
+      <p>Todos los derechos reservados © 2025</p>
+      <p>Creado por iniciativa del programa de Contaduría Pública</p>
+    </footer><!-- End Footer -->
 
 
   <div id="preloader"></div>

@@ -25,8 +25,10 @@
   <link href="assets/vendor/glightbox/css/glightbox.min.css" rel="stylesheet">
   <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-  <link href="assets/css/style.css" rel="stylesheet">
+  <link href="assets/css/improved-style.css" rel="stylesheet">
 
 </head>
 
@@ -35,7 +37,12 @@
   <!-- ======= Header ======= -->
   <header id="header" class="fixed-top d-flex align-items-center ">
     <div class="container d-flex align-items-center justify-content-between">
-      <h1 class="logo"><a href="dashboard.php"> S O F I </a>  = >  Software Financiero </h1>
+      <h1 class="logo">
+        <a href="dashboard.php">
+          <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
+          Software Financiero
+        </a>
+      </h1>
       <nav id="navbar" class="navbar">
         <ul>
           <li>
@@ -54,114 +61,64 @@
   </header><!-- End Header -->
 
    <!-- ======= Services Section ======= -->
-   <section id="services" class="services">
-    <div class="container" data-aos="fade-up">
+  <section id="services" class="services">
+    <button class="btn-ir" onclick="window.location.href='dashboard.php'">
+      <i class="fa-solid fa-arrow-left"></i> Regresar
+    </button>  
+  <div class="container" data-aos="fade-up">
 
-      <div class="section-title">
-        <br><br><br><br><br>
-        <h2>PARAMETROS DE DOCUMENTOS</h2>
-        <p>Para crear un nuevo tipo de documento diligencie los campos a continuación:</p>
-        <p>(Los campos marcados con * son obligatorios)</p>
-      </div>
-      
-      <div class="row">
-        <div class="col-md-6 d-flex align-items-stretch" data-aos="fade-up" data-aos-delay="100">
-          <div class="icon-box">
-            <i class="bi-clipboard2-check"></i>
-            <h4><a href="parametrosfacturadeventa.php">FACTURA DE VENTA</a></h4>
-            <p>Documento en el que se registra y respalda una transacción de venta de bienes o servicios. Es obligatorio y tiene valor legal, cumpliendo la función de soportar la transacción para fines contables, tributarios y legales, tanto para la empresa como para el Estado.</p>
-          </div>
-        </div>
-        <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="200">
-          <div class="icon-box">
-            <i class="bi bi-cash-stack"></i>
-            <h4><a href="parametrosfacturadecompra.php">FACTURA DE COMPRA</a></h4>
-            <p>Documento que se recibe de un comprador como comprobante de la adquisición del bien o servicio. Este documento lo emite el vendedor, pero para el comprador tiene un valor contable importante, pues este permite registrar el gasto o costo en la contabilidad, justificando la adquisición de producto o servicio y, en algunos casos, aplicar deducciones fiscales.</p>
-          </div>
-        </div>
-        <div class="row">
-          <div class="col-md-6 d-flex align-items-stretch" data-aos="fade-up" data-aos-delay="100">
-            <div class="icon-box">
-              <i class="bi-clipboard2-check"></i>
-              <h4><a href="parametrosrecibodecaja.php">RECIBO DE CAJA</a></h4>
-              <p>Es el documento en el que se registra la recepción de dinero por parte de la empresa. Este recibo se emite por quien recibe el dinero y se entrega al pagador como comprobante del pago realizado.</p>
-            </div>
-          </div>
-          <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="200">
-            <div class="icon-box">
-              <i class="bi bi-cash-stack"></i>
-              <h4><a href="parametroscomprobantedeegreso.php">COMPROBANTE DE EGRESO</a></h4>
-              <p>Documento contable utilizado para registrar la salida de dinero la empresa. Este comprobante respalda la transacción y permite llevar un control adecuado de los gastos realizados.</p>
-            </div>
-          </div>
-          <div class="row">
-            <div class="col-md-6 d-flex align-items-stretch" data-aos="fade-up" data-aos-delay="100">
-              <div class="icon-box">
-                <i class="bi-clipboard2-check"></i>
-                <h4><a href="parametroscomprobantecontable.php">COMPROBANTE CONTABLE</a></h4>
-                <p>Documento que se utiliza en la contabilidad para registrar y respaldar cualquier transacción financiera dentro de la empresa. Su objetivo es dejar constancia formal y detallada de las operaciones realizadas, ya sea ingresos, egresos, ajustes, transferencias u otros movimientos que afecten las cuentas de la empresa.</p>
-              </div>
-            </div>
+    <div class="section-title">
+      <h2>PARÁMETROS DE DOCUMENTOS</h2>
     </div>
-  </section><!-- End Services Section -->
+    <div class="row">
+      <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="100">
+        <div class="icon-box">
+          <i class="bi bi-clipboard2-check"></i>
+          <h4><a href="parametrosfacturadeventa.php">FACTURA DE VENTA</a></h4>
+          <p>Documento en el que se registra y respalda una transacción de venta de bienes o servicios. Es obligatorio y tiene valor legal, cumpliendo la función de soportar la transacción para fines contables, tributarios y legales, tanto para la empresa como para el Estado.</p>
+        </div>
+      </div>
 
+      <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="200">
+        <div class="icon-box">
+          <i class="bi bi-cash-stack"></i>
+          <h4><a href="parametrosfacturadecompra.php">FACTURA DE COMPRA</a></h4>
+          <p>Documento que se recibe de un comprador como comprobante de la adquisición del bien o servicio. Este documento lo emite el vendedor, pero para el comprador tiene un valor contable importante, pues este permite registrar el gasto o costo en la contabilidad, justificando la adquisición de producto o servicio y, en algunos casos, aplicar deducciones fiscales.</p>
+        </div>
+      </div>
 
-  <!-- ======= Footer ======= -->
-  <footer id="footer">
-    <div class="footer-top">
-      <div class="container">
-        <div class="row">
+      <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="300">
+        <div class="icon-box">
+          <i class="bi bi-clipboard2-check"></i>
+          <h4><a href="parametrosrecibodecaja.php">RECIBO DE CAJA</a></h4>
+          <p>Es el documento en el que se registra la recepción de dinero por parte de la empresa. Este recibo se emite por quien recibe el dinero y se entrega al pagador como comprobante del pago realizado.</p>
+        </div>
+      </div>
 
-          <div class="col-lg-3 col-md-6 footer-links">
-            <h4>Useful Links</h4>
-            <ul>
-              <li><i class="bx bx-chevron-right"></i> <a target="_blank" href="https://udes.edu.co">UDES</a></li>
-              <li><i class="bx bx-chevron-right"></i> <a target="_blank" href="https://bucaramanga.udes.edu.co/estudia/pregrados/contaduria-publica">CONTADURIA PUBLICA</a></li>
-            </ul>
-          </div>
-
-          <div class="col-lg-3 col-md-6 footer-links">
-            <h4>Ubicación</h4>
-            <p>
-              Calle 70 N° 55-210, <br>
-              Bucaramanga, <br>
-              Santander <br><br>
-            </p>
-          </div>
-
-          <div class="col-lg-3 col-md-6 footer-contact">
-            <h4>Contactenos</h4>
-            <p>
-              <strong>Teléfono:</strong> (607) 6516500 <br>
-              <strong>Email:</strong> notificacionesudes@udes.edu.co <br>
-            </p>
-          </div>
-
-          <div class="col-lg-3 col-md-6 footer-info">
-            <h3>Redes Sociales</h3>
-            <p>A través de los siguientes link´s puedes seguirnos.</p>
-            <div class="social-links mt-3">
-              <a href="#" class="twitter"><i class="bx bxl-twitter"></i></a>
-              <a href="#" class="facebook"><i class="bx bxl-facebook"></i></a>
-              <a href="#" class="instagram"><i class="bx bxl-instagram"></i></a>
-              <a href="#" class="google-plus"><i class="bx bxl-skype"></i></a>
-              <a href="#" class="linkedin"><i class="bx bxl-linkedin"></i></a>
-            </div>
-          </div>
-
+      <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="400">
+        <div class="icon-box">
+          <i class="bi bi-cash-stack"></i>
+          <h4><a href="parametroscomprobantedeegreso.php">COMPROBANTE DE EGRESO</a></h4>
+          <p>Documento contable utilizado para registrar la salida de dinero de la empresa. Este comprobante respalda la transacción y permite llevar un control adecuado de los gastos realizados.</p>
+        </div>
+      </div>
+      <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="400">
+        <div class="icon-box">
+          <i class="bi bi-cash-stack"></i>
+          <h4><a href="parametroscomprobantecontable.php">COMPROBANTE CONTABLE</a></h4>
+          <p>Documento que se utiliza en la contabilidad para registrar y respaldar cualquier transacción financiera dentro de la empresa. Su objetivo es dejar constancia formal y detallada de las operaciones realizadas, ya sea ingresos, egresos, ajustes, transferencias u otros movimientos que afecten las cuentas de la empresa.</p>
         </div>
       </div>
     </div>
+  </div> 
+</section><!-- End Services Section -->
 
-    <div class="container">
-      <div class="copyright">
-        &copy; Copyright 2023 <strong><span> UNIVERSIDAD DE SANTANDER </span></strong>. All Rights Reserved
-      </div>
-      <div class="credits">
-        Creado por iniciativa del programa de <a href="https://bucaramanga.udes.edu.co/estudia/pregrados/contaduria-publica">Contaduría Pública</a>
-      </div>
-    </div>
-  </footer><!-- End Footer -->
+    <!-- ======= Footer ======= -->
+    <footer id="footer" class="footer-minimalista">
+      <p>Universidad de Santander - Ingeniería de Software</p>
+      <p>Todos los derechos reservados © 2025</p>
+      <p>Creado por iniciativa del programa de Contaduría Pública</p>
+    </footer><!-- End Footer -->
 
 
   <div id="preloader"></div>
