@@ -38,10 +38,9 @@ $sql_filtros_catalogo = implode(" OR ", array_map(function($code) {
     return "c.cuenta LIKE '{$code}-%'"; 
 }, $codigos_prefijo));
 
-// -----------------------------------------------------
+
 // PARTE A: Consulta a `cuentas_contables` (Maestra)
 // (Esta parte trae nivel 3, 4 y 5/6, sin cambios grandes, solo ajustando el filtro)
-// -----------------------------------------------------
 
 $sql_maestra = "
     SELECT DISTINCT nivel3, nivel4, nivel5, nivel6
@@ -76,10 +75,8 @@ foreach ($resultados_maestra as $row) {
     }
 }
 
-// -----------------------------------------------------
 // PARTE B: Consulta a `catalogoscuentascontables` (Personalizadas Nivel 5/6)
 // Corregido para usar el campo 'auxiliar'
-// -----------------------------------------------------
 
 $sql_catalogo = "
     SELECT DISTINCT c.auxiliar 
