@@ -1,75 +1,92 @@
 <?php
-
 include ("connection.php");
 
 $conn = new connection();
 $pdo = $conn->connect();
 
-$txtId=(isset($_POST['txtId']))?$_POST['txtId']:"";
-$codigoDocumento=(isset($_POST['codigoDocumento']))?$_POST['codigoDocumento']:"";
-$descripcionDocumento=(isset($_POST['descripcionDocumento']))?$_POST['descripcionDocumento']:"";
-$resolucionDian=(isset($_POST['resolucionDian']))?$_POST['resolucionDian']:"";
-$numeroResolucion=(isset($_POST['numeroResolucion']))?$_POST['numeroResolucion']:"";
-$fechaInicio=(isset($_POST['fechaInicio']))?$_POST['fechaInicio']:"";
-$vigencia=(isset($_POST['vigencia']))?$_POST['vigencia']:"";
-$fechaFinalizacion=(isset($_POST['fechaFinalizacion']))?$_POST['fechaFinalizacion']:"";
-$prefijo=(isset($_POST['prefijo']))?$_POST['prefijo']:"";
-$consecutivoInicial=(isset($_POST['consecutivoInicial']))?$_POST['consecutivoInicial']:"";
-$consecutivoFinal=(isset($_POST['consecutivoFinal']))?$_POST['consecutivoFinal']:"";
-$retenciones=(isset($_POST['retenciones']))?$_POST['retenciones']:"";
-$tipoRetencion=(isset($_POST['tipoRetencion']))?$_POST['tipoRetencion']:"";
-$autoRetenciones=(isset($_POST['autoRetenciones']))?$_POST['autoRetenciones']:"";
-$tipoAutoretencion=(isset($_POST['tipoAutoretencion']))?$_POST['tipoAutoretencion']:"";
-$activo=(isset($_POST['activo']))?$_POST['activo']:"";
+$txtId = $_POST['txtId'] ?? "";
+$codigoDocumento = $_POST['codigoDocumento'] ?? "";
+$descripcionDocumento = $_POST['descripcionDocumento'] ?? "";
+$resolucionDian = $_POST['resolucionDian'] ?? "";
+$numeroResolucion = $_POST['numeroResolucion'] ?? "";
+$fechaInicio = $_POST['fechaInicio'] ?? "";
+$vigencia = $_POST['vigencia'] ?? "";
+$fechaFinalizacion = $_POST['fechaFinalizacion'] ?? "";
+$prefijo = $_POST['prefijo'] ?? "";
+$consecutivoInicial = $_POST['consecutivoInicial'] ?? "";
+$consecutivoFinal = $_POST['consecutivoFinal'] ?? "";
+$retenciones = $_POST['retenciones'] ?? "";
+$tipoRetencion = $_POST['tipoRetencion'] ?? "";
+$autoRetenciones = $_POST['autoRetenciones'] ?? "";
+$tipoAutoretencion = $_POST['tipoAutoretencion'] ?? "";
+$activo = $_POST['activo'] ?? "";
 
-$accion=(isset($_POST['accion']))?$_POST['accion']:"";
+$accion = $_POST['accion'] ?? "";
+
+// Inicializa $lista para evitar el warning
+$lista = [];
 
 switch($accion){
   case "btnAgregar":
+      $sentencia = $pdo->prepare("INSERT INTO facturadeventa(
+        codigoDocumento, descripcionDocumento, resolucionDian, numeroResolucion,
+        fechaInicio, vigencia, fechaFinalizacion, prefijo,
+        consecutivoInicial, consecutivoFinal, retenciones, tipoRetencion,
+        autoRetenciones, tipoAutoretencion, activo
+      ) VALUES (
+        :codigoDocumento, :descripcionDocumento, :resolucionDian, :numeroResolucion,
+        :fechaInicio, :vigencia, :fechaFinalizacion, :prefijo,
+        :consecutivoInicial, :consecutivoFinal, :retenciones, :tipoRetencion,
+        :autoRetenciones, :tipoAutoretencion, :activo
+      )");
 
-      $sentencia=$pdo->prepare("INSERT INTO facturadeventa(codigoDocumento,descripcionDocumento,resolucionDian,numeroResolucion,fechaInicio,vigencia,fechaFinalizacion,prefijo,consecutivoInicial,consecutivoFinal,retenciones,tipoRetencion,autoRetenciones,tipoAutoretencion,activo) 
-      VALUES (:codigoDocumento,:descripcionDocumento,:resolucionDian,:numeroResolucion,:fechaInicio,:vigencia,:fechaFinalizacion,:prefijo,:consecutivoInicial,:consecutivoFinal,:retenciones,:tipoRetencion,:autoRetenciones,:tipoAutoretencion,:activo)");
-      
-
-      $sentencia->bindParam(':codigoDocumento',$codigoDocumento);
-      $sentencia->bindParam(':descripcionDocumento',$descripcionDocumento);
-      $sentencia->bindParam(':resolucionDian',$resolucionDian);
-      $sentencia->bindParam(':numeroResolucion',$numeroResolucion);
-      $sentencia->bindParam(':fechaInicio',$fechaInicio);
-      $sentencia->bindParam(':vigencia',$vigencia);
-      $sentencia->bindParam(':fechaFinalizacion',$fechaFinalizacion);
-      $sentencia->bindParam(':prefijo',$prefijo);
-      $sentencia->bindParam(':consecutivoInicial',$consecutivoInicial);
-      $sentencia->bindParam(':consecutivoFinal',$consecutivoFinal);
-      $sentencia->bindParam(':retenciones',$retenciones);
-      $sentencia->bindParam(':tipoRetencion',$tipoRetencion);
-      $sentencia->bindParam(':autoRetenciones',$autoRetenciones);
-      $sentencia->bindParam(':tipoAutoretencion',$tipoAutoretencion);
-      $sentencia->bindParam(':activo',$activo);
+      $sentencia->bindParam(':codigoDocumento', $codigoDocumento);
+      $sentencia->bindParam(':descripcionDocumento', $descripcionDocumento);
+      $sentencia->bindParam(':resolucionDian', $resolucionDian);
+      $sentencia->bindParam(':numeroResolucion', $numeroResolucion);
+      $sentencia->bindParam(':fechaInicio', $fechaInicio);
+      $sentencia->bindParam(':vigencia', $vigencia);
+      $sentencia->bindParam(':fechaFinalizacion', $fechaFinalizacion);
+      $sentencia->bindParam(':prefijo', $prefijo);
+      $sentencia->bindParam(':consecutivoInicial', $consecutivoInicial);
+      $sentencia->bindParam(':consecutivoFinal', $consecutivoFinal);
+      $sentencia->bindParam(':retenciones', $retenciones);
+      $sentencia->bindParam(':tipoRetencion', $tipoRetencion);
+      $sentencia->bindParam(':autoRetenciones', $autoRetenciones);
+      $sentencia->bindParam(':tipoAutoretencion', $tipoAutoretencion);
+      $sentencia->bindParam(':activo', $activo);
       $sentencia->execute();
 
+      // Mostrar alerta con SweetAlert2
+      echo "<script>
+        document.addEventListener('DOMContentLoaded', () => {
+          Swal.fire({
+            icon: 'success',
+            title: 'Guardado correctamente',
+            text: 'El registro se ha agregado a la base de datos.'
+          });
+        });
+      </script>";
   break;
 
   case "btnModificar":
-      $sentencia = $pdo->prepare("UPDATE facturadeventa 
-                                  SET codigoDocumento = :codigoDocumento,
-                                      descripcionDocumento = :descripcionDocumento,
-                                      resolucionDian = :resolucionDian,
-                                      numeroResolucion = :numeroResolucion,
-                                      fechaInicio = :fechaInicio,
-                                      vigencia = :vigencia,
-                                      fechaFinalizacion = :fechaFinalizacion,
-                                      prefijo = :prefijo,
-                                      consecutivoInicial = :consecutivoInicial,
-                                      consecutivoFinal = :consecutivoFinal,
-                                      retenciones = :retenciones,
-                                      tipoRetencion = :tipoRetencion,
-                                      autoRetenciones = :autoRetenciones,
-                                      tipoAutoretencion = :tipoAutoretencion,
-                                      activo = :activo
-                                  WHERE id = :id");
-
-      // Enlazamos los parámetros 
+      $sentencia = $pdo->prepare("UPDATE facturadeventa SET 
+          codigoDocumento = :codigoDocumento,
+          descripcionDocumento = :descripcionDocumento,
+          resolucionDian = :resolucionDian,
+          numeroResolucion = :numeroResolucion,
+          fechaInicio = :fechaInicio,
+          vigencia = :vigencia,
+          fechaFinalizacion = :fechaFinalizacion,
+          prefijo = :prefijo,
+          consecutivoInicial = :consecutivoInicial,
+          consecutivoFinal = :consecutivoFinal,
+          retenciones = :retenciones,
+          tipoRetencion = :tipoRetencion,
+          autoRetenciones = :autoRetenciones,
+          tipoAutoretencion = :tipoAutoretencion,
+          activo = :activo
+        WHERE id = :id");
 
       $sentencia->bindParam(':codigoDocumento', $codigoDocumento);
       $sentencia->bindParam(':descripcionDocumento', $descripcionDocumento);
@@ -87,24 +104,40 @@ switch($accion){
       $sentencia->bindParam(':tipoAutoretencion', $tipoAutoretencion);
       $sentencia->bindParam(':activo', $activo);
       $sentencia->bindParam(':id', $txtId);
-
-      // Ejecutamos la sentencia
       $sentencia->execute();
 
-      // Opcional: Redirigir o mostrar mensaje de éxito
-      echo "<script>alert('Datos actualizados correctamente');</script>";
-
+      echo "<script>
+        document.addEventListener('DOMContentLoaded', () => {
+          Swal.fire({
+            icon: 'success',
+            title: 'Actualizado correctamente',
+            text: 'Los cambios se guardaron exitosamente.'
+          });
+        });
+      </script>";
   break;
 
   case "btnEliminar":
+      $sentencia = $pdo->prepare("DELETE FROM facturadeventa WHERE id = :id");
+      $sentencia->bindParam(':id', $txtId);
+      $sentencia->execute();
 
-    $sentencia = $pdo->prepare("DELETE FROM facturadeventa WHERE id = :id");
-    $sentencia->bindParam(':id', $txtId);
-    $sentencia->execute();
-
-
+      echo "<script>
+        document.addEventListener('DOMContentLoaded', () => {
+          Swal.fire({
+            icon: 'info',
+            title: 'Registro eliminado',
+            text: 'El registro ha sido borrado correctamente.'
+          });
+        });
+      </script>";
   break;
 }
+
+// Consulta para llenar la tabla y evitar el warning
+$sentencia = $pdo->prepare("SELECT * FROM facturadeventa");
+$sentencia->execute();
+$lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
 
 ?>
 
@@ -288,77 +321,79 @@ switch($accion){
       </form>
 
       <div class="row">
-          <div class="table-container">
+     <div class="table-container">
 
-            <table>
-              <thead>
-                <tr>
-                  <th>Codigo Documento</th>
-                  <th>Descripción Documento</th>
-                  <th>Resolucion Dian?</th>
-                  <th>Numero de Resolucion</th>
-                  <th>Fecha Inicio</th>
-                  <th>Vigencia</th>
-                  <th>Fecha Finalizacion</th>
-                  <th>Prefijo</th>
-                  <th>Consecutivo Inicial</th>
-                  <th>Consecutivo Final</th>
-                  <th>Retenciones</th>
-                  <th>Tipo Retencion</th>
-                  <th>Autoretenciones</th>
-                  <th>Tipo de regimen</th>
-                  <th>Activo</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
-            </table>
+     <table class="table-container">
+      <thead>
+        <tr>
+          <th>Codigo Documento</th>
+          <th>Descripción Documento</th>
+          <th>Resolucion Dian</th>
+          <th>Numero de Resolución</th>
+          <th>Fecha Inicio</th>
+          <th>Vigencia</th>
+          <th>Fecha Finalización</th>
+          <th>Prefijo</th>
+          <th>Consecutivo Inicial</th>
+          <th>Consecutivo Final</th>
+          <th>Retenciones</th>
+          <th>Tipo Retención</th>
+          <th>Autoretenciones</th>
+          <th>Tipo de regimen</th>
+          <th>Activo</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
 
-            <?php foreach($lista as $usuario){ ?>
-              <tr>
-                <td><?php echo $usuario['codigoDocumento']; ?></td>
-                <td><?php echo $usuario['descripcionDocumento']; ?></td>
-                <td><?php echo $usuario['resolucionDian']; ?></td>
-                <td><?php echo $usuario['numeroResolucion']; ?></td>
-                <td><?php echo $usuario['fechaInicio']; ?></td>
-                <td><?php echo $usuario['vigencia']; ?></td>
-                <td><?php echo $usuario['fechaFinalizacion']; ?></td>
-                <td><?php echo $usuario['prefijo']; ?></td>
-                <td><?php echo $usuario['consecutivoInicial']; ?></td>
-                <td><?php echo $usuario['consecutivoFinal']; ?></td>
-                <td><?php echo $usuario['retenciones']; ?></td>
-                <td><?php echo $usuario['tipoRetencion']; ?></td>
-                <td><?php echo $usuario['autoRetenciones']; ?></td>
-                <td><?php echo $usuario['correo']; ?></td>
-                <td><?php echo $usuario['activo']; ?></td>
-                <td>
+      <tbody>
+        <?php foreach($lista as $usuario){ ?>
+          <tr>
+            <td><?php echo htmlspecialchars($usuario['codigoDocumento']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['descripcionDocumento']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['resolucionDian']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['numeroResolucion']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['fechaInicio']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['vigencia']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['fechaFinalizacion']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['prefijo']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['consecutivoInicial']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['consecutivoFinal']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['retenciones']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['tipoRetencion']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['autoRetenciones']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['tipoAutoretencion']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['activo']); ?></td>
 
-                <form action="" method="post">
+            <td>
+              <form action="" method="post" style="display:flex; gap:5px;">
+                <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                <input type="hidden" name="codigoDocumento" value="<?php echo $usuario['codigoDocumento']; ?>">
+                <input type="hidden" name="descripcionDocumento" value="<?php echo $usuario['descripcionDocumento']; ?>">
+                <input type="hidden" name="resolucionDian" value="<?php echo $usuario['resolucionDian']; ?>">
+                <input type="hidden" name="numeroResolucion" value="<?php echo $usuario['numeroResolucion']; ?>">
+                <input type="hidden" name="fechaInicio" value="<?php echo $usuario['fechaInicio']; ?>">
+                <input type="hidden" name="vigencia" value="<?php echo $usuario['vigencia']; ?>">
+                <input type="hidden" name="fechaFinalizacion" value="<?php echo $usuario['fechaFinalizacion']; ?>">
+                <input type="hidden" name="prefijo" value="<?php echo $usuario['prefijo']; ?>">
+                <input type="hidden" name="consecutivoInicial" value="<?php echo $usuario['consecutivoInicial']; ?>">
+                <input type="hidden" name="consecutivoFinal" value="<?php echo $usuario['consecutivoFinal']; ?>">
+                <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>">
+                <input type="hidden" name="tipoRetencion" value="<?php echo $usuario['tipoRetencion']; ?>">
+                <input type="hidden" name="autoRetenciones" value="<?php echo $usuario['autoRetenciones']; ?>">
+                <input type="hidden" name="tipoAutoretencion" value="<?php echo $usuario['tipoAutoretencion']; ?>">
+                <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>">
 
-                <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>" >
-                <input type="hidden" name="codigoDocumento" value="<?php echo $usuario['codigoDocumento']; ?>" >
-                <input type="hidden" name="descripcionDocumento" value="<?php echo $usuario['descripcionDocumento']; ?>" >
-                <input type="hidden" name="resolucionDian" value="<?php echo $usuario['resolucionDian']; ?>" >
-                <input type="hidden" name="numeroResolucion" value="<?php echo $usuario['numeroResolucion']; ?>" >
-                <input type="hidden" name="fechaInicio" value="<?php echo $usuario['fechaInicio']; ?>" >
-                <input type="hidden" name="vigencia" value="<?php echo $usuario['vigencia']; ?>" >
-                <input type="hidden" name="fechaFinalizacion" value="<?php echo $usuario['fechaFinalizacion']; ?>" >
-                <input type="hidden" name="prefijo" value="<?php echo $usuario['prefijo']; ?>" >
-                <input type="hidden" name="consecutivoInicial" value="<?php echo $usuario['consecutivoInicial']; ?>" >
-                <input type="hidden" name="consecutivoFinal" value="<?php echo $usuario['consecutivoFinal']; ?>" >
-                <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>" >
-                <input type="hidden" name="tipoRetencion" value="<?php echo $usuario['tipoRetencion']; ?>" >
-                <input type="hidden" name="autoRetenciones" value="<?php echo $usuario['autoRetenciones']; ?>" >
-                <input type="hidden" name="autoRetenciones" value="<?php echo $usuario['autoRetenciones']; ?>" >
-                <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>" >
-                <input type="submit" value="Editar" name="accion">
-                <button value="btnEliminar" type="submit" class="btn btn-primary"  name="accion" >Eliminar</button>
-                </form>
+                <button type="submit" name="accion" value="Editar" class="btn btn-warning btn-sm">Editar</button>
+                <button type="submit" name="accion" value="btnEliminar" class="btn btn-danger btn-sm">Eliminar</button>
+              </form>
+            </td>
+          </tr>
+        <?php } ?>
+      </tbody>
+    </table>
 
-                </td>
-
-              </tr>
-            <?php } ?>
-          </div>
+  </div>
+</div>
 
       <script>
         /* El campo fechaFinalizacion se calcula automáticamente a partir de fechaInicio y vigencia */

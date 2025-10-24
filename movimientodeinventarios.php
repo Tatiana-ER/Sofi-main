@@ -100,28 +100,28 @@
         <h2>MOVIMIENTO DE INVENTARIOS</h2>
       </div>
 
-      <div class="mb-3">
+      <div class="mb-2">
         <form action="" method="post">
           <label for="campo" class="form-label">Categoría de inventario</label>
           <input type="text" class="form-control" name="campo" id="campo">
         </form>
       </div>
 
-      <div class="mb-3">
+      <div class="mb-2">
         <form action="" method="post">
           <label for="campo" class="form-label">Producto</label>
           <input type="text" class="form-control" name="campo" id="campo">
         </form>
       </div>
 
-      <div class="mb-3">
+      <div class="mb-2">
         <form action="" method="post">
           <label for="campo" class="form-label">Fecha de elaboración</label>
           <input type="text" class="form-control" name="campo" id="campo">
         </form>
       </div>
 
-      <div class="mb-3">
+      <div class="mb-2">
         <form action="" method="post">
           <label for="campo" class="form-label">Tipo</label>
           <input type="text" class="form-control" name="campo" id="campo">
