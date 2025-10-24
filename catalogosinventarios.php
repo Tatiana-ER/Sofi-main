@@ -247,12 +247,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
           <form action="" method="post" id="formCategorias">
             <div class="row g-3">
-              <div class="col-md-3">
-                <label for="idcategoria" class="form-label fw-bold">Código Categoría*</label>
-                <input type="text" class="form-control" id="idcategoria" name="idcategoria"
-                      placeholder="Ej: 001" required>
-              </div>
-
               <div class="col-md-5">
                 <label for="categoria" class="form-label fw-bold">Nombre de la Categoría*</label>
                 <input type="text" class="form-control" id="categoria" name="categoria"

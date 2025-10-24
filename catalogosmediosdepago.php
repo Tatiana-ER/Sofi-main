@@ -166,6 +166,12 @@ document.addEventListener("DOMContentLoaded", () => {
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <!-- CSS de Select2 -->
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+  <!-- JS: jQuery y Select2 -->
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
@@ -244,7 +250,10 @@ document.addEventListener("DOMContentLoaded", () => {
         </select>
         <br>  
         <label for="cuentaContable" class="form-label">Cuenta Contable:</label>
-        <input type="text" value="<?php echo $cuentaContable;?>" id="cuentaContable" name="cuentaContable" class="form-control">
+        <select id="cuentaContable" name="cuentaContable" class="form-control" required>
+            <option value="">Selecciona una cuenta contable</option>
+        </select>
+
       </div>
 
       <!-- Botones -->
@@ -288,20 +297,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 <!-- Scripts -->
 <script>
-  function mostrarCuentaContable() {
-    var metodoPago = document.getElementById("metodoPago").value;
-    var cuentaContable = document.getElementById("cuentaContable");
-
-    if (metodoPago === "efectivo") {
-      cuentaContable.value = "Caja";
-    } else if (metodoPago === "transferencia") {
-      cuentaContable.value = "Cuenta de Ahorros";
-    } else if (metodoPago === "credito") {
-      cuentaContable.value = "Otros";
-    } else {
-      cuentaContable.value = "";
-    }
-  }
 
   // Control de botones
   document.addEventListener("DOMContentLoaded", function() {
@@ -427,6 +422,100 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
   });
+
+  // --- NUEVA LÓGICA DE CARGA DE CUENTAS POR AJAX EN UN SOLO SELECT ---
+    $(document).ready(function() {
+        const $metodoPago = $('#metodoPago');
+        const $cuentaSelect = $('#cuentaContable');
+        const cuentaContableGuardada = "<?php echo $cuentaContable; ?>"; // Valor de PHP para edición
+
+        // Inicializar Select2
+        $('#cuentaContable').select2({
+            placeholder: "Buscar o seleccionar una cuenta contable",
+            allowClear: true,
+            width: '100%',
+            // Habilitar el renderizado de HTML para mostrar el texto resaltado
+            templateResult: function (data) {
+                if (!data.id) {
+                    return data.text;
+                }
+                // Función para parsear HTML
+                const $span = $('<span>').html(data.text);
+                return $span;
+            },
+            templateSelection: function (data) {
+                // En la selección, quitamos el formato HTML para guardar solo el texto simple
+                return data.text.replace('**(Personalizada)** ', ''); 
+            }
+        });
+        
+        // Función para cargar las cuentas
+        function cargarCuentas(metodo) {
+            $cuentaSelect.empty().append('<option value="">Cargando...</option>').trigger('change');
+            
+            if (metodo === "") {
+                $cuentaSelect.empty().append('<option value="">Selecciona un método de pago primero</option>').trigger('change');
+                return;
+            }
+
+            // Llamada AJAX al nuevo archivo PHP que consolida los niveles
+            $.ajax({
+                url: 'obtener_cuentas.php', 
+                type: 'GET',
+                data: {
+                    metodo: metodo
+                },
+                dataType: 'json',
+                success: function(data) {
+                    $cuentaSelect.empty().append('<option value="">Selecciona una cuenta contable</option>');
+                    
+                    $.each(data, function(i, cuenta) {
+                        // Usamos la propiedad `data` de Select2 para añadir estilos de jerarquía (opcional)
+                        const newOption = new Option(cuenta.texto, cuenta.valor, false, false);
+                        
+                        // Añadir una clase CSS a la opción para indentación si tiene '→' (opcional)
+                        if (cuenta.texto.startsWith('→ →')) {
+                            $(newOption).addClass('subcuenta-nivel3');
+                        } else if (cuenta.texto.startsWith('→')) {
+                            $(newOption).addClass('subcuenta-nivel2');
+                        }
+                        
+                        $cuentaSelect.append(newOption);
+                    });
+                    
+                    // Si estamos en modo edición, seleccionamos el valor guardado
+                    if (cuentaContableGuardada && data.some(c => c.valor === cuentaContableGuardada)) {
+                        $cuentaSelect.val(cuentaContableGuardada).trigger('change');
+                    }
+                    
+                    $cuentaSelect.trigger('change');
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error al cargar cuentas contables:", status, error);
+                    $cuentaSelect.empty().append('<option value="">Error al cargar las cuentas</option>').trigger('change');
+                }
+            });
+        }
+
+        // 1. Manejar el cambio en el selector de Método de Pago
+        $metodoPago.on('change', function() {
+            cargarCuentas($metodoPago.val());
+        });
+
+        // 2. Cargar las cuentas iniciales si ya hay un método de pago seleccionado 
+        if ($metodoPago.val()) {
+            cargarCuentas($metodoPago.val());
+        } else {
+             $cuentaSelect.empty().append('<option value="">Selecciona un método de pago primero</option>').trigger('change');
+        }
+
+    });
+    
+    // Puedes añadir estilos CSS para la indentación en el <style> de tu HTML (opcional):
+    /*
+    .subcuenta-nivel2 { padding-left: 10px; }
+    .subcuenta-nivel3 { padding-left: 20px; }
+    */
 </script>
   </div>
 </section><!-- End Services Section -->
