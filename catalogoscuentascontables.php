@@ -9,10 +9,10 @@ $grupo=(isset($_POST['grupo']))?$_POST['grupo']:"";
 $cuenta=(isset($_POST['cuenta']))?$_POST['cuenta']:"";
 $subcuenta=(isset($_POST['subcuenta']))?$_POST['subcuenta']:"";
 $auxiliar=(isset($_POST['auxiliar']))?$_POST['auxiliar']:"";
-$moduloInventarios=(isset($_POST['moduloInventarios']))?$_POST['moduloInventarios']:"";
+$moduloInventarios = isset($_POST['moduloInventarios']) ? 1 : 0;
 $naturalezaContable=(isset($_POST['naturalezaContable']))?$_POST['naturalezaContable']:"";
-$controlCartera=(isset($_POST['controlCartera']))?$_POST['controlCartera']:"";
-$activa=(isset($_POST['activa']))?$_POST['activa']:"";
+$controlCartera= isset($_POST['controlCartera']) ? 1 : 0;
+$activa= isset($_POST['activa']) ? 1 : 0;
 
 $accion=(isset($_POST['accion']))?$_POST['accion']:"";
 
@@ -349,10 +349,10 @@ document.addEventListener("DOMContentLoaded", () => {
                   <td><?php echo $usuario['cuenta']; ?></td>
                   <td><?php echo $usuario['subCuenta']; ?></td>
                   <td><?php echo $usuario['auxiliar']; ?></td>
-                  <td><?php echo $usuario['moduloInventarios']; ?></td>
+                  <td><?php echo $usuario['moduloInventarios']? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
                   <td><?php echo $usuario['naturalezaContable']; ?></td>
-                  <td><?php echo $usuario['controlCartera']; ?></td>
-                  <td><?php echo $usuario['activa']; ?></td>
+                  <td><?php echo $usuario['controlCartera']? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
+                  <td><?php echo $usuario['activa'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
                   <td>
 
                   <form action="" method="post">
@@ -367,11 +367,15 @@ document.addEventListener("DOMContentLoaded", () => {
                   <input type="hidden" name="naturalezaContable" value="<?php echo $usuario['naturalezaContable']; ?>" >
                   <input type="hidden" name="controlCartera" value="<?php echo $usuario['controlCartera']; ?>" >
                   <input type="hidden" name="activa" value="<?php echo $usuario['activa']; ?>" >
-
-                  <button type="submit" name="accion" value="Editar" class="btn-editar">Editar</button>
-                  <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar" name="accion">Eliminar</button>
+                  
+                  <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-cuenta" title="Editar">
+                      <i class="fas fa-edit"></i>
+                  </button>
+                  <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
+                      <i class="fas fa-trash-alt"></i>
+                  </button>
+                            
                   </form>
-
                   </td>
 
                 </tr>
@@ -537,9 +541,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Evento cancelar
         btnCancelar.addEventListener("click", function(e) {
-          e.preventDefault();
-          modoAgregar();
-        });
+            e.preventDefault();
+            modoAgregar();
+            
+            // AJUSTE ADICIONAL: Limpiar los parámetros de edición de la URL
+            if (window.history.replaceState) {
+                const url = new URL(window.location);
+                // Elimina todos los parámetros POST que se cargan al editar
+                url.searchParams.forEach((value, key) => {
+                    if (key !== 'msg') { // Dejamos 'msg' por si acaso
+                        url.searchParams.delete(key);
+                    }
+                });
+                window.history.replaceState({}, document.title, url);
+            }
+           });
       });
 
       // Funciones de confirmación con SweetAlert2

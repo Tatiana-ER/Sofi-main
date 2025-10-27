@@ -5,12 +5,22 @@ include ("connection.php");
 $conn = new connection();
 $pdo = $conn->connect();
 
+// Calcular el siguiente consecutivo ANTES de cualquier acción
+$sentencia = $pdo->prepare("SELECT IFNULL(MAX(consecutivo), 0) + 1 AS siguiente FROM recibodecaja");
+$sentencia->execute();
+$siguienteConsecutivo = $sentencia->fetch(PDO::FETCH_ASSOC)['siguiente'];
+
 $codigoDocumento=(isset($_POST['codigoDocumento']))?$_POST['codigoDocumento']:"";
 $descripcionDocumento=(isset($_POST['descripcionDocumento']))?$_POST['descripcionDocumento']:"";
 $consecutivo=(isset($_POST['consecutivo']))?$_POST['consecutivo']:"";
-$activo=(isset($_POST['activo']))?$_POST['activo']:"";
+$activo = isset($_POST['activo']) ? 1 : 0;
 
 $accion=(isset($_POST['accion']))?$_POST['accion']:"";
+
+// Si no hay consecutivo (nuevo registro), mostrar automáticamente el siguiente
+if ($consecutivo == "") {
+  $consecutivo = $siguienteConsecutivo;
+}
 
 switch($accion){
   case "btnAgregar":
@@ -25,11 +35,53 @@ switch($accion){
       $sentencia->bindParam(':activo',$activo);
       $sentencia->execute();
 
-  echo "Presionaste"; 
+      header("Location: ".$_SERVER['PHP_SELF']."?msg=agregado");
+      exit;
   break;
 }
-
 ?>
+
+<?php if (isset($_GET['msg'])): ?>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  switch ("<?= $_GET['msg'] ?>") {
+    case "agregado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Guardado exitosamente',
+        text: 'El parametro recibo de caja se ha agregado correctamente',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "modificado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Modificado correctamente',
+        text: 'Los datos se actualizaron con éxito',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "eliminado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Eliminado correctamente',
+        text: 'El parametro recibo de caja fue eliminado del registro',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+  }
+
+  // Quita el parámetro ?msg=... de la URL sin recargar
+  if (window.history.replaceState) {
+    const url = new URL(window.location);
+    url.searchParams.delete('msg');
+    window.history.replaceState({}, document.title, url);
+  }
+});
+</script>
+<?php endif; ?>
 
 <!DOCTYPE html>
 <html lang="en">
@@ -123,30 +175,44 @@ switch($accion){
         <p>Para crear un nuevo tipo de documento diligencie los campos a continuación:</p>
         <p>(Los campos marcados con * son obligatorios)</p>
       </div>
-      <form action="" method="post">
 
-        <div class="mb-3">
-          <label for="codigoDocumento" class="form-label">Codigo de documento*</label>
-          <input type="text" class="form-control" id="codigoDocumento" name="codigoDocumento" id="campo" required>
+      <form id="formRecibodecaja" action="" method="post">
+
+        <!-- Código y Descripción -->
+
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label for="codigoDocumento" class="form-label fw-bold">Codigo de documento*</label>
+            <input type="number" class="form-control" value="<?php echo $codigoDocumento;?>" id="codigoDocumento" name="codigoDocumento" placeholder="" required>
+          </div>
+          <div class="col-md-8">
+            <label for="descripcionDocumento" class="form-label fw-bold">Descripción documento*</label>
+            <input type="text" class="form-control" value="<?php echo $descripcionDocumento;?>" id="descripcionDocumento" name="descripcionDocumento" placeholder="" required>
+          </div
+        </div
+
+        <!-- Consecutivo y Activo -->
+        <div class="row g-3 mt-2">
+          <div class="col-md-4">
+            <label for="consecutivo" class="form-label fw-bold">Consecutivo</label>
+            <input type="text" class="form-control" 
+                  id="consecutivo" 
+                  name="consecutivo" 
+                  value="<?php echo $consecutivo != '' ? $consecutivo : $siguienteConsecutivo; ?>" 
+                  readonly>
+          </div>  
         </div>
 
-        <div class="mb-3">
-          <label for="descripcionDocumento" class="form-label">Descripcion documento*</label>
-          <input type="text" class="form-control" id="descripcionDocumento" name="descripcionDocumento" id="campo" required>
+        <div class="row g-3 mt-2">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="activo" name="activo" <?php echo ($activo == 1) ? 'checked' : ''; ?>>
+            <label for="activo" class="form-label fw-bold">Activo*</label>
+          </div>
         </div>
 
-        <div class="mb-3">
-          <label for="consecutivo" class="form-label">Consecutivo</label>
-          <input type="number" class="form-control" id="consecutivo" name="consecutivo" id="campo" readonly>
+        <div class="mt-4">
+          <button value="btnAgregar" type="submit" class="btn btn-primary"  name="accion" >Guardar</button>
         </div>
-
-        <div class="mb-3">
-          <label for="activo" class="form-label">Activo*</label>
-          <input type="checkbox" class="" id="activo" name="activo" placeholder="" required>
-        </div>
-
-        <button value="btnAgregar" type="submit" class="btn btn-primary"  name="accion" >Guardar</button>
-
       </form>
  
     </div>

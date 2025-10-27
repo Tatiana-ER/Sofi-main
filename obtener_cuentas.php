@@ -63,14 +63,14 @@ foreach ($resultados_maestra as $row) {
 
     // Nivel 4 (ej: 110505-Caja general)
     if (!empty($row['nivel4']) && !isset($codigos_unicos[$row['nivel4']])) {
-        $cuentas_completas[] = ['valor' => $row['nivel4'], 'texto' => "→ " . $row['nivel4']];
+        $cuentas_completas[] = ['valor' => $row['nivel4'], 'texto' => " " . $row['nivel4']];
         $codigos_unicos[$row['nivel4']] = true;
     }
 
     // Nivel 5 (ej: 11100501-Bancolombia)
     if (!empty($row['nivel5']) && !isset($codigos_unicos[$row['nivel5']])) {
         $texto_5 = !empty($row['nivel6']) ? $row['nivel5'] . '-' . $row['nivel6'] : $row['nivel5'];
-        $cuentas_completas[] = ['valor' => $row['nivel5'], 'texto' => "→ → " . $texto_5];
+        $cuentas_completas[] = ['valor' => $row['nivel5'], 'texto' => "    " . $texto_5];
         $codigos_unicos[$row['nivel5']] = true;
     }
 }
@@ -107,16 +107,14 @@ $resultados_catalogo = $sentencia_catalogo->fetchAll(PDO::FETCH_ASSOC);
         if (!isset($codigos_unicos[$codigo_solo])) {
             $cuentas_completas[] = [
                 'valor' => $auxiliar_completo,
-                'texto' => "→ → (Personalizada) " . $auxiliar_completo
+                'texto' => " (Personalizada) " . $auxiliar_completo
             ];
             $codigos_unicos[$codigo_solo] = true;
         }
     }
 }
 
-// -----------------------------------------------------
 // PARTE C: Devolver la lista consolidada
-// -----------------------------------------------------
 
 echo json_encode($cuentas_completas);
 ?>
