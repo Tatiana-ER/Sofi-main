@@ -1,5 +1,5 @@
 <?php
-
+  
 include ("connection.php");
 
 $conn = new connection();
@@ -81,6 +81,8 @@ switch($accion){
   $sentencia= $pdo->prepare("SELECT * FROM `facturadecompra` WHERE 1");
   $sentencia->execute();
   $lista=$sentencia->fetchALL(PDO::FETCH_ASSOC);
+
+  
 
 ?>
 
@@ -179,11 +181,7 @@ switch($accion){
 
       <form action="" method="post">
 
-        <div>
-          <label for="id" class="form-label">ID:</label>
-          <input type="text" class="form-control" value="<?php echo $txtId;?>" id="txtId" name="txtId" readonly>
-        </div>
-        <div class="mb-3">
+      <div class="mb-3">
           <label for="codigoDocumento" class="form-label">Codigo de documento*</label>
           <input type="number" class="form-control" value="<?php echo $codigoDocumento;?>" id="codigoDocumento" name="codigoDocumento" placeholder="" required>
         </div>
@@ -232,61 +230,58 @@ switch($accion){
         <button value="btnEliminar" type="submit" class="btn btn-primary"  name="accion" >Eliminar</button>
       </form>
 
-      <div class="row">
+        <div class="row">
           <div class="table-container">
-
-            <table>
+            <table class="table-container">
               <thead>
-                <tr>
-                  <th>Codigo Documento</th>
-                  <th>Descripción Documento</th>
-                  <th>Documento Soporte</th>
-                  <th>Prefijo</th>
-                  <th>Consecutivo Inicial</th>
-                  <th>Consecutivo Final</th>
-                  <th>Retenciones</th>
-                  <th>Activo</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
-            </table>
-
-            <?php foreach($lista as $usuario){ ?>
               <tr>
-                <td><?php echo $usuario['codigoDocumento']; ?></td>
-                <td><?php echo $usuario['descripcionDocumento']; ?></td>
-                <td><?php echo $usuario['documentoSoporte']; ?></td>
-                <td><?php echo $usuario['prefijo']; ?></td>
-                <td><?php echo $usuario['consecutivoInicial']; ?></td>
-                <td><?php echo $usuario['consecutivoFinal']; ?></td>
-                <td><?php echo $usuario['retenciones']; ?></td>
-                <td><?php echo $usuario['activo']; ?></td>
-                <td>
+                <th>Código Documento</th>
+                <th>Descripción Documento</th>
+                <th>Documento Soporte</th>
+                <th>Prefijo</th>
+                <th>Consecutivo Inicial</th>
+                <th>Consecutivo Final</th>
+                <th>Retenciones</th>
+                <th>Activo</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
 
-                <form action="" method="post">
+            <tbody>
+              <?php foreach($lista as $usuario){ ?>
+                <tr>
+                  <td><?php echo $usuario['codigoDocumento']; ?></td>
+                  <td><?php echo $usuario['descripcionDocumento']; ?></td>
+                  <td><?php echo $usuario['documentoSoporte']; ?></td>
+                  <td><?php echo $usuario['prefijo']; ?></td>
+                  <td><?php echo $usuario['consecutivoInicial']; ?></td>
+                  <td><?php echo $usuario['consecutivoFinal']; ?></td>
+                  <td><?php echo $usuario['retenciones']; ?></td>
+                  <td><?php echo $usuario['activo']; ?></td>
+                  <td>
+                    <form action="" method="post">
+                      <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                      <input type="hidden" name="codigoDocumento" value="<?php echo $usuario['codigoDocumento']; ?>">
+                      <input type="hidden" name="descripcionDocumento" value="<?php echo $usuario['descripcionDocumento']; ?>">
+                      <input type="hidden" name="documentoSoporte" value="<?php echo $usuario['documentoSoporte']; ?>">
+                      <input type="hidden" name="prefijo" value="<?php echo $usuario['prefijo']; ?>">
+                      <input type="hidden" name="consecutivoInicial" value="<?php echo $usuario['consecutivoInicial']; ?>">
+                      <input type="hidden" name="consecutivoFinal" value="<?php echo $usuario['consecutivoFinal']; ?>">
+                      <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>">
+                      <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>">
 
-                <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>" >
-                <input type="hidden" name="codigoDocumento" value="<?php echo $usuario['codigoDocumento']; ?>" >
-                <input type="hidden" name="descripcionDocumento" value="<?php echo $usuario['descripcionDocumento']; ?>" >
-                <input type="hidden" name="documentoSoporte" value="<?php echo $usuario['documentoSoporte']; ?>" >
-                <input type="hidden" name="prefijo" value="<?php echo $usuario['prefijo']; ?>" >
-                <input type="hidden" name="consecutivoInicial" value="<?php echo $usuario['consecutivoInicial']; ?>" >
-                <input type="hidden" name="consecutivoFinal" value="<?php echo $usuario['consecutivoFinal']; ?>" >
-                <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>" >
-                <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>" >
-                <input type="submit" value="Editar" name="accion">
-                <button value="btnEliminar" type="submit" class="btn btn-primary"  name="accion" >Eliminar</button>
-                </form>
-
+                      <input type="submit" value="Editar" name="accion" class="btn btn-secondary btn-sm">
+                      <button value="btnEliminar" type="submit" class="btn btn-danger btn-sm" name="accion">Eliminar</button>
+                    </form>
                 </td>
-
               </tr>
             <?php } ?>
-          </div>
-          
-        </div>
- 
-    </div>
+          </tbody>
+        </table>
+      </div>
+  </div>
+
+   </div>
   </section><!-- End Services Section -->
 
     <!-- ======= Footer ======= -->

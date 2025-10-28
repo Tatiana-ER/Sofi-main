@@ -1,3 +1,95 @@
+<?php
+$conexion = new mysqli("localhost", "root", "", "sofi");
+
+if ($conexion->connect_error) {
+    die("Error de conexión: " . $conexion->connect_error);
+}
+
+$persona = $cedula = $digito = $nombres = $apellidos = $razon = "";
+$departamento = $ciudad = $direccion = $email = $telefono = "";
+$responsabilidadesInput = ""; 
+$regimen = $actividad = "";
+$tarifa = 0;
+$aiu = 0;
+
+// Procesar el formulario cuando se envíe
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+
+    // Recibir los datos
+    $persona = $_POST['persona'] ?? '';
+    $cedula = $_POST['cedula'] ?? '';
+    $digito = $_POST['digito'] ?? '';
+    $nombres = $_POST['nombres'] ?? '';
+    $apellidos = $_POST['apellidos'] ?? '';
+    $razon = $_POST['razon'] ?? '';
+    $departamento = $_POST['departamento'] ?? '';
+    $ciudad = $_POST['ciudad'] ?? '';
+    $direccion = $_POST['direccion'] ?? '';
+    $email = $_POST['email'] ?? '';
+    $telefono = $_POST['telefono'] ?? '';
+    $responsabilidadesInput = $_POST['responsabilidades'] ?? '';
+    $regimen = $_POST['regimen'] ?? '';
+    $actividad = $_POST['actividad'] ?? '';
+    $tarifa = !empty($_POST['tarifa']) ? floatval($_POST['tarifa']) : NULL;
+    $aiu = isset($_POST['aiu']) ? 1 : 0;
+
+
+    // Validar que la cédula tenga máximo 10 dígitos
+    if (strlen($cedula) > 10) {
+        $cedula = substr($cedula, 0, 10);
+    }
+
+    if (!ctype_digit($cedula)) {
+        echo "<p style='color:red;'>La cédula debe contener solo números.</p>";
+    } else {
+
+        // Insertar los datos
+        $sql = "INSERT INTO perfil 
+        (persona, cedula, digito, nombres, apellidos, razon, departamento, ciudad, direccion, email, regimen, actividad, tarifa, aiu, telefono, responsabilidades)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+
+        $stmt = $conexion->prepare($sql);
+
+        if (!$stmt) {
+            die("Error al preparar la consulta: " . $conexion->error);
+        }
+
+        $stmt->bind_param(
+          "ssisssssssssdiis",
+          $persona,
+          $cedula,
+          $digito,
+          $nombres,
+          $apellidos,
+          $razon,
+          $departamento,
+          $ciudad,
+          $direccion,
+          $email,
+          $regimen,
+          $actividad,
+          $tarifa,
+          $aiu,
+          $telefono,
+          $responsabilidadesInput
+        );
+
+
+        if ($stmt->execute()) {
+            echo "<p style='color:green;'>Datos guardados correctamente.</p>";
+        } else {
+            echo "<p style='color:red;'>Error al guardar: " . $stmt->error . "</p>";
+        }
+
+        $stmt->close();
+    }
+}
+
+$conexion->close();
+?>
+
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -78,27 +170,41 @@
             <h2>DATOS DE USUARIO</h2>
             <br>
             <div>
-              <label for="label3" class="form-label">Tipo de persona*</label>
+            <label for="label3" class="form-label">Tipo de persona*</label>
               <br>
               <label>
-                <input type="radio" id="personaNatural" name="tipoPersona" value="natural" onclick="toggleFields()">
+                <input type="radio" id="personaNatural" name="persona" value="natural" onclick="toggleFields()">
                 Persona Natural
               </label>
               <label>
-                <input type="radio" id="personaJuridica" name="tipoPersona" value="juridica" onclick="toggleFields()">
+                <input type="radio" id="personaJuridica" name="persona" value="juridica" onclick="toggleFields()">
                 Persona Jurídica
-              </label>
+            </label>
             </div>
             <br>
             <div>
-              <label for="cedula" class="form-label">Cédula de Ciudadanía o NIT*</label>
-              <input type="number" name="cedula" class="form-control" id="cedula" required>
-            </div>
+             <label for="cedula">Cédula o NIT:</label>
+                <input type="text" id="cedula" name="cedula" 
+                  class="form-control"
+                  maxlength="10" 
+                  pattern="\d{1,10}" 
+                  title="Ingrese solo números (máximo 10 dígitos)"
+                  placeholder="Ej: 1234567890">
             <br>
             <div>
-              <label for="digito" class="form-label">Digito de verificación</label>
-              <input type="text" class="form-control" value="<?php echo $digito;?>" id="digito" name="digito" maxlength="1" pattern="[1-9]" title="Solo se permite un dígito entre 1 y 9" placeholder="Dígito entre 1 y 9">
+              <label for="digito" class="form-label">Dígito de verificación</label>
+              <input 
+                  type="text" 
+                  class="form-control" 
+                  id="digito" 
+                  name="digito" 
+                  maxlength="1" 
+                  pattern="[0-9]" 
+                  title="Solo se permite un dígito entre 0 y 9"
+                  placeholder="Dígito entre 0 y 9"
+                  value="<?php echo htmlspecialchars($digito); ?>">
             </div>
+
             <div>
               <label for="nombres" class="form-label">Nombres</label>
               <input type="text" name="nombres" class="form-control" id="nombres" disabled>
@@ -137,38 +243,37 @@
           <div class="mb-3">
             <h2>PERFIL TRIBUTARIO</h2>
             <br>
-            <select class="form-select" name="tipoRegimen" aria-label="Default select example" required>
-              <option selected>Tipo de regimen</soption>
-              <option value="1">Responsable de iva</option>
-              <option value="2">No responsable de iva</option>
-              <option value="3">Régimen simple de tributación</option>
-              <option value="3">Régimen especial</option>
+            <select class="form-select" name="regimen" aria-label="Default select example" required>
+              <option selected disabled>Tipo de régimen</option>
+              <option value="Responsable de IVA">Responsable de IVA</option>
+              <option value="No responsable de IVA">No responsable de IVA</option>
+              <option value="Régimen simple de tributación">Régimen simple de tributación</option>
+              <option value="Régimen especial">Régimen especial</option>
             </select>
             <br>
             <label for="actividadEconomica" class="form-label">Codigo de actividad económica</label>
             <input type="text" name="actividadEconomica" class="form-control" id="actividadEconomica" placeholder="">
             <br>
-            <label for="actividadEconomica" class="form-label">Actividad económica</label>
-            <input type="text" name="actividadEconomica" class="form-control" id="actividadEconomica" placeholder="">
+            <label for="actividad" class="form-label">Actividad económica</label>
+            <input type="text" name="actividad" class="form-control" id="actividad" placeholder="">
             <br>
-            <label for="tarifaIca" class="form-label">Tarifa ICA</label>
-            <input type="number" name="tarifaIca" class="form-control" id="tarifaIca" placeholder="ej:0,004">
+            <label for="tarifa" class="form-label">Tarifa ICA</label>
+            <input type="number" name="tarifa" class="form-control" id="tarifa" step="0.0001" placeholder="ej: 0.004">
             <br>
-            <div class="mb-3">
-              <label for="manejoAiu" class="form-label">Manejo de AIU</label>
-              <input type="checkbox" name="manejoAiu" class="" id="manejoAiu" placeholder="">
+            <label for="aiu" class="form-label">Manejo de AIU</label>
+            <input type="checkbox" name="aiu" id="aiu">
             </div>
-            <div class="mb-3">
-              <label for="responsabilidadesTributarias" class="form-label">Responsabilidades Tributarias*</label>
-              <input type="text" name="responsabilidadesTributarias" id="responsabilidadesTributarias" class="form-control" placeholder="Buscar responsabilidades tributarias..." autocomplete="off" required>
+              </div>
+              <label for="responsabilidadesTributarias">Responsabilidades Tributarias*</label>
+              <input type="text" id="responsabilidadesTributarias" placeholder="Buscar responsabilidades tributarias..." class="form-control">
               <div id="seleccionadas" class="mt-2"></div>
-            </div>
-            <br>
-          </div>
 
-          <button value="btnAgregar" type="submit" class="btn btn-primary"  name="accion" >Agregar</button>
+              <!-- Campo oculto que sí se envía -->
+              <input type="hidden" id="responsabilidadesInput" name="responsabilidades">
 
-          <ul id="resultList"></ul>
+              <br>
+              <ul id="resultList"></ul>
+              <button value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
 
           <!-- Script de los campos departamentos y ciudades-->
           <script>
@@ -556,6 +661,12 @@
                 document.getElementById("apellidos").disabled = !personaNatural;
                 document.getElementById("razonSocial").disabled = !personaJuridica;
 
+                // Desactivar campo "Dígito de verificación" si es persona natural
+                digito.disabled = personaNatural;
+                if (personaNatural) {
+                    digito.value = ""; // limpiar el valor si estaba habilitado antes
+                }
+
                 // Limpiar campos no habilitados
                 if (personaNatural) {
                     document.getElementById("nit").value = "";
@@ -565,124 +676,122 @@
             }
           </script>
 
-          <!-- Script del campo responsabilidades tributaria -->
-          <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                const responsabilidadesTributarias = [
-                    { numero: 1, nombre: 'Aporte especial para la administración de justicia' },
-                    { numero: 2, nombre: 'Gravamen a los movimientos financieros' },
-                    { numero: 3, nombre: 'Impuesto al patrimonio' },
-                    { numero: 4, nombre: 'Impuesto renta y complementario régimen especial' },
-                    { numero: 5, nombre: 'Impuesto renta y complementario régimen ordinario' },
-                    { numero: 6, nombre: 'Ingresos y patrimonio' },
-                    { numero: 7, nombre: 'Retención en la fuente a título de renta' },
-                    { numero: 8, nombre: 'Retención timbre nacional' },
-                    { numero: 9, nombre: 'Retención en la fuente en el impuesto sobre las ventas' },
-                    { numero: 10, nombre: 'Obligado aduanero' },
-                    { numero: 11, nombre: 'Gran contribuyente' },
-                    { numero: 12, nombre: 'Informante de exógena' },
-                    { numero: 13, nombre: 'Autorretenedor' },
-                    { numero: 14, nombre: 'Obligación facturar por ingresos bienes y/o servicios excluidos' },
-                    { numero: 15, nombre: 'Profesionales de compra y venta de divisas' },
-                    { numero: 16, nombre: 'Precios de transferencia' },
-                    { numero: 17, nombre: 'Productor de bienes y/o servicios exentos' },
-                    { numero: 18, nombre: 'Obtención NIT' },
-                    { numero: 19, nombre: 'Declarar ingreso o salida del país de divisas o moneda' },
-                    { numero: 20, nombre: 'Obligado a cumplir deberes formales a nombre de terceros' },
-                    { numero: 21, nombre: 'Agente de retención en ventas' },
-                    { numero: 22, nombre: 'Declaración consolidada precios de transferencia' },
-                    { numero: 23, nombre: 'Declaración individual precios de transferencia' },
-                    { numero: 24, nombre: 'Impuesto nacional a la gasolina y al ACPM' },
-                    { numero: 25, nombre: 'Impuesto nacional al consumo' },
-                    { numero: 26, nombre: 'Establecimiento Permanente' },
-                    { numero: 27, nombre: 'Obligado a Facturar Electrónicamente' },
-                    { numero: 28, nombre: 'Facturación Electrónica Voluntaria' },
-                    { numero: 29, nombre: 'Proveedor de Servicios Tecnológicos PST' },
-                    { numero: 30, nombre: 'Declaración anual de activos en el exterior e rendimientos financieros' },
-                    { numero: 31, nombre: 'IVA Prestadores de Servicios desde el Exterior' },
-                    { numero: 32, nombre: 'Régimen Simple de Tributación – SIMPLE' },
-                    { numero: 33, nombre: 'Impuesto sobre las ventas – IVA' },
-                    { numero: 34, nombre: 'No responsable de IVA' },
-                    { numero: 35, nombre: 'Impuesto nacional a la gasolina' },
-                    { numero: 36, nombre: 'No responsable de Consumo restaurantes y bares' },
-                    { numero: 37, nombre: 'Agente retención impoconsumo de bienes inmuebles' },
-                    { numero: 38, nombre: 'Facturador electrónico' },
-                    { numero: 39, nombre: 'Persona Jurídica No Responsable de IVA' }
-                ];
-        
-                const input = document.getElementById('responsabilidadesTributarias');
-                const contenedorSeleccionadas = document.getElementById('seleccionadas');
-                let seleccionadas = [];
-        
-                input.addEventListener('input', function () {
-                    const searchTerm = input.value.toLowerCase();
-                    const filteredResponsabilidades = responsabilidadesTributarias.filter(responsabilidad =>
-                        responsabilidad.nombre.toLowerCase().includes(searchTerm) || responsabilidad.numero.toString().includes(searchTerm)
-                    );
-                    mostrarSugerencias(filteredResponsabilidades);
-                });
-        
-                function mostrarSugerencias(responsabilidadesFiltradas) {
-                    const listaSugerencias = document.createElement('ul');
-                    listaSugerencias.classList.add('list-group');
-        
-                    responsabilidadesFiltradas.forEach(responsabilidad => {
-                        const item = document.createElement('li');
-                        item.textContent = `${responsabilidad.numero} - ${responsabilidad.nombre}`;
-                        item.classList.add('list-group-item');
-                        item.addEventListener('click', function () {
-                            agregarSeleccion(responsabilidad);
-                            limpiarSugerencias();
-                        });
-                        listaSugerencias.appendChild(item);
-                    });
-        
-                    limpiarSugerencias();
-                    input.parentNode.appendChild(listaSugerencias);
-                }
-        
-                function agregarSeleccion(responsabilidad) {
-                    if (!seleccionadas.find(r => r.numero === responsabilidad.numero)) {
-                        seleccionadas.push(responsabilidad);
-                        actualizarCampoSeleccionadas();
-                    }
-                    input.value = ''; // Limpia el campo para permitir nuevas selecciones
-                }
-        
+              <!-- Script del campo responsabilidades tributarias -->
+              <script>
+              document.addEventListener('DOMContentLoaded', function () {
+                  const responsabilidadesTributarias = [
+                      { numero: 1, nombre: 'Aporte especial para la administración de justicia' },
+                      { numero: 2, nombre: 'Gravamen a los movimientos financieros' },
+                      { numero: 3, nombre: 'Impuesto al patrimonio' },
+                      { numero: 4, nombre: 'Impuesto renta y complementario régimen especial' },
+                      { numero: 5, nombre: 'Impuesto renta y complementario régimen ordinario' },
+                      { numero: 6, nombre: 'Ingresos y patrimonio' },
+                      { numero: 7, nombre: 'Retención en la fuente a título de renta' },
+                      { numero: 8, nombre: 'Retención timbre nacional' },
+                      { numero: 9, nombre: 'Retención en la fuente en el impuesto sobre las ventas' },
+                      { numero: 10, nombre: 'Obligado aduanero' },
+                      { numero: 13, nombre: 'Gran contribuyente' },
+                      { numero: 14, nombre: 'Informante de exógena' },
+                      { numero: 15, nombre: 'Autorretenedor' },
+                      { numero: 16, nombre: 'Obligación facturar por ingresos bienes y/o servicios excluidos' },
+                      { numero: 17, nombre: 'Profesionales de compra y venta de divisas' },
+                      { numero: 18, nombre: 'Precios de transferencia' },
+                      { numero: 19, nombre: 'Productor de bienes y/o servicios exentos' },
+                      { numero: 20, nombre: 'Obtención NIT' },
+                      { numero: 21, nombre: 'Declarar ingreso o salida del país de divisas o moneda' },
+                      { numero: 22, nombre: 'Obligado a cumplir deberes formales a nombre de terceros' },
+                      { numero: 23, nombre: 'Agente de retención en ventas' },
+                      { numero: 24, nombre: 'Declaración consolidada precios de transferencia' },
+                      { numero: 26, nombre: 'Declaración individual precios de transferencia' },
+                      { numero: 32, nombre: 'Impuesto nacional a la gasolina y al ACPM' },
+                      { numero: 33, nombre: 'Impuesto nacional al consumo' },
+                      { numero: 36, nombre: 'Establecimiento Permanente' },
+                      { numero: 37, nombre: 'Obligado a Facturar Electrónicamente' },
+                      { numero: 38, nombre: 'Facturación Electrónica Voluntaria' },
+                      { numero: 39, nombre: 'Proveedor de Servicios Tecnológicos PST' },
+                      { numero: 41, nombre: 'Declaración anual de activos en el exterior e rendimientos financieros' },
+                      { numero: 46, nombre: 'IVA Prestadores de Servicios desde el Exterior' },
+                      { numero: 47, nombre: 'Régimen Simple de Tributación-SIMPLE' },
+                      { numero: 48, nombre: 'Impuesto sobre las ventas-IVA' },
+                      { numero: 49, nombre: 'No responsable de IVA' },
+                      { numero: 50, nombre: 'No responsable de Consumo restaurantes y bares' },
+                      { numero: 51, nombre: 'Agente retención impoconsumo de bienes inmuebles' },
+                      { numero: 52, nombre: 'Facturador electrónico' },
+                      { numero: 53, nombre: 'Persona Jurídica No Responsable de IVA' }
+                  ];
+
+                  const input = document.getElementById('responsabilidadesTributarias');
+                  const contenedorSeleccionadas = document.getElementById('seleccionadas');
+                  const inputOculto = document.getElementById('responsabilidadesInput');
+                  let seleccionadas = [];
+
+                  input.addEventListener('input', function () {
+                      const searchTerm = input.value.toLowerCase();
+                      const filtered = responsabilidadesTributarias.filter(r =>
+                          r.nombre.toLowerCase().includes(searchTerm) || r.numero.toString().includes(searchTerm)
+                      );
+                      mostrarSugerencias(filtered);
+                  });
+
+                  function mostrarSugerencias(lista) {
+                      limpiarSugerencias();
+                      const ul = document.createElement('ul');
+                      ul.classList.add('list-group', 'mt-1');
+                      lista.forEach(r => {
+                          const li = document.createElement('li');
+                          li.textContent = `${r.numero} - ${r.nombre}`;
+                          li.classList.add('list-group-item', 'list-group-item-action');
+                          li.addEventListener('click', () => {
+                              agregarSeleccion(r);
+                              limpiarSugerencias();
+                              input.value = '';
+                          });
+                          ul.appendChild(li);
+                      });
+                      input.insertAdjacentElement('afterend', ul);
+                  }
+
+                  function agregarSeleccion(responsabilidad) {
+                      if (!seleccionadas.find(r => r.numero === responsabilidad.numero)) {
+                          seleccionadas.push(responsabilidad);
+                          actualizarCampoSeleccionadas();
+                      }
+                  }
+
                 function actualizarCampoSeleccionadas() {
-                    contenedorSeleccionadas.innerHTML = ''; // Limpiar las selecciones previas
-        
-                    seleccionadas.forEach(responsabilidad => {
-                        const itemSeleccionado = document.createElement('span');
-                        itemSeleccionado.textContent = `${responsabilidad.numero} - ${responsabilidad.nombre}`;
-                        itemSeleccionado.classList.add('badge', 'bg-primary', 'm-1');
-        
-                        // Botón para eliminar responsabilidad seleccionada
-                        const botonEliminar = document.createElement('button');
-                        botonEliminar.textContent = 'x';
-                        botonEliminar.classList.add('btn', 'btn-danger', 'btn-sm', 'ms-2');
-                        botonEliminar.addEventListener('click', function () {
-                            eliminarSeleccion(responsabilidad.numero);
-                        });
-        
-                        itemSeleccionado.appendChild(botonEliminar);
-                        contenedorSeleccionadas.appendChild(itemSeleccionado);
+                    contenedorSeleccionadas.innerHTML = '';
+                    seleccionadas.forEach(r => {
+                        const badge = document.createElement('span');
+                        badge.textContent = `${r.numero} - ${r.nombre}`;
+                        badge.classList.add('badge', 'bg-primary', 'm-1', 'p-2');
+
+                        const btn = document.createElement('button');
+                        btn.textContent = 'x';
+                        btn.classList.add('btn', 'btn-danger', 'btn-sm', 'ms-2');
+                        btn.type = 'button';
+                        btn.addEventListener('click', () => eliminarSeleccion(r.numero));
+
+                        badge.appendChild(btn);
+                        contenedorSeleccionadas.appendChild(badge);
                     });
+
+                    // Aquí se guarda la lista en el input oculto
+                    const inputOculto = document.getElementById('responsabilidadesInput');
+                    inputOculto.value = JSON.stringify(seleccionadas.map(r => r.nombre));
                 }
-        
-                function eliminarSeleccion(numero) {
-                    seleccionadas = seleccionadas.filter(r => r.numero !== numero);
-                    actualizarCampoSeleccionadas();
+
+
+                  function eliminarSeleccion(numero) {
+                      seleccionadas = seleccionadas.filter(r => r.numero !== numero);
+                      actualizarCampoSeleccionadas();
+                  }
+
+                  function limpiarSugerencias() {
+                      const oldList = document.querySelector('.list-group');
+                      if (oldList) oldList.remove();
                 }
-        
-                function limpiarSugerencias() {
-                    const listaAnterior = document.querySelector('.list-group');
-                    if (listaAnterior) {
-                        listaAnterior.remove();
-                    }
-                }
-            });
-          </script>
+              });
+              </script>
         </Form>
 
         <?php

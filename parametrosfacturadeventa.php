@@ -236,10 +236,6 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
       </div>
 
       <form action="" method="post">
-        <div>
-          <label for="id" class="form-label">ID:</label>
-          <input type="text" class="form-control" value="<?php echo $txtId;?>" id="txtId" name="txtId" readonly> 
-        </div>
         <div class="mb-3">
           <label for="codigoDocumento" class="form-label">Codigo de documento*</label>
           <input type="number" class="form-control" value="<?php echo $codigoDocumento;?>" id="codigoDocumento" name="codigoDocumento" placeholder="">
