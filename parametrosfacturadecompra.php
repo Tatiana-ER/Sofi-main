@@ -8,13 +8,12 @@ $pdo = $conn->connect();
 $txtId=(isset($_POST['txtId']))?$_POST['txtId']:"";
 $codigoDocumento=(isset($_POST['codigoDocumento']))?$_POST['codigoDocumento']:"";
 $descripcionDocumento=(isset($_POST['descripcionDocumento']))?$_POST['descripcionDocumento']:"";
-$documentoSoporte=(isset($_POST['documentoSoporte']))?$_POST['documentoSoporte']:"";
+$documentoSoporte = isset($_POST['documentoSoporte']) ? 'Sí' : 'No';
 $prefijo=(isset($_POST['prefijo']))?$_POST['prefijo']:"";
 $consecutivoInicial=(isset($_POST['consecutivoInicial']))?$_POST['consecutivoInicial']:"";
 $consecutivoFinal=(isset($_POST['consecutivoFinal']))?$_POST['consecutivoFinal']:"";
-$retenciones=(isset($_POST['retenciones']))?$_POST['retenciones']:"";
+$retenciones = isset($_POST['retenciones']) ? $_POST['retenciones'] : '';
 $activo=(isset($_POST['activo']))?$_POST['activo']:"";
-
 $accion=(isset($_POST['accion']))?$_POST['accion']:"";
 
 switch($accion){
@@ -190,8 +189,9 @@ switch($accion){
           <input type="text" class="form-control" value="<?php echo $descripcionDocumento;?>" id="descripcionDocumento" name="descripcionDocumento" placeholder="" required>
         </div>
         <div class="mb-3">
-          <label for="documentoSoporte" class="form-label">Documento soporte?</label>
-          <input type="checkbox" class="" value="<?php echo $documentoSoporte;?>" id="documentoSoporte" name="documentoSoporte" placeholder="">
+        <input type="checkbox" id="documentoSoporte" name="documentoSoporte" value="Sí">
+        <label for="documentoSoporte">Documento soporte?</label>
+
         </div>
 
         <div class="mb-3">
@@ -211,14 +211,14 @@ switch($accion){
 
         <div class="mb-3">
           <label for="retenciones" class="form-label">Retenciones</label>
-          <input type="checkbox" class="" value="<?php echo $retenciones;?>" id="retenciones" name="retenciones" placeholder="">
-          <select class="form-select" aria-label="Default select example">
-            <option selected>Seleccione el tipo de retención</option>
-            <option value="1">Retención a la Renta</option>
-            <option value="2">Retención de IVA</option>
-            <option value="3">Retención de ICA</option>
+          <select id="retenciones" name="retenciones" class="form-select" required>
+            <option value="">Seleccione el tipo de retención</option>
+            <option value="Renta">Retención a la Renta</option>
+            <option value="IVA">Retención de IVA</option>
+            <option value="ICA">Retención de ICA</option>
           </select>
         </div>
+
 
         <div class="mb-3">
           <label for="activo" class="form-label">Activo*</label>

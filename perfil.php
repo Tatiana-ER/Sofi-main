@@ -14,8 +14,6 @@ $aiu = 0;
 
 // Procesar el formulario cuando se envíe
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-
-    // Recibir los datos
     $persona = $_POST['persona'] ?? '';
     $cedula = $_POST['cedula'] ?? '';
     $digito = $_POST['digito'] ?? '';
@@ -27,27 +25,30 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $direccion = $_POST['direccion'] ?? '';
     $email = $_POST['email'] ?? '';
     $telefono = $_POST['telefono'] ?? '';
-    $responsabilidadesInput = $_POST['responsabilidades'] ?? '';
+
+    $responsabilidadesSeleccionadas = $_POST['responsabilidades'] ?? [];
+    $responsabilidadesInput = is_array($responsabilidadesSeleccionadas)
+        ? implode(', ', $responsabilidadesSeleccionadas)
+        : $responsabilidadesSeleccionadas;
+
     $regimen = $_POST['regimen'] ?? '';
     $actividad = $_POST['actividad'] ?? '';
     $tarifa = !empty($_POST['tarifa']) ? floatval($_POST['tarifa']) : NULL;
     $aiu = isset($_POST['aiu']) ? 1 : 0;
 
-
-    // Validar que la cédula tenga máximo 10 dígitos
+    // Validar cédula
     if (strlen($cedula) > 10) {
         $cedula = substr($cedula, 0, 10);
     }
 
-    if (!ctype_digit($cedula)) {
-        echo "<p style='color:red;'>La cédula debe contener solo números.</p>";
-    } else {
+    $mostrarMensaje = null; // Inicializamos la variable aquí
 
-        // Insertar los datos
+    if (!ctype_digit($cedula)) {
+        $mostrarMensaje = "cedulaInvalida";
+    } else {
         $sql = "INSERT INTO perfil 
         (persona, cedula, digito, nombres, apellidos, razon, departamento, ciudad, direccion, email, regimen, actividad, tarifa, aiu, telefono, responsabilidades)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
 
         $stmt = $conexion->prepare($sql);
 
@@ -56,30 +57,30 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         $stmt->bind_param(
-          "ssisssssssssdiis",
-          $persona,
-          $cedula,
-          $digito,
-          $nombres,
-          $apellidos,
-          $razon,
-          $departamento,
-          $ciudad,
-          $direccion,
-          $email,
-          $regimen,
-          $actividad,
-          $tarifa,
-          $aiu,
-          $telefono,
-          $responsabilidadesInput
+            "ssisssssssssdiis",
+            $persona,
+            $cedula,
+            $digito,
+            $nombres,
+            $apellidos,
+            $razon,
+            $departamento,
+            $ciudad,
+            $direccion,
+            $email,
+            $regimen,
+            $actividad,
+            $tarifa,
+            $aiu,
+            $telefono,
+            $responsabilidadesInput
         );
 
-
         if ($stmt->execute()) {
-            echo "<p style='color:green;'>Datos guardados correctamente.</p>";
+            $mostrarMensaje = "guardar";
         } else {
-            echo "<p style='color:red;'>Error al guardar: " . $stmt->error . "</p>";
+            $mostrarMensaje = "error";
+            $errorGuardar = $stmt->error;
         }
 
         $stmt->close();
@@ -87,13 +88,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 
 $conexion->close();
+
 ?>
 
-
 <!DOCTYPE html>
+
 <html lang="en">
 
-<head>
+  <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
 
@@ -122,9 +124,9 @@ $conexion->close();
 
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
-</head>
+  </head>
 
-<body>
+  <body>
 
   <!-- ======= Header ======= -->
   <header id="header" class="fixed-top d-flex align-items-center ">
@@ -214,8 +216,8 @@ $conexion->close();
               <input type="text" name="apellidos" class="form-control" id="apellidos" disabled>
             </div>
             <div>
-              <label for="razonSocial" class="form-label">Razón Social</label>
-              <input type="text" name="razonSocial" class="form-control" id="razonSocial" disabled>       
+              <label for="razon" class="form-label">Razón Social</label>
+              <input type="text" name="razon" class="form-control" id="razon" disabled>       
             </div>
             <br>
             <div class="form-group">
@@ -264,16 +266,24 @@ $conexion->close();
             <input type="checkbox" name="aiu" id="aiu">
             </div>
               </div>
+              <!-- INCLUDE (en <head> o antes del cierre de body): jQuery y Select2 -->
+              <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+              <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+              <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+              <!-- Campo en el formulario -->
               <label for="responsabilidadesTributarias">Responsabilidades Tributarias*</label>
-              <input type="text" id="responsabilidadesTributarias" placeholder="Buscar responsabilidades tributarias..." class="form-control">
+              <select id="responsabilidadesTributarias" name="responsabilidades[]" class="form-select" multiple="multiple" required>
+                <!-- Opciones se llenan por JS -->
+              </select>
               <div id="seleccionadas" class="mt-2"></div>
 
-              <!-- Campo oculto que sí se envía -->
-              <input type="hidden" id="responsabilidadesInput" name="responsabilidades">
+            <!-- Campo oculto que sí se envía -->
+            <input type="hidden" id="responsabilidadesInput" name="responsabilidadesSeleccionadas">
 
-              <br>
-              <ul id="resultList"></ul>
-              <button value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
+            <br>
+            <button value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
+
 
           <!-- Script de los campos departamentos y ciudades-->
           <script>
@@ -659,7 +669,7 @@ $conexion->close();
                 // Habilitar campos
                 document.getElementById("nombres").disabled = !personaNatural;
                 document.getElementById("apellidos").disabled = !personaNatural;
-                document.getElementById("razonSocial").disabled = !personaJuridica;
+                document.getElementById("razon").disabled = !personaJuridica;
 
                 // Desactivar campo "Dígito de verificación" si es persona natural
                 digito.disabled = personaNatural;
@@ -676,128 +686,80 @@ $conexion->close();
             }
           </script>
 
-              <!-- Script del campo responsabilidades tributarias -->
-              <script>
-              document.addEventListener('DOMContentLoaded', function () {
-                  const responsabilidadesTributarias = [
-                      { numero: 1, nombre: 'Aporte especial para la administración de justicia' },
-                      { numero: 2, nombre: 'Gravamen a los movimientos financieros' },
-                      { numero: 3, nombre: 'Impuesto al patrimonio' },
-                      { numero: 4, nombre: 'Impuesto renta y complementario régimen especial' },
-                      { numero: 5, nombre: 'Impuesto renta y complementario régimen ordinario' },
-                      { numero: 6, nombre: 'Ingresos y patrimonio' },
-                      { numero: 7, nombre: 'Retención en la fuente a título de renta' },
-                      { numero: 8, nombre: 'Retención timbre nacional' },
-                      { numero: 9, nombre: 'Retención en la fuente en el impuesto sobre las ventas' },
-                      { numero: 10, nombre: 'Obligado aduanero' },
-                      { numero: 13, nombre: 'Gran contribuyente' },
-                      { numero: 14, nombre: 'Informante de exógena' },
-                      { numero: 15, nombre: 'Autorretenedor' },
-                      { numero: 16, nombre: 'Obligación facturar por ingresos bienes y/o servicios excluidos' },
-                      { numero: 17, nombre: 'Profesionales de compra y venta de divisas' },
-                      { numero: 18, nombre: 'Precios de transferencia' },
-                      { numero: 19, nombre: 'Productor de bienes y/o servicios exentos' },
-                      { numero: 20, nombre: 'Obtención NIT' },
-                      { numero: 21, nombre: 'Declarar ingreso o salida del país de divisas o moneda' },
-                      { numero: 22, nombre: 'Obligado a cumplir deberes formales a nombre de terceros' },
-                      { numero: 23, nombre: 'Agente de retención en ventas' },
-                      { numero: 24, nombre: 'Declaración consolidada precios de transferencia' },
-                      { numero: 26, nombre: 'Declaración individual precios de transferencia' },
-                      { numero: 32, nombre: 'Impuesto nacional a la gasolina y al ACPM' },
-                      { numero: 33, nombre: 'Impuesto nacional al consumo' },
-                      { numero: 36, nombre: 'Establecimiento Permanente' },
-                      { numero: 37, nombre: 'Obligado a Facturar Electrónicamente' },
-                      { numero: 38, nombre: 'Facturación Electrónica Voluntaria' },
-                      { numero: 39, nombre: 'Proveedor de Servicios Tecnológicos PST' },
-                      { numero: 41, nombre: 'Declaración anual de activos en el exterior e rendimientos financieros' },
-                      { numero: 46, nombre: 'IVA Prestadores de Servicios desde el Exterior' },
-                      { numero: 47, nombre: 'Régimen Simple de Tributación-SIMPLE' },
-                      { numero: 48, nombre: 'Impuesto sobre las ventas-IVA' },
-                      { numero: 49, nombre: 'No responsable de IVA' },
-                      { numero: 50, nombre: 'No responsable de Consumo restaurantes y bares' },
-                      { numero: 51, nombre: 'Agente retención impoconsumo de bienes inmuebles' },
-                      { numero: 52, nombre: 'Facturador electrónico' },
-                      { numero: 53, nombre: 'Persona Jurídica No Responsable de IVA' }
-                  ];
+            <script>
+            document.addEventListener('DOMContentLoaded', function () {
+              const responsabilidadesTributarias = [
+                { numero: 1, nombre: 'Aporte especial para la administración de justicia' },
+                { numero: 2, nombre: 'Gravamen a los movimientos financieros' },
+                { numero: 3, nombre: 'Impuesto al patrimonio' },
+                { numero: 4, nombre: 'Impuesto renta y complementario régimen especial' },
+                { numero: 5, nombre: 'Impuesto renta y complementario régimen ordinario' },
+                { numero: 6, nombre: 'Ingresos y patrimonio' },
+                { numero: 7, nombre: 'Retención en la fuente a título de renta' },
+                { numero: 8, nombre: 'Retención timbre nacional' },
+                { numero: 9, nombre: 'Retención en la fuente en el impuesto sobre las ventas' },
+                { numero: 10, nombre: 'Obligado aduanero' },
+                { numero: 13, nombre: 'Gran contribuyente' },
+                { numero: 14, nombre: 'Informante de exógena' },
+                { numero: 15, nombre: 'Autorretenedor' },
+                { numero: 16, nombre: 'Obligación facturar por ingresos bienes y/o servicios excluidos' },
+                { numero: 17, nombre: 'Profesionales de compra y venta de divisas' },
+                { numero: 18, nombre: 'Precios de transferencia' },
+                { numero: 19, nombre: 'Productor de bienes y/o servicios exentos' },
+                { numero: 20, nombre: 'Obtención NIT' },
+                { numero: 21, nombre: 'Declarar ingreso o salida del país de divisas o moneda' },
+                { numero: 22, nombre: 'Obligado a cumplir deberes formales a nombre de terceros' },
+                { numero: 23, nombre: 'Agente de retención en ventas' },
+                { numero: 24, nombre: 'Declaración consolidada precios de transferencia' },
+                { numero: 26, nombre: 'Declaración individual precios de transferencia' },
+                { numero: 32, nombre: 'Impuesto nacional a la gasolina y al ACPM' },
+                { numero: 33, nombre: 'Impuesto nacional al consumo' },
+                { numero: 36, nombre: 'Establecimiento Permanente' },
+                { numero: 37, nombre: 'Obligado a Facturar Electrónicamente' },
+                { numero: 38, nombre: 'Facturación Electrónica Voluntaria' },
+                { numero: 39, nombre: 'Proveedor de Servicios Tecnológicos PST' },
+                { numero: 41, nombre: 'Declaración anual de activos en el exterior e rendimientos financieros' },
+                { numero: 46, nombre: 'IVA Prestadores de Servicios desde el Exterior' },
+                { numero: 47, nombre: 'Régimen Simple de Tributación-SIMPLE' },
+                { numero: 48, nombre: 'Impuesto sobre las ventas-IVA' },
+                { numero: 49, nombre: 'No responsable de IVA' },
+                { numero: 50, nombre: 'No responsable de Consumo restaurantes y bares' },
+                { numero: 51, nombre: 'Agente retención impoconsumo de bienes inmuebles' },
+                { numero: 52, nombre: 'Facturador electrónico' },
+                { numero: 53, nombre: 'Persona Jurídica No Responsable de IVA' }
+              ];
 
-                  const input = document.getElementById('responsabilidadesTributarias');
-                  const contenedorSeleccionadas = document.getElementById('seleccionadas');
-                  const inputOculto = document.getElementById('responsabilidadesInput');
-                  let seleccionadas = [];
+              const $select = $('#responsabilidadesTributarias');
 
-                  input.addEventListener('input', function () {
-                      const searchTerm = input.value.toLowerCase();
-                      const filtered = responsabilidadesTributarias.filter(r =>
-                          r.nombre.toLowerCase().includes(searchTerm) || r.numero.toString().includes(searchTerm)
-                      );
-                      mostrarSugerencias(filtered);
-                  });
-
-                  function mostrarSugerencias(lista) {
-                      limpiarSugerencias();
-                      const ul = document.createElement('ul');
-                      ul.classList.add('list-group', 'mt-1');
-                      lista.forEach(r => {
-                          const li = document.createElement('li');
-                          li.textContent = `${r.numero} - ${r.nombre}`;
-                          li.classList.add('list-group-item', 'list-group-item-action');
-                          li.addEventListener('click', () => {
-                              agregarSeleccion(r);
-                              limpiarSugerencias();
-                              input.value = '';
-                          });
-                          ul.appendChild(li);
-                      });
-                      input.insertAdjacentElement('afterend', ul);
-                  }
-
-                  function agregarSeleccion(responsabilidad) {
-                      if (!seleccionadas.find(r => r.numero === responsabilidad.numero)) {
-                          seleccionadas.push(responsabilidad);
-                          actualizarCampoSeleccionadas();
-                      }
-                  }
-
-                function actualizarCampoSeleccionadas() {
-                    contenedorSeleccionadas.innerHTML = '';
-                    seleccionadas.forEach(r => {
-                        const badge = document.createElement('span');
-                        badge.textContent = `${r.numero} - ${r.nombre}`;
-                        badge.classList.add('badge', 'bg-primary', 'm-1', 'p-2');
-
-                        const btn = document.createElement('button');
-                        btn.textContent = 'x';
-                        btn.classList.add('btn', 'btn-danger', 'btn-sm', 'ms-2');
-                        btn.type = 'button';
-                        btn.addEventListener('click', () => eliminarSeleccion(r.numero));
-
-                        badge.appendChild(btn);
-                        contenedorSeleccionadas.appendChild(badge);
-                    });
-
-                    // Aquí se guarda la lista en el input oculto
-                    const inputOculto = document.getElementById('responsabilidadesInput');
-                    inputOculto.value = JSON.stringify(seleccionadas.map(r => r.nombre));
-                }
-
-
-                  function eliminarSeleccion(numero) {
-                      seleccionadas = seleccionadas.filter(r => r.numero !== numero);
-                      actualizarCampoSeleccionadas();
-                  }
-
-                  function limpiarSugerencias() {
-                      const oldList = document.querySelector('.list-group');
-                      if (oldList) oldList.remove();
-                }
+              // Poblar <select> con opciones
+              responsabilidadesTributarias.forEach(r => {
+                const text = `${r.numero} - ${r.nombre}`;
+                const option = new Option(text, r.numero + ' - ' + r.nombre, false, false);
+                $select.append(option);
               });
-              </script>
+
+              // Inicializar Select2
+              $select.select2({
+                placeholder: 'Seleccione una o varias responsabilidades',
+                width: '100%',
+                dropdownParent: $('body'),        // <- muy importante: evita recortes por contenedores
+                maximumSelectionLength: 10,       // opcional: límite de items seleccionables
+                closeOnSelect: false,             // útil para múltiples selecciones
+                // para controlar tamaño del dropdown:
+                dropdownCssClass: 'custom-select2-dropdown'
+              });
+
+              // Aumentar z-index del dropdown para que no quede detrás del footer
+              const style = document.createElement('style');
+              style.innerHTML = `
+                .select2-container--open { z-index: 99999 !important; }
+                .custom-select2-dropdown .select2-results { max-height: 240px; overflow-y: auto; }
+              `;
+              document.head.appendChild(style);
+            });
+            </script>
+
         </Form>
-
-        <?php
-            include("send.php");
-        ?>
-
       </div>
     </section><!-- End Services Section -->
 
@@ -823,6 +785,33 @@ $conexion->close();
   <!-- Template Main JS File -->
   <script src="assets/js/main.js"></script>
 
-</body>
+  <?php if (isset($mostrarMensaje)): ?>
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            <?php if ($mostrarMensaje === "guardar"): ?>
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Datos guardados correctamente',
+                    confirmButtonColor: '#3085d6'
+                });
+            <?php elseif ($mostrarMensaje === "error"): ?>
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error al guardar los datos',
+                    text: 'Por favor revisa la conexión o los campos ingresados.'
+                });
+            <?php elseif ($mostrarMensaje === "cedulaInvalida"): ?>
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Cédula inválida',
+                    text: 'Debe contener solo números.'
+                });
+            <?php endif; ?>
+        });
+        </script>
+        <?php endif; ?>
+
+
+  </body>
 
 </html>

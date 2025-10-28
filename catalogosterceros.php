@@ -129,60 +129,61 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <?php if (isset($_GET['msg'])): ?>
+
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-  switch ("<?= $_GET['msg'] ?>") {
-    case "agregado":
-      Swal.fire({
-        icon: 'success',
-        title: 'Guardado exitosamente',
-        text: 'La cuenta contable se ha agregado correctamente',
-        confirmButtonColor: '#3085d6'
-      });
-      break;
+    document.addEventListener("DOMContentLoaded", () => {
+      switch ("<?= $_GET['msg'] ?>") {
+        case "agregado":
+          Swal.fire({
+            icon: 'success',
+            title: 'Guardado exitosamente',
+            text: 'La cuenta contable se ha agregado correctamente',
+            confirmButtonColor: '#3085d6'
+          });
+          break;
 
-    case "modificado":
-      Swal.fire({
-        icon: 'success',
-        title: 'Modificado correctamente',
-        text: 'Los datos se actualizaron con éxito',
-        confirmButtonColor: '#3085d6'
-      });
-      break;
+        case "modificado":
+          Swal.fire({
+            icon: 'success',
+            title: 'Modificado correctamente',
+            text: 'Los datos se actualizaron con éxito',
+            confirmButtonColor: '#3085d6'
+          });
+          break;
 
-    case "eliminado":
-      Swal.fire({
-        icon: 'success',
-        title: 'Eliminado correctamente',
-        text: 'La cuenta contable fue eliminada del registro',
-        confirmButtonColor: '#3085d6'
-      });
-      break;
-    case "duplicado":
-      Swal.fire({
-        icon: 'error',
-        title: 'Error al guardar',
-        text: 'Ya existe un tercero con la misma cédula, correo o teléfono.',
-        confirmButtonColor: '#3085d6'
-      });
-      break;
-    case "telefono_invalido":
-      Swal.fire({
-        icon: 'error',
-        title: 'Teléfono no válido',
-        text: 'El número de teléfono debe tener entre 7 y 10 dígitos.',
-        confirmButtonColor: '#3085d6'
-      });
-      break;
-  }
+        case "eliminado":
+          Swal.fire({
+            icon: 'success',
+            title: 'Eliminado correctamente',
+            text: 'La cuenta contable fue eliminada del registro',
+            confirmButtonColor: '#3085d6'
+          });
+          break;
+        case "duplicado":
+          Swal.fire({
+            icon: 'error',
+            title: 'Error al guardar',
+            text: 'Ya existe un tercero con la misma cédula, correo o teléfono.',
+            confirmButtonColor: '#3085d6'
+          });
+          break;
+        case "telefono_invalido":
+          Swal.fire({
+            icon: 'error',
+            title: 'Teléfono no válido',
+            text: 'El número de teléfono debe tener entre 7 y 10 dígitos.',
+            confirmButtonColor: '#3085d6'
+          });
+          break;
+      }
 
-  // Quita el parámetro ?msg=... de la URL sin recargar
-  if (window.history.replaceState) {
-    const url = new URL(window.location);
-    url.searchParams.delete('msg');
-    window.history.replaceState({}, document.title, url);
-  }
-});
+      // Quita el parámetro ?msg=... de la URL sin recargar
+      if (window.history.replaceState) {
+        const url = new URL(window.location);
+        url.searchParams.delete('msg');
+        window.history.replaceState({}, document.title, url);
+      }
+    });
 </script>
 <?php endif; ?>
 
@@ -1057,7 +1058,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 cancelButtonColor: "#6c757d",
               }).then((result) => {
                 if (result.isConfirmed) {
-                  // 🔹 Crear (si no existe) un campo oculto con la acción seleccionada
+                  //  Crear (si no existe) un campo oculto con la acción seleccionada
                   let inputAccion = form.querySelector("input[name='accionOculta']");
                   if (!inputAccion) {
                     inputAccion = document.createElement("input");

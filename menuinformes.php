@@ -62,8 +62,8 @@
 
     <!-- ======= Services Section ======= -->
     <section id="services" class="services">
-            <button class="btn-ir" onclick="window.location.href='dashboard.php'">
-        <i class="fa-solid fa-arrow-left"></i> Regresar
+      <button class="btn-ir" onclick="window.location.href='dashboard.php'">
+      <i class="fa-solid fa-arrow-left"></i> Regresar
       </button>
       <div class="container" data-aos="fade-up">
 
@@ -71,7 +71,6 @@
           <h2>INFORMES</h2>
           <p>A continuación puede ingresar a los informes configurados para su usuario en el sistema.</p>
         </div>
-
         <div class="row">
           <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="100">
             <div class="icon-box">
