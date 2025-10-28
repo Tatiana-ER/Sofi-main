@@ -5,6 +5,8 @@ include ("connection.php");
 $conn = new connection();
 $pdo = $conn->connect();
 
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+
 $txtId=(isset($_POST['txtId']))?$_POST['txtId']:"";
 $metodoPago=(isset($_POST['metodoPago']))?$_POST['metodoPago']:"";
 $cuentaContable=(isset($_POST['cuentaContable']))?$_POST['cuentaContable']:"";
@@ -437,94 +439,56 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // --- NUEVA LÓGICA DE CARGA DE CUENTAS POR AJAX EN UN SOLO SELECT ---
-    $(document).ready(function() {
-        const $metodoPago = $('#metodoPago');
-        const $cuentaSelect = $('#cuentaContable');
-        const cuentaContableGuardada = "<?php echo $cuentaContable; ?>"; // Valor de PHP para edición
+$(document).ready(function() {
+  const $metodoPago = $('#metodoPago');
+  const $cuentaSelect = $('#cuentaContable');
+  const cuentaContableGuardada = "<?php echo $cuentaContable; ?>";
 
-        // Inicializar Select2
-        $('#cuentaContable').select2({
-            placeholder: "Buscar o seleccionar una cuenta contable",
-            allowClear: true,
-            width: '100%',
-            // Habilitar el renderizado de HTML para mostrar el texto resaltado
-            templateResult: function (data) {
-                if (!data.id) {
-                    return data.text;
-                }
-                // Función para parsear HTML
-                const $span = $('<span>').html(data.text);
-                return $span;
-            },
-            templateSelection: function (data) {
-                // En la selección, quitamos el formato HTML para guardar solo el texto simple
-                return data.text.replace('**(Personalizada)** ', ''); 
-            }
-        });
-        
-        // Función para cargar las cuentas
-        function cargarCuentas(metodo) {
-            $cuentaSelect.empty().append('<option value="">Cargando...</option>').trigger('change');
-            
-            if (metodo === "") {
-                $cuentaSelect.empty().append('<option value="">Selecciona un método de pago primero</option>').trigger('change');
-                return;
-            }
+  // Inicializar Select2 con búsqueda AJAX
+  $cuentaSelect.select2({
+    placeholder: "Buscar o seleccionar una cuenta contable",
+    allowClear: true,
+    width: '100%',
+    ajax: {
+      url: 'obtener_cuentas.php',
+      dataType: 'json',
+      delay: 250,
+      data: function (params) {
+        return {
+          metodo: $metodoPago.val(),
+          search: params.term || '' // texto escrito
+        };
+      },
+      processResults: function (data) {
+        return {
+          results: data.map(function (cuenta) {
+            return { id: cuenta.valor, text: cuenta.texto };
+          })
+        };
+      },
+      cache: true
+    }
+  });
 
-            // Llamada AJAX al nuevo archivo PHP que consolida los niveles
-            $.ajax({
-                url: 'obtener_cuentas.php', 
-                type: 'GET',
-                data: {
-                    metodo: metodo
-                },
-                dataType: 'json',
-                success: function(data) {
-                    $cuentaSelect.empty().append('<option value="">Selecciona una cuenta contable</option>');
-                    
-                    $.each(data, function(i, cuenta) {
-                        // Usamos la propiedad `data` de Select2 para añadir estilos de jerarquía (opcional)
-                        const newOption = new Option(cuenta.texto, cuenta.valor, false, false);
-                        
-                        // Añadir una clase CSS a la opción para indentación si tiene '→' (opcional)
-                        if (cuenta.texto.startsWith('→ →')) {
-                            $(newOption).addClass('subcuenta-nivel3');
-                        } else if (cuenta.texto.startsWith('→')) {
-                            $(newOption).addClass('subcuenta-nivel2');
-                        }
-                        
-                        $cuentaSelect.append(newOption);
-                    });
-                    
-                    // Si estamos en modo edición, seleccionamos el valor guardado
-                    if (cuentaContableGuardada && data.some(c => c.valor === cuentaContableGuardada)) {
-                        $cuentaSelect.val(cuentaContableGuardada).trigger('change');
-                    }
-                    
-                    $cuentaSelect.trigger('change');
-                },
-                error: function(xhr, status, error) {
-                    console.error("Error al cargar cuentas contables:", status, error);
-                    $cuentaSelect.empty().append('<option value="">Error al cargar las cuentas</option>').trigger('change');
-                }
-            });
-        }
+  // Recargar el select si cambia el método de pago
+  $metodoPago.on('change', function() {
+    $cuentaSelect.val(null).trigger('change');
+  });
 
-        // 1. Manejar el cambio en el selector de Método de Pago
-        $metodoPago.on('change', function() {
-            cargarCuentas($metodoPago.val());
-        });
-
-        // 2. Cargar las cuentas iniciales si ya hay un método de pago seleccionado 
-        if ($metodoPago.val()) {
-            cargarCuentas($metodoPago.val());
-        } else {
-             $cuentaSelect.empty().append('<option value="">Selecciona un método de pago primero</option>').trigger('change');
-        }
-
+  // Si estás editando, cargar la cuenta guardada manualmente
+  if (cuentaContableGuardada) {
+    $.ajax({
+      url: 'obtener_cuentas.php',
+      data: { id: cuentaContableGuardada },
+      dataType: 'json'
+    }).then(function(data) {
+      const cuenta = data[0];
+      const option = new Option(cuenta.texto, cuenta.valor, true, true);
+      $cuentaSelect.append(option).trigger('change');
     });
-    
+  }
+});
+
     // Puedes añadir estilos CSS para la indentación en el <style> de tu HTML (opcional):
     /*
     .subcuenta-nivel2 { padding-left: 10px; }

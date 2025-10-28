@@ -1,85 +1,174 @@
 <?php
 include("connection.php");
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
 
 $conn = new connection();
 $pdo = $conn->connect();
 
-$tipo = isset($_GET['tipo']) ? $_GET['tipo'] : '';
+$tipo = isset($_GET['tipo']) ? strtolower($_GET['tipo']) : '';
+$search = isset($_GET['search']) ? trim($_GET['search']) : ''; 
 $cuentas = [];
 $codigos_unicos = [];
 
-// Definir los filtros según el tipo solicitado
+/* 1 SI SE RECIBE UN TÉRMINO DE BÚSQUEDA → BUSQUEDA GLOBAL */
+if (!empty($search)) {
+    // 🔍 Buscar en cuentas_contables (todos los niveles)
+    $sql_busqueda_global = "
+        SELECT DISTINCT cuenta
+        FROM (
+            SELECT nivel1 AS cuenta FROM cuentas_contables
+            UNION ALL
+            SELECT nivel2 FROM cuentas_contables
+            UNION ALL
+            SELECT nivel3 FROM cuentas_contables
+            UNION ALL
+            SELECT nivel4 FROM cuentas_contables
+            UNION ALL
+            SELECT nivel5 FROM cuentas_contables
+            UNION ALL
+            SELECT nivel6 FROM cuentas_contables
+        ) AS todas
+        WHERE cuenta IS NOT NULL AND cuenta != ''
+        AND LOWER(cuenta) LIKE LOWER(:search)
+        ORDER BY cuenta
+        LIMIT 50
+    ";
+    $stmt = $pdo->prepare($sql_busqueda_global);
+    $stmt->execute([':search' => "%$search%"]);
+    $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($resultados as $row) {
+        $cuenta = $row['cuenta'];
+        if (!empty($cuenta) && !isset($codigos_unicos[$cuenta])) {
+            $cuentas[] = [
+                'valor' => $cuenta,
+                'texto' => $cuenta,
+                'nombre_puro' => (strpos($cuenta, '-') !== false) ? trim(explode('-', $cuenta, 2)[1]) : ''
+            ];
+            $codigos_unicos[$cuenta] = true;
+        }
+    }
+
+    // Buscar también en catalogoscuentascontables
+    $sql_catalogo = "
+        SELECT DISTINCT auxiliar
+        FROM catalogoscuentascontables
+        WHERE LOWER(auxiliar) LIKE LOWER(:search)
+        ORDER BY auxiliar
+        LIMIT 50
+    ";
+    $stmt2 = $pdo->prepare($sql_catalogo);
+    $stmt2->execute([':search' => "%$search%"]);
+    $resultados_catalogo = $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($resultados_catalogo as $row) {
+        $aux = $row['auxiliar'];
+        if (!empty($aux) && !isset($codigos_unicos[$aux])) {
+            $cuentas[] = [
+                'valor' => $aux,
+                'texto' => " (Personalizada) " . $aux,
+                'nombre_puro' => (strpos($aux, '-') !== false) ? trim(explode('-', $aux, 2)[1]) : ''
+            ];
+            $codigos_unicos[$aux] = true;
+        }
+    }
+
+    echo json_encode($cuentas, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+/* 2 SIN BÚSQUEDA → FILTRAR SEGÚN EL TIPO (ventas, inventarios…) */
 switch ($tipo) {
     case 'ventas':
-        // Clase 4 - Utilizando el método de la participación, neto de impuestos
-        $filtro = "nivel1 LIKE '4-%'";
+        $filtro = "nivel1 LIKE '4%'";
         break;
     case 'inventarios':
-        // Grupo 14 - Inventarios
-        $filtro = "nivel2 LIKE '14-%' OR nivel3 LIKE '14-%'";
+        $filtro = "nivel2 LIKE '14%' OR nivel3 LIKE '14%'";
         break;
     case 'costos':
-        // Clase 6 - Gastos por costo de ventas
-        $filtro = "nivel1 LIKE '6-%'";
+        $filtro = "nivel1 LIKE '6%'";
         break;
     case 'devoluciones':
-        // Cuenta 4175 - Devolución en ventas (db)
-        $filtro = "nivel3 LIKE '4175-%'";
+        $filtro = "nivel3 LIKE '4175%'";
         break;
     default:
         echo json_encode([]);
         exit;
 }
 
-// Consulta a la tabla de cuentas_contables
+/* 3 CONSULTAR SOLO EL ÚLTIMO NIVEL DISPONIBLE */
 $sql = "
-    SELECT DISTINCT nivel1, nivel2, nivel3, nivel4, nivel5, nivel6
+    SELECT DISTINCT
+        CASE
+            WHEN nivel6 IS NOT NULL AND nivel6 != '' THEN nivel6
+            WHEN nivel5 IS NOT NULL AND nivel5 != '' THEN nivel5
+            WHEN nivel4 IS NOT NULL AND nivel4 != '' THEN nivel4
+            ELSE nivel3
+        END AS cuenta_final
     FROM cuentas_contables
     WHERE {$filtro}
-    ORDER BY nivel1, nivel2, nivel3, nivel4, nivel5, nivel6
+    ORDER BY cuenta_final
 ";
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute();
 $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Armar la jerarquía y extraer el nombre puro
 foreach ($resultados as $row) {
+    $cuenta = $row['cuenta_final'];
+    if (!empty($cuenta) && !isset($codigos_unicos[$cuenta])) {
+        $partes = explode('-', $cuenta, 2);
+        $codigo = trim($partes[0]);
+        $nombre = isset($partes[1]) ? trim($partes[1]) : '';
+        $cuentas[] = [
+            'valor' => $cuenta,
+            'texto' => $cuenta,
+            'nombre_puro' => $nombre
+        ];
+        $codigos_unicos[$cuenta] = true;
+    }
+}
 
-    // Iterar sobre los niveles del 1 al 6
-    for ($i = 1; $i <= 6; $i++) {
-        $nivel_completo = $row['nivel' . $i]; // Ej: "71-Materia prima"
-        
-        if (!empty($nivel_completo) && !isset($codigos_unicos[$nivel_completo])) {
-            
-            // 1. Separar el código y el nombre
-            // Buscamos el primer guion para dividir: [código, descripción]
-            $partes = explode('-', $nivel_completo, 2); 
-            $codigo = trim($partes[0]);
-            
-            // Si tiene guion, el nombre puro es la segunda parte (o vacío si no tiene guion)
-            $nombre_puro = count($partes) > 1 ? trim($partes[1]) : ''; 
+/* 4 AGREGAR TAMBIÉN CUENTAS PERSONALIZADAS DEL CATÁLOGO */
+$prefijos = [];
+if ($tipo === 'inventarios') {
+    $prefijos = ['14'];
+} elseif ($tipo === 'ventas') {
+    $prefijos = ['4'];
+} elseif ($tipo === 'costos') {
+    $prefijos = ['6'];
+} elseif ($tipo === 'devoluciones') {
+    $prefijos = ['4175'];
+}
 
-            // 2. Definir el texto a mostrar en el Select2
-            $prefijo = str_repeat("  ", $i - 1);
-            // Mostrar: [prefijo] [código] - [nombre]
-            $texto_select = $prefijo . $codigo . ' - ' . $nombre_puro;
+if (!empty($prefijos)) {
+    $cond = implode(" OR ", array_map(fn($p) => "auxiliar LIKE '{$p}%'", $prefijos));
+    $sql_personalizadas = "
+        SELECT DISTINCT auxiliar 
+        FROM catalogoscuentascontables 
+        WHERE ({$cond})
+        AND auxiliar IS NOT NULL AND auxiliar != ''
+        ORDER BY auxiliar
+    ";
+    $stmt2 = $pdo->prepare($sql_personalizadas);
+    $stmt2->execute();
+    $res_personalizadas = $stmt2->fetchAll(PDO::FETCH_ASSOC);
 
-            // 3. Agregar a las cuentas (usamos el código como valor)
+    foreach ($res_personalizadas as $row) {
+        $aux = $row['auxiliar'];
+        if (!isset($codigos_unicos[$aux])) {
+            $partes = explode('-', $aux, 2);
+            $nombre = isset($partes[1]) ? trim($partes[1]) : '';
             $cuentas[] = [
-                // Este es el valor real (ej: 71, 7105, 710501)
-                'valor' => $codigo, 
-                // Este es el texto con jerarquía para Select2
-                'texto' => $texto_select,
-                // Nuevo campo para el input de texto inferior
-                'nombre_puro' => $nombre_puro
+                'valor' => $aux,
+                'texto' => " (Personalizada) " . $aux,
+                'nombre_puro' => $nombre
             ];
-            $codigos_unicos[$nivel_completo] = true;
+            $codigos_unicos[$aux] = true;
         }
     }
 }
 
-// Devolver en formato JSON
+/*5 DEVOLVER RESULTADO FINAL*/
 echo json_encode($cuentas, JSON_UNESCAPED_UNICODE);
 ?>

@@ -1,8 +1,14 @@
 <?php
-include ("connection.php");
+include("connection.php");
 
 $conn = new connection();
 $pdo = $conn->connect();
+
+$search = isset($_REQUEST['search']) ? trim($_REQUEST['search']) : '';
+
+if (isset($_GET['search'])) {
+    error_log(" Buscando: " . $_GET['search']);
+}
 
 $txtId = $_POST['txtId'] ?? "";
 $codigoDocumento = $_POST['codigoDocumento'] ?? "";
@@ -19,6 +25,7 @@ $retenciones = isset($_POST['retenciones']) ? 1 : 0;
 $tipoRetencion = $_POST['tipoRetencion'] ?? "";
 $autoRetenciones = isset($_POST['autoRetenciones']) ? 1 : 0;
 $tipoAutoretencion = $_POST['tipoAutoretencion'] ?? "";
+$cuentaRetenciones = $_POST['cuentaRetenciones'] ?? ""; // ✅ Nuevo campo
 $activo = isset($_POST['activo']) ? 1 : 0;
 
 $accion = $_POST['accion'] ?? "";
@@ -26,18 +33,18 @@ $accion = $_POST['accion'] ?? "";
 // Inicializa $lista para evitar el warning
 $lista = [];
 
-switch($accion){
+switch ($accion) {
   case "btnAgregar":
       $sentencia = $pdo->prepare("INSERT INTO facturadeventa(
         codigoDocumento, descripcionDocumento, resolucionDian, numeroResolucion,
         fechaInicio, vigencia, fechaFinalizacion, prefijo,
         consecutivoInicial, consecutivoFinal, retenciones, tipoRetencion,
-        autoRetenciones, tipoAutoretencion, activo
+        autoRetenciones, tipoAutoretencion, cuentaRetenciones, activo
       ) VALUES (
         :codigoDocumento, :descripcionDocumento, :resolucionDian, :numeroResolucion,
         :fechaInicio, :vigencia, :fechaFinalizacion, :prefijo,
         :consecutivoInicial, :consecutivoFinal, :retenciones, :tipoRetencion,
-        :autoRetenciones, :tipoAutoretencion, :activo
+        :autoRetenciones, :tipoAutoretencion, :cuentaRetenciones, :activo
       )");
 
       $sentencia->bindParam(':codigoDocumento', $codigoDocumento);
@@ -54,12 +61,12 @@ switch($accion){
       $sentencia->bindParam(':tipoRetencion', $tipoRetencion);
       $sentencia->bindParam(':autoRetenciones', $autoRetenciones);
       $sentencia->bindParam(':tipoAutoretencion', $tipoAutoretencion);
+      $sentencia->bindParam(':cuentaRetenciones', $cuentaRetenciones);
       $sentencia->bindParam(':activo', $activo);
       $sentencia->execute();
 
-      // Mostrar alerta con SweetAlert2
       header("Location: ".$_SERVER['PHP_SELF']."?msg=agregado");
-      exit; // Evita reenvío del formulario
+      exit;
   break;
 
   case "btnModificar":
@@ -78,6 +85,7 @@ switch($accion){
           tipoRetencion = :tipoRetencion,
           autoRetenciones = :autoRetenciones,
           tipoAutoretencion = :tipoAutoretencion,
+          cuentaRetenciones = :cuentaRetenciones,  -- ✅ Nuevo campo
           activo = :activo
         WHERE id = :id");
 
@@ -95,13 +103,13 @@ switch($accion){
       $sentencia->bindParam(':tipoRetencion', $tipoRetencion);
       $sentencia->bindParam(':autoRetenciones', $autoRetenciones);
       $sentencia->bindParam(':tipoAutoretencion', $tipoAutoretencion);
+      $sentencia->bindParam(':cuentaRetenciones', $cuentaRetenciones);
       $sentencia->bindParam(':activo', $activo);
       $sentencia->bindParam(':id', $txtId);
       $sentencia->execute();
 
-      // Redirigir y mostrar alerta
-    header("Location: ".$_SERVER['PHP_SELF']."?msg=modificado");
-    exit;
+      header("Location: ".$_SERVER['PHP_SELF']."?msg=modificado");
+      exit;
   break;
 
   case "btnEliminar":
@@ -114,8 +122,20 @@ switch($accion){
   break;
 }
 
-// Consulta para llenar la tabla y evitar el warning
-$sentencia = $pdo->prepare("SELECT * FROM facturadeventa");
+
+// Consulta para llenar la tabla (faltaba)
+if (!empty($search)) {
+    $sentencia = $pdo->prepare("SELECT * FROM facturadeventa 
+                                WHERE codigoDocumento LIKE :search 
+                                   OR descripcionDocumento LIKE :search 
+                                   OR tipoRetencion LIKE :search 
+                                   OR cuentaRetenciones LIKE :search
+                                ORDER BY id DESC");
+    $sentencia->bindValue(':search', "%$search%");
+} else {
+    $sentencia = $pdo->prepare("SELECT * FROM facturadeventa ORDER BY id DESC");
+}
+
 $sentencia->execute();
 $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
 ?>
@@ -192,6 +212,11 @@ document.addEventListener("DOMContentLoaded", () => {
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> 
+
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
@@ -264,23 +289,21 @@ document.addEventListener("DOMContentLoaded", () => {
         <input type="hidden" value="<?php echo $txtId; ?>" id="txtId" name="txtId">
 
         <!-- Código y Descripción -->
-        <div class="row g-3">
-          <div class="col-md-4">
-            <label for="codigoDocumento" class="form-label fw-bold">Código de documento*</label>
-            <input type="number" class="form-control" id="codigoDocumento" name="codigoDocumento"
-                  placeholder="Ingresa el código..."
-                  value="<?php echo $codigoDocumento; ?>" required>
-          </div>
+       <div class="row g-3">
+        <div class="col-md-4">
+          <label for="codigoDocumento" class="form-label fw-bold">Código de documento*</label>
+          <input type="number" class="form-control" id="codigoDocumento" name="codigoDocumento"
+                placeholder="Ingresa el código..."
+                value="<?php echo $codigoDocumento; ?>" required>
+        </div>
 
-      <form action="" method="post">
-        <div>
-          <label for="id" class="form-label">ID:</label>
-          <input type="text" class="form-control" value="<?php echo $txtId;?>" id="txtId" name="txtId" readonly> 
+        <div class="col-md-8">
+          <label for="descripcionDocumento" class="form-label fw-bold">Descripción del documento*</label>
+          <input type="text" class="form-control" id="descripcionDocumento" name="descripcionDocumento"
+                placeholder="Ej: Factura de venta, Nota crédito..."
+                value="<?php echo $descripcionDocumento; ?>" required>
         </div>
-        <div class="mb-3">
-          <label for="codigoDocumento" class="form-label">Codigo de documento*</label>
-          <input type="number" class="form-control" value="<?php echo $codigoDocumento;?>" id="codigoDocumento" name="codigoDocumento" placeholder="">
-        </div>
+      </div>
 
         <!-- Datos de resolución -->
         <div class="row g-3 mt-2">
@@ -372,13 +395,12 @@ document.addEventListener("DOMContentLoaded", () => {
         <!-- NUEVO CAMPO: Cuentas contables de retención -->
         <div class="row g-3 mt-3">
           <div class="col-md-6">
-            <label for="cuentasContablesRetencion" class="form-label fw-bold">
+            <label for="cuentaRetenciones" class="form-label fw-bold">
               Cuentas contables de retención
             </label>
-            <input type="text" class="form-control" id="cuentasContablesRetencion" name="cuentasContablesRetencion"
-                  placeholder="Ingrese los códigos contables manualmente..."
-                  value="">
-            <small class="text-muted">Ejemplo: 236540, 236570</small>
+            <select id="cuentaRetenciones" class="form-select" name="cuentaRetenciones">
+              <option value="">Seleccione una cuenta...</option>
+            </select>
           </div>
         </div>
 
@@ -418,10 +440,10 @@ document.addEventListener("DOMContentLoaded", () => {
      <table class="table-container">
       <thead>
         <tr>
-          <th>Codigo Documento</th>
+          <th>Código Documento</th>
           <th>Descripción Documento</th>
-          <th>Resolucion Dian</th>
-          <th>Numero de Resolución</th>
+          <th>Resolución DIAN</th>
+          <th>Número de Resolución</th>
           <th>Fecha Inicio</th>
           <th>Vigencia</th>
           <th>Fecha Finalización</th>
@@ -430,8 +452,9 @@ document.addEventListener("DOMContentLoaded", () => {
           <th>Consecutivo Final</th>
           <th>Retenciones</th>
           <th>Tipo Retención</th>
+          <th>Cuenta de Retenciones</th> <!-- ✅ Nuevo campo -->
           <th>Autoretenciones</th>
-          <th>Tipo de regimen</th>
+          <th>Tipo de Régimen</th>
           <th>Activo</th>
           <th>Acción</th>
         </tr>
@@ -442,7 +465,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <tr>
             <td><?php echo htmlspecialchars($usuario['codigoDocumento']); ?></td>
             <td><?php echo htmlspecialchars($usuario['descripcionDocumento']); ?></td>
-            <td><?php echo htmlspecialchars($usuario['resolucionDian'])? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
+            <td><?php echo htmlspecialchars($usuario['resolucionDian']) ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
             <td><?php echo htmlspecialchars($usuario['numeroResolucion']); ?></td>
             <td><?php echo htmlspecialchars($usuario['fechaInicio']); ?></td>
             <td><?php echo htmlspecialchars($usuario['vigencia']); ?></td>
@@ -450,11 +473,12 @@ document.addEventListener("DOMContentLoaded", () => {
             <td><?php echo htmlspecialchars($usuario['prefijo']); ?></td>
             <td><?php echo htmlspecialchars($usuario['consecutivoInicial']); ?></td>
             <td><?php echo htmlspecialchars($usuario['consecutivoFinal']); ?></td>
-            <td><?php echo htmlspecialchars($usuario['retenciones'])? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
+            <td><?php echo htmlspecialchars($usuario['retenciones']) ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
             <td><?php echo htmlspecialchars($usuario['tipoRetencion']); ?></td>
-            <td><?php echo htmlspecialchars($usuario['autoRetenciones'])? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
+            <td><?php echo htmlspecialchars($usuario['cuentaRetenciones']); ?></td> <!-- ✅ Nuevo campo visible -->
+            <td><?php echo htmlspecialchars($usuario['autoRetenciones']) ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
             <td><?php echo htmlspecialchars($usuario['tipoAutoretencion']); ?></td>
-            <td><?php echo htmlspecialchars($usuario['activo'])? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
+            <td><?php echo htmlspecialchars($usuario['activo']) ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
 
             <td>
               <form action="" method="post" style="display:flex; gap:5px;">
@@ -471,6 +495,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <input type="hidden" name="consecutivoFinal" value="<?php echo $usuario['consecutivoFinal']; ?>">
                 <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>">
                 <input type="hidden" name="tipoRetencion" value="<?php echo $usuario['tipoRetencion']; ?>">
+                <input type="hidden" name="cuentaRetenciones" value="<?php echo $usuario['cuentaRetenciones']; ?>"> <!-- ✅ Campo agregado -->
                 <input type="hidden" name="autoRetenciones" value="<?php echo $usuario['autoRetenciones']; ?>">
                 <input type="hidden" name="tipoAutoretencion" value="<?php echo $usuario['tipoAutoretencion']; ?>">
                 <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>">
@@ -478,10 +503,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-pventa" title="Editar">
                     <i class="fas fa-edit"></i>
                 </button>
-                <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
+                <button type="submit" name="accion" value="btnEliminar" class="btn btn-sm btn-danger" title="Eliminar">
                     <i class="fas fa-trash-alt"></i>
                 </button>
-
               </form>
             </td>
           </tr>
@@ -492,7 +516,45 @@ document.addEventListener("DOMContentLoaded", () => {
   </div>
 </div>
 
-      <script>
+      <script> 
+        // Cuentas contables de retención con Select2 y búsqueda AJAX cuentaRetenciones
+        $(document).ready(function () {
+          // Inicializar Select2 para cuentas de retención
+          $('#cuentaRetenciones').select2({
+            placeholder: 'Seleccione o busque una cuenta de retención',
+            allowClear: true,
+            ajax: {
+              url: 'obtener_cuentas_retencion.php',
+              dataType: 'json',
+              delay: 250,
+              data: function (params) {
+                return { search: params.term || '' }; // Si escribe algo, se busca globalmente
+              },
+              processResults: function (data) {
+                return {
+                  results: data.map(function (item) {
+                    return { id: item.valor, text: item.texto };
+                  }), 
+                };
+              },
+              cache: true,
+            },
+            language: {
+              noResults: function () {
+                return "No se encontraron cuentas";
+              },
+              searching: function () {
+                return "Buscando...";
+              },
+              inputTooShort: function () {
+                return "Escriba para buscar otras cuentas";
+              },
+            },
+            minimumInputLength: 0
+          });
+
+        });
+
         /* El campo fechaFinalizacion se calcula automáticamente a partir de fechaInicio y vigencia */
         document.addEventListener('DOMContentLoaded', function () {
           const fechaInicioInput = document.getElementById('fechaInicio');

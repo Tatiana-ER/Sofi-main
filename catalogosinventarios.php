@@ -394,8 +394,15 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="row g-3">
               <div class="col-md-5">
                 <label for="categoria" class="form-label fw-bold">Nombre de la Categoría*</label>
-                <input type="text" class="form-control" id="categoria" name="categoria"
-                      placeholder="Ej: Electrodomésticos" required>
+                <select class="form-select" id="categoria" name="categoria" required>
+                  <option value="" selected disabled>Seleccione una categoría</option>
+                  <option value="Materias primas">Materias primas</option>
+                  <option value="Productos en proceso">Productos en proceso</option>
+                  <option value="Productos terminados">Productos terminados</option>
+                  <option value="Materiales indirectos o suministros">Materiales indirectos o suministros</option>
+                  <option value="Mercancías para la venta">Mercancías para la venta (empresas comerciales)</option>
+                  <option value="Repuestos y materiales de mantenimiento">Repuestos y materiales de mantenimiento</option>
+                </select>
               </div>
             </div>
 
@@ -544,9 +551,48 @@ document.addEventListener("DOMContentLoaded", () => {
 
               <div class="col-md-4">
                 <label for="unidadMedida" class="form-label fw-bold">Unidad de medida</label>
-                <input type="text" class="form-control" id="unidadMedida" name="unidadMedida"
-                      placeholder="Ej: Unidad, Caja, Litro">
+                <select class="form-select" id="unidadMedida" name="unidadMedida" required>
+                  <option value="">Seleccione una opción</option>
+                  <option value="BBL-Barril (petróleo)">BBL - Barril (petróleo) (158.987 dm³)</option>
+                  <option value="CEN-Centenar">CEN - Centenar</option>
+                  <option value="CM3-Centímetro cúbico">CM3 - Centímetro cúbico</option>
+                  <option value="DPC-Docena de piezas">DPC - Docena de piezas</option>
+                  <option value="DPR-Docena de pares">DPR - Docena de pares</option>
+                  <option value="DZN-Docena">DZN - Docena</option>
+                  <option value="GRM-Gramo">GRM - Gramo</option>
+                  <option value="GRO-Gruesa">GRO - Gruesa</option>
+                  <option value="KGM-Kilogramo">KGM - Kilogramo</option>
+                  <option value="KWH-Mil kilovatios hora">KWH - Mil kilovatios hora</option>
+                  <option value="LTR-Litro">LTR - Litro (1 dm³)</option>
+                  <option value="MGM-Miligramo ">MGM - Miligramo</option>
+                  <option value="MIL Millar">MIL - Millar</option>
+                  <option value="MTK-Metro cuadrado">MTK - Metro cuadrado</option>
+                  <option value="MTQ-Metro cúbico">MTQ - Metro cúbico</option>
+                  <option value="MTR-Metro">MTR - Metro</option>
+                  <option value="MWH-Megavatio hora (1000 kW·h)">MWH - Megavatio hora (1000 kW·h)</option>
+                  <option value="NAR-Número de artículos">NAR - Número de artículos</option>
+                  <option value="NPR-Número de pares">NPR - Número de pares</option>
+                  <option value="PCE-Pieza">PCE - Pieza</option>
+                  <option value="QTE-Quilate">QTE - Quilate</option>
+                  <option value="SET-Juego">SET - Juego</option>
+                  <option value="TNE-Tonelada métrica">TNE - Tonelada métrica (1000 kg)</option>
+                  <option value="LBR-Libra">LBR - Libra (0.45359237 kg)</option>
+                  <option value="MBTU-Millones de BTU">MBTU - Millones de BTU</option>
+                  <option value="GLI-Galón (UK)">GLI - Galón (UK) (4.546092 x 10⁻³ m³)</option>
+                  <option value="GLL-Galón (US)">GLL - Galón (US) (3.785412 x 10⁻³ m³)</option>
+                  <option value="94-Unidad">94 - Unidad</option>
+                  <option value="OTRA-Otra">OTRA - Otra</option>
+                </select>
               </div>
+              <script>
+                $(document).ready(function() {
+                  $('#unidadMedida').select2({
+                    placeholder: "Seleccione o busque una unidad",
+                    allowClear: true,
+                    width: '100%'
+                  });
+                });
+              </script>
             </div>
 
             <div class="row g-3 mt-2">
@@ -672,187 +718,122 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
 
         <script>
-$(document).ready(function() {
-    
-    // Función para inicializar Select2 y cargar las cuentas vía AJAX
-    function inicializarSelectCuenta(selector, tipoCuenta, placeholderText) {
-        
-        // Inicializa Select2 en el elemento
-        $(selector).select2({
-            placeholder: placeholderText,
-            allowClear: true,
-            // Permite que la busqueda se haga sobre la jerarquía completa
-            matcher: function(params, data) {
-                // Si no hay término de búsqueda, muestra todas las opciones
-                if ($.trim(params.term) === '') {
-                    return data;
-                }
-                // Si la cadena de la opción contiene el término de búsqueda, la incluye
-                if (data.text.toUpperCase().indexOf(params.term.toUpperCase()) > -1) {
-                    return data;
-                }
-                return null;
-            }
-        });
-
-        // Cargar las opciones vía AJAX
-        $.ajax({
-            url: 'obtener_cuentas_inventarios.php', // Nombre de tu archivo PHP
-            type: 'GET',
-            data: { tipo: tipoCuenta }, // Envía el tipo de cuenta (ventas, inventarios, etc.)
-            dataType: 'json',
-            success: function(data) {
-                const selectElement = $(selector);
-                selectElement.empty(); // Limpia opciones existentes
-
-                // Agrega la opción por defecto (placeholder)
-                selectElement.append(new Option(placeholderText, '', false, true));
-
-                // Recorre el array de cuentas y crea las opciones
-                data.forEach(function(cuenta) {
-                    // El 'valor' es el código, el 'texto' es la descripción con jerarquía para Select2
-                    var newOption = new Option(cuenta.texto, cuenta.valor, false, false);
-                    
-                    // 🔑 CAMBIO 1: Adjuntar el nombre_puro al elemento OPTION
-                    // Esto permite recuperar el nombre limpio después
-                    $(newOption).attr('data-nombre-puro', cuenta.nombre_puro);
-                    
-                    selectElement.append(newOption);
+        $(document).ready(function() {
+            
+            // Función para inicializar Select2 y cargar las cuentas vía AJAX
+            function inicializarSelectCuenta(selector, tipoCuenta, placeholderText) {
+                
+                // Inicializa Select2 en el elemento
+                $(selector).select2({
+                  placeholder: placeholderText,
+                  allowClear: true,
+                  width: '100%',
+                  ajax: {
+                    url: 'obtener_cuentas_inventarios.php',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) {
+                      return {
+                        tipo: tipoCuenta,
+                        search: params.term
+                      };
+                    },
+                    processResults: function(data) {
+                      return {
+                        results: data.map(function(cuenta) {
+                          return { id: cuenta.valor, text: cuenta.texto };
+                        })
+                      };
+                    }
+                  }
                 });
 
-                // Actualiza Select2
-                selectElement.trigger('change');
-            },
-            error: function(xhr, status, error) {
-                console.error("Error al cargar cuentas de " + tipoCuenta + ":", status, error);
-                // Si falla, al menos deja la opción por defecto
-                $(selector).append(new Option("Error al cargar cuentas", "", false, true));
+                // Cargar las opciones vía AJAX
+                $.ajax({
+                    url: 'obtener_cuentas_inventarios.php', // Nombre de tu archivo PHP
+                    type: 'GET',
+                    data: { tipo: tipoCuenta }, // Envía el tipo de cuenta (ventas, inventarios, etc.)
+                    dataType: 'json',
+                    success: function(data) {
+                        const selectElement = $(selector);
+                        selectElement.empty(); // Limpia opciones existentes
+
+                        // Agrega la opción por defecto (placeholder)
+                        selectElement.append(new Option(placeholderText, '', false, true));
+
+                        // Recorre el array de cuentas y crea las opciones
+                        data.forEach(function(cuenta) {
+                            // El 'valor' es el código, el 'texto' es la descripción con jerarquía para Select2
+                            var newOption = new Option(cuenta.texto, cuenta.valor, false, false);
+                            
+                            // 🔑 CAMBIO 1: Adjuntar el nombre_puro al elemento OPTION
+                            // Esto permite recuperar el nombre limpio después
+                            $(newOption).attr('data-nombre-puro', cuenta.nombre_puro);
+                            
+                            selectElement.append(newOption);
+                        });
+
+                        // Actualiza Select2
+                        selectElement.trigger('change');
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("Error al cargar cuentas de " + tipoCuenta + ":", status, error);
+                        // Si falla, al menos deja la opción por defecto
+                        $(selector).append(new Option("Error al cargar cuentas", "", false, true));
+                    }
+                });
             }
-        });
-    }
-    // ----------------------------------------------------
-    // 2. Ejecutar la función para cada SELECT
-    // ----------------------------------------------------
+            // ----------------------------------------------------
+            // 2. Ejecutar la función para cada SELECT
+            // ----------------------------------------------------
 
-    inicializarSelectCuenta(
-        '#codigoCuentaVentas', 
-        'ventas', 
-        'Selecciona una cuenta de ventas (Clase 4)'
-    );
+            inicializarSelectCuenta(
+                '#codigoCuentaVentas', 
+                'ventas', 
+                'Selecciona una cuenta de ventas (Clase 4)'
+            );
 
-    inicializarSelectCuenta(
-        '#codigoCuentaInventarios', 
-        'inventarios', 
-        'Selecciona una cuenta de inventarios (Clase 14)'
-    );
+            inicializarSelectCuenta(
+                '#codigoCuentaInventarios', 
+                'inventarios', 
+                'Selecciona una cuenta de inventarios (Clase 14)'
+            );
 
-    inicializarSelectCuenta(
-        '#codigoCuentaCostos', 
-        'costos', 
-        'Selecciona una cuenta de costos (Clase 6)'
-    );
+            inicializarSelectCuenta(
+                '#codigoCuentaCostos', 
+                'costos', 
+                'Selecciona una cuenta de costos (Clase 6)'
+            );
 
-    inicializarSelectCuenta(
-        '#codigoCuentaDevoluciones', 
-        'devoluciones', 
-        'Selecciona una cuenta de devoluciones (Cta 4175)'
-    );
-    
-    // ----------------------------------------------------
-    // 3. Lógica para actualizar los campos de texto
-    // ----------------------------------------------------
-    
-    // Función para manejar el cambio en el select y actualizar el input de texto
-    function actualizarNombreCuenta(selectId, inputId) {
-        $(selectId).on('change', function() {
-            const selectedOption = $(this).find('option:selected');
+            inicializarSelectCuenta(
+                '#codigoCuentaDevoluciones', 
+                'devoluciones', 
+                'Selecciona una cuenta de devoluciones (Cta 4175)'
+            );
             
-            // 🔑 CAMBIO 2: Leer el atributo data-nombre-puro para obtener el nombre limpio
-            const nombrePuro = selectedOption.data('nombre-puro');
+            // ----------------------------------------------------
+            // 3. Lógica para actualizar los campos de texto
+            // ----------------------------------------------------
+            
+            // Función para manejar el cambio en el select y actualizar el input de texto
+            function actualizarNombreCuenta(selectId, inputId) {
+                $(selectId).on('change', function() {
+                    const selectedOption = $(this).find('option:selected');
+                    
+                    // 🔑 CAMBIO 2: Leer el atributo data-nombre-puro para obtener el nombre limpio
+                    const nombrePuro = selectedOption.data('nombre-puro');
 
-            // Establece el valor del input de texto (será vacío si no se selecciona nada)
-            $(inputId).val(nombrePuro || ""); 
+                    // Establece el valor del input de texto (será vacío si no se selecciona nada)
+                    $(inputId).val(nombrePuro || ""); 
+                });
+            }
+            
+            actualizarNombreCuenta('#codigoCuentaVentas', '#cuentaVentas');
+            actualizarNombreCuenta('#codigoCuentaInventarios', '#cuentaInventarios');
+            actualizarNombreCuenta('#codigoCuentaCostos', '#cuentaCostos');
+            actualizarNombreCuenta('#codigoCuentaDevoluciones', '#cuentaDevoluciones');
+
         });
-    }
-    
-    actualizarNombreCuenta('#codigoCuentaVentas', '#cuentaVentas');
-    actualizarNombreCuenta('#codigoCuentaInventarios', '#cuentaInventarios');
-    actualizarNombreCuenta('#codigoCuentaCostos', '#cuentaCostos');
-    actualizarNombreCuenta('#codigoCuentaDevoluciones', '#cuentaDevoluciones');
-
-
-    // ----------------------------------------------------
-    // 4. Lógica para cargar datos en modo Edición (si aplica)
-    // ----------------------------------------------------
-    
-    // Función para manejar el clic en el botón de edición
-    $(document).on('click', '.btn-editar-categoria', function() {
-        const row = $(this).closest('form');
-        
-        // Obtener los datos actuales de la fila
-        const datos = {
-            idcategoria: row.find('[data-campo="idcategoria"]').val(),
-            categoria: row.find('[data-campo="categoria"]').val(),
-            codigoCuentaVentas: row.find('[data-campo="codigoCuentaVentas"]').val(),
-            // No necesitamos cuentaVentas aquí, se actualizará al hacer .val().trigger('change')
-            codigoCuentaInventarios: row.find('[data-campo="codigoCuentaInventarios"]').val(),
-            // ...
-            codigoCuentaCostos: row.find('[data-campo="codigoCuentaCostos"]').val(),
-            // ...
-            codigoCuentaDevoluciones: row.find('[data-campo="codigoCuentaDevoluciones"]').val(),
-            // ...
-        };
-
-        // Rellenar los campos del formulario de edición de Categoría
-        $('#idcategoria').val(datos.idcategoria);
-        $('#categoria').val(datos.categoria);
-        
-        // Seleccionar los valores en los Select2
-        // El trigger('change') disparará la función actualizarNombreCuenta, llenando los inputs de texto
-        $('#codigoCuentaVentas').val(datos.codigoCuentaVentas).trigger('change');
-        $('#codigoCuentaInventarios').val(datos.codigoCuentaInventarios).trigger('change');
-        $('#codigoCuentaCostos').val(datos.codigoCuentaCostos).trigger('change');
-        $('#codigoCuentaDevoluciones').val(datos.codigoCuentaDevoluciones).trigger('change');
-        
-        // Si el valor del nombre de la cuenta en la tabla no coincide (por la extracción del nombre puro),
-        // puedes cargarlo explícitamente desde la tabla aquí, aunque el trigger debería bastar.
-        // Si no quieres esperar el trigger (y ya lo tienes en el hidden de la fila):
-        $('#cuentaVentas').val(row.find('[data-campo="cuentaVentas"]').val());
-        $('#cuentaInventarios').val(row.find('[data-campo="cuentaInventarios"]').val());
-        $('#cuentaCostos').val(row.find('[data-campo="cuentaCostos"]').val());
-        $('#cuentaDevoluciones').val(row.find('[data-campo="cuentaDevoluciones"]').val());
-
-
-        // Mostrar botones de edición
-        $('#btnGuardarCategoria').addClass('d-none');
-        $('#btnModificarCategoria').removeClass('d-none');
-        $('#btnCancelarCategoria').removeClass('d-none');
-        
-        // Mover el foco
-        $('html, body').animate({
-            scrollTop: $("#formCategorias").offset().top - 100
-        }, 500);
-    });
-
-    // Lógica del botón Cancelar Edición
-    $('#btnCancelarCategoria').on('click', function() {
-        // Limpiar el formulario y resetear a modo 'Agregar'
-        $('#formCategorias')[0].reset();
-        $('#idcategoria').val('');
-        
-        // Asegurar que los select2 se reseteen visualmente
-        $('#codigoCuentaVentas').val('').trigger('change');
-        $('#codigoCuentaInventarios').val('').trigger('change');
-        $('#codigoCuentaCostos').val('').trigger('change');
-        $('#codigoCuentaDevoluciones').val('').trigger('change');
-        
-        // Mostrar botones de agregar
-        $('#btnGuardarCategoria').removeClass('d-none');
-        $('#btnModificarCategoria').addClass('d-none');
-        $('#btnCancelarCategoria').addClass('d-none');
-    });
-
-});
 
         // Funciones de Edición de Categorías y Productos
         document.addEventListener("DOMContentLoaded", () => {

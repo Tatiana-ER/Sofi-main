@@ -482,17 +482,44 @@ document.addEventListener("DOMContentLoaded", () => {
                 });
             }
 
-            function activarSubcuentaSelect(clase, grupo, cuenta) {
-                subcuentaSelect.innerHTML = '<option value="">Selecciona una subcuenta...</option>';
-                subcuentaSelect.disabled = false;
+function activarSubcuentaSelect(clase, grupo, cuenta) {
+    subcuentaSelect.innerHTML = '<option value="">Selecciona una subcuenta...</option>';
+    subcuentaSelect.disabled = false;
 
-                datos[clase][grupo][cuenta].forEach(subcuenta => {
+    const subcuentas = datos[clase][grupo][cuenta];
+
+    // Si es un arreglo directamente (como "1105-Caja")
+    if (Array.isArray(subcuentas)) {
+        subcuentas.forEach(subcuenta => {
+            const option = document.createElement('option');
+            option.value = subcuenta;
+            option.textContent = subcuenta;
+            subcuentaSelect.appendChild(option);
+        });
+    } 
+    // Si es un objeto con más niveles (como "1110-Bancos")
+    else if (typeof subcuentas === 'object' && subcuentas !== null) {
+        Object.keys(subcuentas).forEach(subnivel => {
+            // Primero agregamos la subcuenta principal (ej: "111005-Moneda nacional")
+            const optionMain = document.createElement('option');
+            optionMain.value = subnivel;
+            optionMain.textContent = subnivel;
+            subcuentaSelect.appendChild(optionMain);
+
+            // Luego, si tiene subniveles internos (arreglo), los agregamos con sangría
+            const subniveles = subcuentas[subnivel];
+            if (Array.isArray(subniveles) && subniveles.length > 0) {
+                subniveles.forEach(subcuenta => {
                     const option = document.createElement('option');
                     option.value = subcuenta;
-                    option.textContent = subcuenta;
+                    option.textContent = "  ↳ " + subcuenta; // sangría visual
                     subcuentaSelect.appendChild(option);
                 });
             }
+        });
+    }
+}
+ 
         }
     });
       // Script para alternar botones
