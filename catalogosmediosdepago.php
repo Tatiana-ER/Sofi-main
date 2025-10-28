@@ -285,8 +285,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
                 <input type="hidden" name="metodoPago" value="<?php echo $usuario['metodoPago']; ?>">
                 <input type="hidden" name="cuentaContable" value="<?php echo $usuario['cuentaContable']; ?>">
-                <button value="btnEditar" type="submit" class="btn-editar" name="accion">Editar</button>
-                <button value="btnEliminar" type="submit" class="btn-eliminar" name="accion">Eliminar</button>
+                <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-medio" title="Editar">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
               </form>
             </td>
           </tr>
@@ -330,12 +334,22 @@ document.addEventListener("DOMContentLoaded", () => {
       modoAgregar();
     }
 
-    btnCancelar.addEventListener("click", e => {
-      e.preventDefault();
-      modoAgregar();
-      form.reset();
-      document.getElementById("txtId").value = "";
-    });
+    btnCancelar.addEventListener("click", function(e) {
+            e.preventDefault();
+            modoAgregar();
+            
+            // AJUSTE ADICIONAL: Limpiar los parámetros de edición de la URL
+            if (window.history.replaceState) {
+                const url = new URL(window.location);
+                // Elimina todos los parámetros POST que se cargan al editar
+                url.searchParams.forEach((value, key) => {
+                    if (key !== 'msg') { // Dejamos 'msg' por si acaso
+                        url.searchParams.delete(key);
+                    }
+                });
+                window.history.replaceState({}, document.title, url);
+            }
+           });
   });
 
   // Confirmaciones SweetAlert2

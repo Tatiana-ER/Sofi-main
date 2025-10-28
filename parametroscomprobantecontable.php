@@ -5,69 +5,115 @@ include ("connection.php");
 $conn = new connection();
 $pdo = $conn->connect();
 
-$txtId=(isset($_POST['txtId']))?$_POST['txtId']:"";
-$codigoDocumento=(isset($_POST['codigoDocumento']))?$_POST['codigoDocumento']:"";
-$descripcionDocumento=(isset($_POST['descripcionDocumento']))?$_POST['descripcionDocumento']:"";
-$consecutivo=(isset($_POST['consecutivo']))?$_POST['consecutivo']:"";
-$activo=(isset($_POST['activo']))?$_POST['activo']:"";
+// Calcular el siguiente consecutivo ANTES de cualquier acción
+$sentencia = $pdo->prepare("SELECT IFNULL(MAX(consecutivo), 0) + 1 AS siguiente FROM comprobantecontable");
+$sentencia->execute();
+$siguienteConsecutivo = $sentencia->fetch(PDO::FETCH_ASSOC)['siguiente'];
 
-$accion=(isset($_POST['accion']))?$_POST['accion']:"";
+// Variables del formulario
+$txtId = $_POST['txtId'] ?? "";
+$codigoDocumento = $_POST['codigoDocumento'] ?? "";
+$descripcionDocumento = $_POST['descripcionDocumento'] ?? "";
+$consecutivo = $_POST['consecutivo'] ?? "";
+$activo = isset($_POST['activo']) ? 1 : 0;
+$accion = $_POST['accion'] ?? "";
 
-switch($accion){
+// Si no hay consecutivo (nuevo registro), mostrar automáticamente el siguiente
+if ($consecutivo == "") {
+  $consecutivo = $siguienteConsecutivo;
+}
+
+switch ($accion) {
   case "btnAgregar":
+      // Asignar consecutivo automático antes de guardar
+      $consecutivo = $siguienteConsecutivo;
 
-      $sentencia=$pdo->prepare("INSERT INTO comprobantecontable(codigoDocumento,descripcionDocumento,consecutivo,activo) 
-      VALUES (:codigoDocumento,:descripcionDocumento,:consecutivo,:activo)");
-
-      $sentencia->bindParam(':codigoDocumento',$codigoDocumento);
-      $sentencia->bindParam(':descripcionDocumento',$descripcionDocumento);
-      $sentencia->bindParam(':consecutivo',$consecutivo);
-      $sentencia->bindParam(':activo',$activo);
-
+      $sentencia = $pdo->prepare("INSERT INTO comprobantecontable (codigoDocumento, descripcionDocumento, consecutivo, activo) 
+                                  VALUES (:codigoDocumento, :descripcionDocumento, :consecutivo, :activo)");
+      $sentencia->bindParam(':codigoDocumento', $codigoDocumento);
+      $sentencia->bindParam(':descripcionDocumento', $descripcionDocumento);
+      $sentencia->bindParam(':consecutivo', $consecutivo);
+      $sentencia->bindParam(':activo', $activo);
       $sentencia->execute();
 
+      header("Location: ".$_SERVER['PHP_SELF']."?msg=agregado");
+      exit;
   break;
 
   case "btnModificar":
       $sentencia = $pdo->prepare("UPDATE comprobantecontable 
                                   SET codigoDocumento = :codigoDocumento,
                                       descripcionDocumento = :descripcionDocumento,
-                                      consecutivo = :consecutivo,
                                       activo = :activo
                                   WHERE id = :id");
-
-      // Enlazamos los parámetros 
-
       $sentencia->bindParam(':codigoDocumento', $codigoDocumento);
       $sentencia->bindParam(':descripcionDocumento', $descripcionDocumento);
-      $sentencia->bindParam(':consecutivo', $consecutivo);
       $sentencia->bindParam(':activo', $activo);
       $sentencia->bindParam(':id', $txtId);
+      $sentencia->execute();
 
-      // Ejecutamos la sentencia
-      $sentencia->execute();  
-
-      // Opcional: Redirigir o mostrar mensaje de éxito
-      echo "<script>alert('Datos actualizados correctamente');</script>";
-
+      header("Location: ".$_SERVER['PHP_SELF']."?msg=modificado");
+      exit;
   break;
 
   case "btnEliminar":
+      $sentencia = $pdo->prepare("DELETE FROM comprobantecontable WHERE id = :id");
+      $sentencia->bindParam(':id', $txtId);
+      $sentencia->execute();
 
-    $sentencia = $pdo->prepare("DELETE FROM comprobantecontable WHERE id = :id");
-    $sentencia->bindParam(':id', $txtId);
-    $sentencia->execute();
-
-
+      header("Location: ".$_SERVER['PHP_SELF']."?msg=eliminado");
+      exit;
   break;
-
 }
 
-  $sentencia= $pdo->prepare("SELECT * FROM `comprobantecontable` WHERE 1");
-  $sentencia->execute();
-  $lista=$sentencia->fetchALL(PDO::FETCH_ASSOC);
+// Cargar los registros existentes
+$sentencia = $pdo->prepare("SELECT * FROM comprobantecontable ORDER BY id ASC");
+$sentencia->execute();
+$lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
 
 ?>
+
+<?php if (isset($_GET['msg'])): ?>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  switch ("<?= $_GET['msg'] ?>") {
+    case "agregado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Guardado exitosamente',
+        text: 'El parametro comprobante contable se ha agregado correctamente',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "modificado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Modificado correctamente',
+        text: 'Los datos se actualizaron con éxito',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "eliminado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Eliminado correctamente',
+        text: 'El parametro comprobante contable fue eliminado del registro',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+  }
+
+  // Quita el parámetro ?msg=... de la URL sin recargar
+  if (window.history.replaceState) {
+    const url = new URL(window.location);
+    url.searchParams.delete('msg');
+    window.history.replaceState({}, document.title, url);
+  }
+});
+</script>
+<?php endif; ?>
 
 <!DOCTYPE html>
 <html lang="en">
@@ -118,6 +164,7 @@ switch($accion){
       margin-top: 20px;
     }
   </style>
+
 </head>
 
 <body>
@@ -125,7 +172,7 @@ switch($accion){
   <!-- ======= Header ======= -->
   <header id="header" class="fixed-top d-flex align-items-center ">
     <div class="container d-flex align-items-center justify-content-between">
-     <h1 class="logo">
+      <h1 class="logo">
         <a href="dashboard.php">
           <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
           Software Financiero
@@ -152,7 +199,7 @@ switch($accion){
    <section id="services" class="services">
       <button class="btn-ir" onclick="window.location.href='catalogosparametrosdedocumentos.php'">
         <i class="fa-solid fa-arrow-left"></i> Regresar
-      </button>
+      </button>    
     <div class="container" data-aos="fade-up">
 
       <div class="section-title">
@@ -161,77 +208,206 @@ switch($accion){
         <p>(Los campos marcados con * son obligatorios)</p>
       </div>
 
-      <form action="" method="post">
+      <form id="formComprobanteContable" action="" method="post">
         <div>
-          <label for="id" class="form-label">ID:</label>
-          <input type="text" class="form-control" value="<?php echo $txtId;?>" id="txtId" name="txtId" readonly>
+          <input type="hidden" class="form-control" value="<?php echo $txtId;?>" id="txtId" name="txtId" readonly>
         </div>
 
-        <div class="mb-3">
-          <label for="codigoDocumento" class="form-label">Codigo de documento*</label>
-          <input type="number" class="form-control" value="<?php echo $codigoDocumento;?>" id="codigoDocumento" name="codigoDocumento" placeholder="" required>
+         <!-- Código y Descripción -->
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label for="codigoDocumento" class="form-label fw-bold">Codigo de documento*</label>
+            <input type="number" class="form-control" value="<?php echo $codigoDocumento;?>" id="codigoDocumento" name="codigoDocumento" placeholder="" required>
+          </div>
+          <div class="col-md-8">
+            <label for="descripcionDocumento" class="form-label fw-bold">Descripción documento*</label>
+            <input type="text" class="form-control" value="<?php echo $descripcionDocumento;?>" id="descripcionDocumento" name="descripcionDocumento" placeholder="" required>
+          </div>
         </div>
-        <div class="mb-3">
-          <label for="descripcionDocumento" class="form-label">Descripción documento*</label>
-          <input type="text" class="form-control" value="<?php echo $descripcionDocumento;?>" id="descripcionDocumento" name="descripcionDocumento" placeholder="" required>
+
+        <!-- Consecutivo y Activo -->
+        <div class="row g-3 mt-2">
+          <div class="col-md-4">
+            <label for="consecutivo" class="form-label fw-bold">Consecutivo</label>
+            <input type="text" class="form-control" 
+                  id="consecutivo" 
+                  name="consecutivo" 
+                  value="<?php echo $consecutivo != '' ? $consecutivo : $siguienteConsecutivo; ?>" 
+                  readonly>
+          </div>  
         </div>
-        <div class="mb-3">
-          <label for="consecutivo" class="form-label">Consecutivo</label>
-          <input type="text" class="form-control" value="<?php echo $consecutivo;?>" id="consecutivo" name="consecutivo" placeholder="">
+
+        <div class="row g-3 mt-2">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="activo" name="activo" <?php echo ($activo == 1) ? 'checked' : ''; ?>>
+            <label for="activo" class="form-label fw-bold">Activo*</label>
+          </div>
         </div>
-        <div class="mb-3">
-          <label for="activo" class="form-label">Activo*</label>
-          <input type="checkbox" class="" value="<?php echo $activo;?>" id="activo" name="activo" placeholder="" required>
+
+        <div class="mt-4">
+          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary"  name="accion" >Guardar</button>
+          <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-primary"  name="accion" >Modificar</button>
+          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-primary"  name="accion" >Eliminar</button>
+          <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">Cancelar</button>
         </div>
-        <button value="btnAgregar" type="submit" class="btn btn-primary"  name="accion" >Guardar</button>
-        <button value="btnModificar" type="submit" class="btn btn-primary"  name="accion" >Modificar</button>
-        <button value="btnEliminar" type="submit" class="btn btn-primary"  name="accion" >Eliminar</button>
+
       </form>
 
       <div class="row">
-          <div class="table-container">
-
-            <table>
-              <thead>
-                <tr>
-                  <th>Codigo Documento</th>
-                  <th>Descripción Documento</th>
-                  <th>Consecutivo</th>
-                  <th>Activo</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
-            </table>
-
-            <?php foreach($lista as $usuario){ ?>
+        <div class="table-responsive">
+          <table class="table-container">
+            <thead>
               <tr>
-                <td><?php echo $usuario['codigoDocumento']; ?></td>
-                <td><?php echo $usuario['descripcionDocumento']; ?></td>
-                <td><?php echo $usuario['consecutivo']; ?></td>
-                <td><?php echo $usuario['activo']; ?></td>
-                <td>
-
-                <form action="" method="post">
-
-                <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>" >
-                <input type="hidden" name="codigoDocumento" value="<?php echo $usuario['codigoDocumento']; ?>" >
-                <input type="hidden" name="descripcionDocumento" value="<?php echo $usuario['descripcionDocumento']; ?>" >
-                <input type="hidden" name="consecutivo" value="<?php echo $usuario['consecutivo']; ?>" >
-                <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>" >
-                <input type="submit" value="Editar" name="accion">
-                <button value="btnEliminar" type="submit" class="btn btn-primary"  name="accion" >Eliminar</button>
-                </form>
-
-                </td>
-
+                <th>Código Documento</th>
+                <th>Descripción Documento</th>
+                <th>Consecutivo</th>
+                <th>Activo</th>
+                <th>Acción</th>
               </tr>
-            <?php } ?>
-          </div>
-          
+            </thead>
+            <tbody>
+              <?php foreach($lista as $usuario){ ?>
+                <tr>
+                  <td><?php echo $usuario['codigoDocumento']; ?></td>
+                  <td><?php echo $usuario['descripcionDocumento']; ?></td>
+                  <td><?php echo $usuario['consecutivo']; ?></td>
+                  <td><?php echo $usuario['activo']? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
+                  <td>
+                    <form action="" method="post" style="display:inline-block;">
+                      <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                      <input type="hidden" name="codigoDocumento" value="<?php echo $usuario['codigoDocumento']; ?>">
+                      <input type="hidden" name="descripcionDocumento" value="<?php echo $usuario['descripcionDocumento']; ?>">
+                      <input type="hidden" name="consecutivo" value="<?php echo $usuario['consecutivo']; ?>">
+                      <input type="hidden" name="activo" value="<?php echo $usuario['activo'] ?>">
+                      <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-cuenta" title="Editar">
+                          <i class="fas fa-edit"></i>
+                      </button>
+                      <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
+                          <i class="fas fa-trash-alt"></i>
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              <?php } ?>
+            </tbody>
+          </table>
         </div>
+      </div>
  
     </div>
   </section><!-- End Services Section -->
+  <script>
+    // Script para alternar botones
+      document.addEventListener("DOMContentLoaded", function() {
+        const id = document.getElementById("txtId").value;
+        const btnAgregar = document.getElementById("btnAgregar");
+        const btnModificar = document.getElementById("btnModificar");
+        const btnEliminar = document.getElementById("btnEliminar");
+        const btnCancelar = document.getElementById("btnCancelar");
+        const form = document.getElementById("formComprobanteContable");
+
+        function modoAgregar() {
+          // Ocultar/mostrar botones
+          btnAgregar.style.display = "inline-block";
+          btnModificar.style.display = "none";
+          btnEliminar.style.display = "none";
+          btnCancelar.style.display = "none";
+
+          // Limpiar todos los campos manualmente
+          form.querySelectorAll("input, select, textarea").forEach(el => {
+            if (el.type === "radio" || el.type === "checkbox") {
+              el.checked = false;
+            } else if (el.id !== "consecutivo") {
+              el.value = "";
+            }
+          });
+
+          // Si tienes checkbox "Activo", lo marcamos por defecto
+          const chkActivo = document.querySelector('input[name="activo"]');
+          if (chkActivo) chkActivo.checked = true;
+
+          // Asegurar que el ID quede vacío
+          const txtId = document.getElementById("txtId");
+          if (txtId) txtId.value = "";
+        }
+
+        // Estado inicial (modo modificar o agregar)
+        if (id && id.trim() !== "") {
+          btnAgregar.style.display = "none";
+          btnModificar.style.display = "inline-block";
+          btnEliminar.style.display = "inline-block";
+          btnCancelar.style.display = "inline-block";
+        } else {
+          modoAgregar();
+        }
+
+        // Evento cancelar
+        btnCancelar.addEventListener("click", function(e) {
+            e.preventDefault();
+            modoAgregar();
+            
+            // AJUSTE ADICIONAL: Limpiar los parámetros de edición de la URL
+            if (window.history.replaceState) {
+                const url = new URL(window.location);
+                // Elimina todos los parámetros POST que se cargan al editar
+                url.searchParams.forEach((value, key) => {
+                    if (key !== 'msg') { // Dejamos 'msg' por si acaso
+                        url.searchParams.delete(key);
+                    }
+                });
+                window.history.replaceState({}, document.title, url);
+            }
+           });
+      });
+
+      // Funciones de confirmación con SweetAlert2
+        document.addEventListener("DOMContentLoaded", () => {
+        // Selecciona TODOS los formularios de la página
+        const forms = document.querySelectorAll("form");
+
+        forms.forEach((form) => {
+          form.addEventListener("submit", function (e) {
+            const boton = e.submitter; // botón que disparó el envío
+            const accion = boton?.value;
+
+            // Solo mostrar confirmación para modificar o eliminar
+            if (accion === "btnModificar" || accion === "btnEliminar") {
+              e.preventDefault(); // detener envío temporalmente
+
+              let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar registro?";
+              let texto = accion === "btnModificar"
+                ? "Se actualizarán los datos de este comprobante contable."
+                : "Esta acción eliminará el registro permanentemente.";
+
+              Swal.fire({
+                title: titulo,
+                text: texto,
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonText: "Sí, continuar",
+                cancelButtonText: "Cancelar",
+                confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+                cancelButtonColor: "#6c757d",
+              }).then((result) => {
+                if (result.isConfirmed) {
+                  // 🔹 Crear (si no existe) un campo oculto con la acción seleccionada
+                  let inputAccion = form.querySelector("input[name='accionOculta']");
+                  if (!inputAccion) {
+                    inputAccion = document.createElement("input");
+                    inputAccion.type = "hidden";
+                    inputAccion.name = "accion";
+                    form.appendChild(inputAccion);
+                  }
+                  inputAccion.value = accion;
+
+                  form.submit(); // Enviar el formulario correspondiente
+                }
+              });
+            }
+          });
+        });
+      });
+  </script>
 
     <!-- ======= Footer ======= -->
     <footer id="footer" class="footer-minimalista">

@@ -724,3 +724,102 @@ form {
   border-color: #86b7fe;
   box-shadow: 0 0 0 0.25rem rgba(13,110,253,.25);
 }
+
+/* Estilos específicos para la impresión */
+@media print {
+    /* 1. Ocultar TODO lo que NO es el formulario limpio */
+    #header, 
+    #footer, 
+    .btn-ir, /* Botón de Regresar */
+    .acciones-parametros, /* Botones de Guardar/Imprimir */
+    .mt-4, /* Botones de Agregar/Modificar/Eliminar */
+    .table-container, /* La tabla de registros */
+    /* Ocultar el TÍTULO y su contenedor de la web */
+    .section-title, 
+    .form-label + small,/* Oculta solo los textos pequeños que siguen a una etiqueta */
+    .back-to-top
+    { 
+        display: none !important; 
+    }
+    
+    
+    /* 2. Forzar el cuerpo a tener 0 márgenes y padding, y un fondo blanco */
+    body { 
+        padding: 0 !important; 
+        margin: 0 !important;
+        background-color: white !important; /* Asegura fondo blanco */
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    /* 3. Ajustar el contenedor principal */
+    .container { 
+        /* Usamos padding para simular el margen del papel, no margin-top */
+        padding: 0.5in !important; 
+        margin: 0 auto !important; 
+        width: 100% !important; 
+        max-width: none !important; 
+        box-shadow: none !important; 
+    }
+    
+    /* 4. Dar aspecto de 'solo lectura' a los campos, pero solo al texto */
+    #pdfContent input:not([type="checkbox"]), 
+    #pdfContent select, 
+    #pdfContent textarea {
+        border: none !important;
+        background: transparent !important;
+        color: #000 !important;
+        padding-left: 0 !important;
+        font-weight: bold; /* Hace que los valores ingresados se destaquen */
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    /* 5. ARREGLAR CHECKBOXES Y DROPDOWNS */
+
+    /* Quitar el estilo de borde de los select (dropdowns) y que solo se vea el valor */
+    #pdfContent select {
+        -webkit-appearance: none !important; /* Quita el icono de flecha del dropdown */
+        -moz-appearance: none !important;
+        appearance: none !important;
+        padding-right: 0 !important;
+    }
+
+    /* Asegurar que los labels (ej: Código de documento*) sean negros */
+    label, .form-label, p, small {
+        color: #000 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Regla general para la apariencia de la casilla */
+    .form-check-input {
+        /* Fuerza a imprimir la casilla y su color */
+        border: 1px solid #000 !important; /* Borde negro visible */
+        background-color: transparent !important; /* Fondo blanco por defecto */
+        /* CRUCIAL: Forzar la impresión de colores para que el chulito se vea */
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* Regla específica cuando la casilla está MARCADA */
+    .form-check-input:checked {
+        /* Usamos un color de fondo oscuro para que la marca blanca (si la tiene) contraste */
+        /* Ojo: El color exacto de la marca depende del Bootstrap que uses */
+        background-color: #3085d6 !important; /* Color azul fuerte para la casilla marcada */
+        border-color: #3085d6 !important;
+        
+        /* En muchos casos, Bootstrap usa un SVG o un color de borde para simular el check. 
+           Forzar el color de fondo es la mejor manera de asegurar visibilidad. */
+    }
+    
+    /* Oculta los iconos de calendario/fecha */
+    #pdfContent input[type="date"]::-webkit-calendar-picker-indicator {
+        display: none !important;
+    }
+    
+    /* Eliminar cualquier salto de página inesperado */
+    .row {
+        page-break-inside: avoid;
+    }
+}

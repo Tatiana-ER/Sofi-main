@@ -7,7 +7,7 @@ $pdo = $conn->connect();
 $txtId = $_POST['txtId'] ?? "";
 $codigoDocumento = $_POST['codigoDocumento'] ?? "";
 $descripcionDocumento = $_POST['descripcionDocumento'] ?? "";
-$resolucionDian = $_POST['resolucionDian'] ?? "";
+$resolucionDian = isset($_POST['resolucionDian']) ? 1 : 0;
 $numeroResolucion = $_POST['numeroResolucion'] ?? "";
 $fechaInicio = $_POST['fechaInicio'] ?? "";
 $vigencia = $_POST['vigencia'] ?? "";
@@ -15,11 +15,11 @@ $fechaFinalizacion = $_POST['fechaFinalizacion'] ?? "";
 $prefijo = $_POST['prefijo'] ?? "";
 $consecutivoInicial = $_POST['consecutivoInicial'] ?? "";
 $consecutivoFinal = $_POST['consecutivoFinal'] ?? "";
-$retenciones = $_POST['retenciones'] ?? "";
+$retenciones = isset($_POST['retenciones']) ? 1 : 0;
 $tipoRetencion = $_POST['tipoRetencion'] ?? "";
-$autoRetenciones = $_POST['autoRetenciones'] ?? "";
+$autoRetenciones = isset($_POST['autoRetenciones']) ? 1 : 0;
 $tipoAutoretencion = $_POST['tipoAutoretencion'] ?? "";
-$activo = $_POST['activo'] ?? "";
+$activo = isset($_POST['activo']) ? 1 : 0;
 
 $accion = $_POST['accion'] ?? "";
 
@@ -58,15 +58,8 @@ switch($accion){
       $sentencia->execute();
 
       // Mostrar alerta con SweetAlert2
-      echo "<script>
-        document.addEventListener('DOMContentLoaded', () => {
-          Swal.fire({
-            icon: 'success',
-            title: 'Guardado correctamente',
-            text: 'El registro se ha agregado a la base de datos.'
-          });
-        });
-      </script>";
+      header("Location: ".$_SERVER['PHP_SELF']."?msg=agregado");
+      exit; // Evita reenvío del formulario
   break;
 
   case "btnModificar":
@@ -106,15 +99,9 @@ switch($accion){
       $sentencia->bindParam(':id', $txtId);
       $sentencia->execute();
 
-      echo "<script>
-        document.addEventListener('DOMContentLoaded', () => {
-          Swal.fire({
-            icon: 'success',
-            title: 'Actualizado correctamente',
-            text: 'Los cambios se guardaron exitosamente.'
-          });
-        });
-      </script>";
+      // Redirigir y mostrar alerta
+    header("Location: ".$_SERVER['PHP_SELF']."?msg=modificado");
+    exit;
   break;
 
   case "btnEliminar":
@@ -122,15 +109,8 @@ switch($accion){
       $sentencia->bindParam(':id', $txtId);
       $sentencia->execute();
 
-      echo "<script>
-        document.addEventListener('DOMContentLoaded', () => {
-          Swal.fire({
-            icon: 'info',
-            title: 'Registro eliminado',
-            text: 'El registro ha sido borrado correctamente.'
-          });
-        });
-      </script>";
+      header("Location: ".$_SERVER['PHP_SELF']."?msg=eliminado");
+      exit;
   break;
 }
 
@@ -138,8 +118,49 @@ switch($accion){
 $sentencia = $pdo->prepare("SELECT * FROM facturadeventa");
 $sentencia->execute();
 $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
-
 ?>
+
+<?php if (isset($_GET['msg'])): ?>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  switch ("<?= $_GET['msg'] ?>") {
+    case "agregado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Guardado exitosamente',
+        text: 'El parametro factura de venta se ha agregado correctamente',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "modificado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Modificado correctamente',
+        text: 'Los datos se actualizaron con éxito',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "eliminado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Eliminado correctamente',
+        text: 'El parametro factura de venta fue eliminado del registro',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+  }
+
+  // Quita el parámetro ?msg=... de la URL sin recargar
+  if (window.history.replaceState) {
+    const url = new URL(window.location);
+    url.searchParams.delete('msg');
+    window.history.replaceState({}, document.title, url);
+  }
+});
+</script>
+<?php endif; ?>
 
 <!DOCTYPE html>
 <html lang="en">
@@ -170,6 +191,7 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
@@ -229,92 +251,166 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
       </button>
     <div class="container" data-aos="fade-up">
 
+      
       <div class="section-title">
         <h2>FACTURA DE VENTA</h2>
         <p>Para crear un nuevo tipo de documento diligencie los campos a continuación:</p>
         <p>(Los campos marcados con * son obligatorios)</p>
       </div>
+    <div id="pdfContent">
+      <form id="formDocumentos" action="" method="post" class="container mt-3">
+
+        <!-- ID oculto -->
+        <input type="hidden" value="<?php echo $txtId; ?>" id="txtId" name="txtId">
+
+        <!-- Código y Descripción -->
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label for="codigoDocumento" class="form-label fw-bold">Código de documento*</label>
+            <input type="number" class="form-control" id="codigoDocumento" name="codigoDocumento"
+                  placeholder="Ingresa el código..."
+                  value="<?php echo $codigoDocumento; ?>" required>
+          </div>
 
       <form action="" method="post">
+        <div>
+          <label for="id" class="form-label">ID:</label>
+          <input type="text" class="form-control" value="<?php echo $txtId;?>" id="txtId" name="txtId" readonly> 
+        </div>
         <div class="mb-3">
           <label for="codigoDocumento" class="form-label">Codigo de documento*</label>
           <input type="number" class="form-control" value="<?php echo $codigoDocumento;?>" id="codigoDocumento" name="codigoDocumento" placeholder="">
         </div>
-        <div class="mb-3">
-          <label for="descripcionDocumento" class="form-label">Descripción documento*</label>
-          <input type="text" class="form-control" value="<?php echo $descripcionDocumento;?>" id="descripcionDocumento" name="descripcionDocumento" placeholder="" required>
-        </div>
-        <div class="mb-3">
-          <label for="resolucionDian" class="form-label">Resolución DIAN*</label>
-          <input type="checkbox" class="" value="<?php echo $resolucionDian;?>" id="resolucionDian" name="resolucionDian" placeholder="" required>
-        </div>
-        <div class="mb-3">
-            <label for="numeroResolucion" class="form-label">Numero de resolución</label>
-          <input type="text" class="form-control" value="<?php echo $numeroResolucion;?>" id="numeroResolucion" name="numeroResolucion" placeholder="">
-        </div>
-        <div class="mb-3">
-          <label for="fechaInicio" class="form-label">Fecha inicio</label>
-          <input type="date" class="form-control" value="<?php echo $fechaInicio;?>" id="fechaInicio" name="fechaInicio" placeholder="">
-        </div>
-        <div class="mb-3">
-          <label for="vigencia" class="form-label">Vigencia(meses)</label>
-          <input type="number" class="form-control" value="<?php echo $vigencia;?>" id="vigencia" name="vigencia" placeholder="">
-        </div>
-        <div class="mb-3">
-          <label for="fechaFinalizacion" class="form-label">Fecha finalización</label>
-          <input type="date" class="form-control" value="<?php echo $fechaFinalizacion;?>" id="fechaFinalizacion" name="fechaFinalizacion" placeholder="" readonly>
+
+        <!-- Datos de resolución -->
+        <div class="row g-3 mt-2">
+          <div class="col-md-4">
+            <label for="numeroResolucion" class="form-label fw-bold">Número de resolución</label>
+            <input type="text" class="form-control" id="numeroResolucion" name="numeroResolucion"
+                  placeholder="Ej: 12345"
+                  value="<?php echo $numeroResolucion; ?>">
+          </div>
+
+          <div class="col-md-4">
+            <label for="fechaInicio" class="form-label fw-bold">Fecha de inicio</label>
+            <input type="date" class="form-control" id="fechaInicio" name="fechaInicio"
+                  value="<?php echo $fechaInicio; ?>">
+          </div>
+
+          <div class="col-md-4">
+            <label for="vigencia" class="form-label fw-bold">Vigencia (meses)</label>
+            <input type="number" class="form-control" id="vigencia" name="vigencia"
+                  placeholder="Ej: 12"
+                  value="<?php echo $vigencia; ?>">
+          </div>
         </div>
 
-        <div class="mb-3">
-          <label for="prefijo" class="form-label">Prefijo</label>
-          <input type="text" class="form-control" value="<?php echo $prefijo;?>" id="prefijo" name="prefijo" placeholder="">
+        <!-- Fecha finalización -->
+        <div class="row g-3 mt-2">
+          <div class="col-md-4">
+            <label for="fechaFinalizacion" class="form-label fw-bold">Fecha de finalización</label>
+            <input type="date" class="form-control" id="fechaFinalizacion" name="fechaFinalizacion"
+                  value="<?php echo $fechaFinalizacion; ?>" readonly>
+          </div>
         </div>
 
-        <div class="mb-3">
-          <label for="consecutivoInicial" class="form-label">Consecutivo inicial</label>
-          <input type="text" class="form-control" value="<?php echo $consecutivoInicial;?>" id="consecutivoInicial" placeholder="">
+        <!-- Prefijo y consecutivos -->
+        <div class="row g-3 mt-2">
+          <div class="col-md-4">
+            <label for="prefijo" class="form-label fw-bold">Prefijo</label>
+            <input type="text" class="form-control" id="prefijo" name="prefijo"
+                  placeholder="Ej: FAC"
+                  value="<?php echo $prefijo; ?>">
+          </div>
+
+          <div class="col-md-4">
+            <label for="consecutivoInicial" class="form-label fw-bold">Consecutivo inicial</label>
+            <input type="number" class="form-control" id="consecutivoInicial" name="consecutivoInicial"
+                  placeholder="Ej: 1"
+                  value="<?php echo $consecutivoInicial; ?>">
+          </div>
+
+          <div class="col-md-4">
+            <label for="consecutivoFinal" class="form-label fw-bold">Consecutivo final</label>
+            <input type="number" class="form-control" id="consecutivoFinal" name="consecutivoFinal"
+                  placeholder="Ej: 1000"
+                  value="<?php echo $consecutivoFinal; ?>">
+          </div>
         </div>
 
-        <div class="mb-3">
-          <label for="consecutivoFinal" class="form-label">Consecutivo final</label>
-          <input type="text" class="form-control" value="<?php echo $consecutivoFinal;?>" id="consecutivoFinal" name="consecutivoFinal" placeholder="">
-        </div>
-
-        <div class="mb-3">
-          <label for="retenciones" class="form-label">Retenciones</label>
-          <input type="checkbox" class="" value="<?php echo $retenciones;?>" id="retenciones" name="retenciones" placeholder="">
-          <select class="form-select" value="<?php echo $tipoRetencion;?>" id="tipoRetencion" name="tipoRetencion" aria-label="Default select example">
-            <option selected>Seleccione el tipo de retención</option>
-            <option value="1">Retención a la Renta</option>
-            <option value="2">Retención de IVA</option>
-            <option value="3">Retención de ICA</option>
-          </select>
-        </div>
-
-        <div class="mb-3">
-            <label for="autoRetenciones" class="form-label">Autoretenciones</label>
-            <input type="checkbox" class="" value="<?php echo $autoRetenciones;?>" id="autoRetenciones" name="autoRetenciones" placeholder="">
-            <select class="form-select" value="<?php echo $tipoAutoretencion;?>" id="tipoAutoretencion" name="tipoAutoretencion" aria-label="Default select example">
-              <option selected>Seleccione el tipo de autoretención</option>
-              <option value="1">Autorretención a la Renta</option>
-              <option value="2">Autorretención de IVA</option>
-              <option value="3">Autorretención de ICA</option>
+        <!-- Retenciones -->
+        <div class="row g-3 mt-3">
+          <div class="col-md-6">
+            <div class="form-check mb-2">
+              <input type="checkbox" class="form-check-input" id="retenciones" name="retenciones"
+                    <?php if ($retenciones) echo 'checked'; ?>>
+              <label class="form-check-label fw-bold" for="retenciones">Aplica retenciones</label>
+            </div>
+            <select class="form-select" id="tipoRetencion" name="tipoRetencion">
+              <option value="">Seleccione el tipo de retención</option>
+              <option value="1" <?php if ($tipoRetencion == 1) echo 'selected'; ?>>Retención a la Renta</option>
+              <option value="2" <?php if ($tipoRetencion == 2) echo 'selected'; ?>>Retención de IVA</option>
+              <option value="3" <?php if ($tipoRetencion == 3) echo 'selected'; ?>>Retención de ICA</option>
             </select>
+          </div>
+
+          <div class="col-md-6">
+            <div class="form-check mb-2">
+              <input type="checkbox" class="form-check-input" id="autoRetenciones" name="autoRetenciones"
+                    <?php if ($autoRetenciones) echo 'checked'; ?>>
+              <label class="form-check-label fw-bold" for="autoRetenciones">Aplica autoretenciones</label>
+            </div>
+            <select class="form-select" id="tipoAutoretencion" name="tipoAutoretencion">
+              <option value="">Seleccione el tipo de autoretención</option>
+              <option value="1" <?php if ($tipoAutoretencion == 1) echo 'selected'; ?>>Autorretención a la Renta</option>
+              <option value="2" <?php if ($tipoAutoretencion == 2) echo 'selected'; ?>>Autorretención de IVA</option>
+              <option value="3" <?php if ($tipoAutoretencion == 3) echo 'selected'; ?>>Autorretención de ICA</option>
+            </select>
+          </div>
         </div>
 
-        <!--<div class="mb-3">
-          <label for="exampleFormControlInput1" class="form-label">Tipo de impresión</label>
-          <input type="text" class="form-control" id="exampleFormControlInput1" placeholder="">
-        </div> -->
-
-        <div class="mb-3">
-          <label for="activo" class="form-label">Activo*</label>
-          <input type="checkbox" class="" value="<?php echo $activo;?>" id="activo" name="activo" placeholder="" required>
+        <!-- NUEVO CAMPO: Cuentas contables de retención -->
+        <div class="row g-3 mt-3">
+          <div class="col-md-6">
+            <label for="cuentasContablesRetencion" class="form-label fw-bold">
+              Cuentas contables de retención
+            </label>
+            <input type="text" class="form-control" id="cuentasContablesRetencion" name="cuentasContablesRetencion"
+                  placeholder="Ingrese los códigos contables manualmente..."
+                  value="">
+            <small class="text-muted">Ejemplo: 236540, 236570</small>
+          </div>
         </div>
-        <button value="btnAgregar" type="submit" class="btn btn-primary"  name="accion" >Guardar</button>
-        <button value="btnModificar" type="submit" class="btn btn-primary"  name="accion" >Modificar</button>
-        <button value="btnEliminar" type="submit" class="btn btn-primary"  name="accion" >Eliminar</button>
-      </form>
+
+        <!-- Activo -->
+        <div class="row g-3 mt-3">
+          <div class="col-md-6 d-flex align-items-center">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="activo" name="activo"
+                    <?php if ($activo) echo 'checked'; ?>>
+              <label class="form-check-label fw-bold" for="activo">Documento activo</label>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+        <!-- Botones -->
+        <div class="mt-4">
+          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
+          <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion">Modificar</button>
+          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-danger" name="accion">Eliminar</button>
+          <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">Cancelar</button>
+          <button type="button" id="btnDescargar" class="btn btn-success">
+            💾 Guardar (en PC)
+          </button>
+          
+          <button type="button" id="btnImprimir" class="btn btn-primary">
+             🖨️ Imprimir 
+          </button>
+        </div>
+
+        </form> 
 
       <div class="row">
      <div class="table-container">
@@ -346,7 +442,7 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
           <tr>
             <td><?php echo htmlspecialchars($usuario['codigoDocumento']); ?></td>
             <td><?php echo htmlspecialchars($usuario['descripcionDocumento']); ?></td>
-            <td><?php echo htmlspecialchars($usuario['resolucionDian']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['resolucionDian'])? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
             <td><?php echo htmlspecialchars($usuario['numeroResolucion']); ?></td>
             <td><?php echo htmlspecialchars($usuario['fechaInicio']); ?></td>
             <td><?php echo htmlspecialchars($usuario['vigencia']); ?></td>
@@ -354,11 +450,11 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
             <td><?php echo htmlspecialchars($usuario['prefijo']); ?></td>
             <td><?php echo htmlspecialchars($usuario['consecutivoInicial']); ?></td>
             <td><?php echo htmlspecialchars($usuario['consecutivoFinal']); ?></td>
-            <td><?php echo htmlspecialchars($usuario['retenciones']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['retenciones'])? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
             <td><?php echo htmlspecialchars($usuario['tipoRetencion']); ?></td>
-            <td><?php echo htmlspecialchars($usuario['autoRetenciones']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['autoRetenciones'])? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
             <td><?php echo htmlspecialchars($usuario['tipoAutoretencion']); ?></td>
-            <td><?php echo htmlspecialchars($usuario['activo']); ?></td>
+            <td><?php echo htmlspecialchars($usuario['activo'])? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
 
             <td>
               <form action="" method="post" style="display:flex; gap:5px;">
@@ -379,8 +475,13 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
                 <input type="hidden" name="tipoAutoretencion" value="<?php echo $usuario['tipoAutoretencion']; ?>">
                 <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>">
 
-                <button type="submit" name="accion" value="Editar" class="btn btn-warning btn-sm">Editar</button>
-                <button type="submit" name="accion" value="btnEliminar" class="btn btn-danger btn-sm">Eliminar</button>
+                <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-pventa" title="Editar">
+                    <i class="fas fa-edit"></i>
+                </button>
+                <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+
               </form>
             </td>
           </tr>
@@ -417,11 +518,181 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
           fechaInicioInput.addEventListener('change', calcularFechaFinalizacion);
           vigenciaInput.addEventListener('input', calcularFechaFinalizacion);
         });
+
+        // Script para alternar botones
+        document.addEventListener("DOMContentLoaded", function() {
+          const id = document.getElementById("txtId").value;
+          const btnAgregar = document.getElementById("btnAgregar");
+          const btnModificar = document.getElementById("btnModificar");
+          const btnEliminar = document.getElementById("btnEliminar");
+          const btnCancelar = document.getElementById("btnCancelar");
+          const btnDescargar = document.getElementById("btnDescargar");
+          const btnImprimir = document.getElementById("btnImprimir");
+          const form = document.getElementById("formDocumentos");
+
+          function modoAgregar() {
+            // Ocultar/mostrar botones
+            btnAgregar.style.display = "inline-block";
+            btnModificar.style.display = "none";
+            btnEliminar.style.display = "none";
+            btnCancelar.style.display = "none";
+            btnDescargar.style.display = "none";
+            btnImprimir.style.display = "none";
+
+            // Limpiar todos los campos manualmente
+            form.querySelectorAll("input, select, textarea").forEach(el => {
+              if (el.type === "radio" || el.type === "checkbox") {
+                el.checked = false;
+              } else {
+                el.value = "";
+              }
+            });
+
+            // Si tienes checkbox "Activo", lo marcamos por defecto
+            const chkActivo = document.querySelector('input[name="activo"]');
+            if (chkActivo) chkActivo.checked = true;
+
+            // Asegurar que el ID quede vacío
+            const txtId = document.getElementById("txtId");
+            if (txtId) txtId.value = "";
+          }
+
+          // Estado inicial (modo modificar o agregar)
+          if (id && id.trim() !== "") {
+            btnAgregar.style.display = "none";
+            btnModificar.style.display = "inline-block";
+            btnEliminar.style.display = "inline-block";
+            btnCancelar.style.display = "inline-block";
+            btnDescargar.style.display = "inline-block";
+            btnImprimir.style.display = "inline-block";
+          } else {
+            modoAgregar();
+          }
+
+          // Evento cancelar
+          btnCancelar.addEventListener("click", function(e) {
+            e.preventDefault();
+            modoAgregar();
+            
+            // AJUSTE ADICIONAL: Limpiar los parámetros de edición de la URL
+            if (window.history.replaceState) {
+                const url = new URL(window.location);
+                // Elimina todos los parámetros POST que se cargan al editar
+                url.searchParams.forEach((value, key) => {
+                    if (key !== 'msg') { // Dejamos 'msg' por si acaso
+                        url.searchParams.delete(key);
+                    }
+                });
+                window.history.replaceState({}, document.title, url);
+            }
+           });
+        });
+
+        // Funciones de confirmación con SweetAlert2
+          document.addEventListener("DOMContentLoaded", () => {
+          // Selecciona TODOS los formularios de la página
+          const forms = document.querySelectorAll("form");
+
+          forms.forEach((form) => {
+            form.addEventListener("submit", function (e) {
+              const boton = e.submitter; // botón que disparó el envío
+              const accion = boton?.value;
+
+              // Solo mostrar confirmación para modificar o eliminar
+              if (accion === "btnModificar" || accion === "btnEliminar") {
+                e.preventDefault(); // detener envío temporalmente
+
+                let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar registro?";
+                let texto = accion === "btnModificar"
+                  ? "Se actualizarán los datos de esta cuenta contable."
+                  : "Esta acción eliminará el registro permanentemente.";
+
+                Swal.fire({
+                  title: titulo,
+                  text: texto,
+                  icon: "warning",
+                  showCancelButton: true,
+                  confirmButtonText: "Sí, continuar",
+                  cancelButtonText: "Cancelar",
+                  confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+                  cancelButtonColor: "#6c757d",
+                }).then((result) => {
+                  if (result.isConfirmed) {
+                    // Crear (si no existe) un campo oculto con la acción seleccionada
+                    let inputAccion = form.querySelector("input[name='accionOculta']");
+                    if (!inputAccion) {
+                      inputAccion = document.createElement("input");
+                      inputAccion.type = "hidden";
+                      inputAccion.name = "accion";
+                      form.appendChild(inputAccion);
+                    }
+                    inputAccion.value = accion;
+
+                    form.submit(); // Enviar el formulario correspondiente
+                  }
+                });
+              }
+            });
+          });
+        });
+
+        // --- FUNCIONALIDAD DE GUARDAR (en PC) A PDF ---
+        document.addEventListener("DOMContentLoaded", function() {
+            const btnDescargar = document.getElementById("btnDescargar");
+
+            if (btnDescargar) {
+                btnDescargar.addEventListener("click", function() {
+                    // Elemento HTML que queremos convertir a PDF
+                    const element = document.getElementById('pdfContent');
+                    
+                    // Opcional: Obtener el código del documento para el nombre del archivo
+                    const codigoDocumento = document.getElementById('codigoDocumento').value || 'Factura-Venta';
+                    
+                    // 1. Configuración de html2pdf
+                    const opt = {
+                    // Márgenes muy reducidos o cero en la parte superior
+                    margin: [0.1, 0.5, 0.5, 0.5], // [arriba, derecha, abajo, izquierda]
+                    filename: `${codigoDocumento}_FacturaDeVenta.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { 
+                             scale: 2, 
+                             logging: false, 
+                             dpi: 192, 
+                             letterRendering: true,
+                             scrollY: 0,
+                             windowHeight: element.scrollHeight // Asegura que se capture todo el alto
+                        },
+                        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+                    };
+
+                    // 2. Ejecutar la conversión
+                    html2pdf().set(opt).from(element).save();
+                    
+                    // Mensaje de SweetAlert
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'PDF Generado',
+                        text: 'El formulario se ha guardado como PDF en su PC.',
+                        confirmButtonColor: '#3085d6'
+                    });
+                });
+            }
+        });
+        // --- FUNCIONALIDAD DE IMPRIMIR ---
+        document.addEventListener("DOMContentLoaded", function() {
+            const btnImprimir = document.getElementById("btnImprimir");
+
+            if (btnImprimir) {
+                btnImprimir.addEventListener("click", function() {
+                    window.print(); 
+                });
+            }
+        });
       </script>    
     </div>
   </section><!-- End Services Section -->
 
-    <!-- ======= Footer ======= -->
+    <!-- Footer -->
     <footer id="footer" class="footer-minimalista">
       <p>Universidad de Santander - Ingeniería de Software</p>
       <p>Todos los derechos reservados © 2025</p>

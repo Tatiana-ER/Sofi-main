@@ -12,7 +12,14 @@ function limpiar($valor) {
 // Recibir datos del formulario
 $txtId = limpiar($_POST['txtId'] ?? "");
 $tipoTerceroArray = $_POST['tipoTercero'] ?? [];
+
+// Si es string (por ejemplo cuando viene del botón Editar), lo convertimos a array
+if (!is_array($tipoTerceroArray)) {
+    $tipoTerceroArray = explode(',', $tipoTerceroArray);
+}
+
 $tipoTercero = implode(',', $tipoTerceroArray);
+
 $tipoPersona = limpiar($_POST['tipoPersona'] ?? "");
 $cedula = limpiar($_POST['cedula'] ?? "");
 $digito = limpiar($_POST['digito'] ?? "");
@@ -448,7 +455,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td><?php echo $usuario['correo']; ?></td>
                 <td><?php echo $usuario['tipoRegimen']; ?></td>
                 <td><?php echo $usuario['actividadEconomica']; ?></td>
-                <td><?php echo $usuario['activo']; ?></td>
+                <td><?php echo $usuario['activo'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
                 <td>
                   <form action="" method="post" style="display: flex; justify-content: center; gap: 6px;">
                     <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
@@ -468,8 +475,13 @@ document.addEventListener("DOMContentLoaded", () => {
                     <input type="hidden" name="actividadEconomica" value="<?php echo $usuario['actividadEconomica']; ?>">
                     <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>">
 
-                    <button type="submit" name="accion" value="Editar" class="btn-editar">Editar</button>
-                    <button type="submit" name="accion" value="btnEliminar" class="btn-eliminar">Eliminar</button>
+                    <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-teceros" title="Editar">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+
                   </form>
                 </td>
               </tr>
@@ -941,9 +953,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Evento cancelar
         btnCancelar.addEventListener("click", function(e) {
-          e.preventDefault();
-          modoAgregar();
-        });
+            e.preventDefault();
+            modoAgregar();
+            
+            // AJUSTE ADICIONAL: Limpiar los parámetros de edición de la URL
+            if (window.history.replaceState) {
+                const url = new URL(window.location);
+                // Elimina todos los parámetros POST que se cargan al editar
+                url.searchParams.forEach((value, key) => {
+                    if (key !== 'msg') { // Dejamos 'msg' por si acaso
+                        url.searchParams.delete(key);
+                    }
+                });
+                window.history.replaceState({}, document.title, url);
+            }
+           });
       });
 
       document.addEventListener('DOMContentLoaded', function () {
