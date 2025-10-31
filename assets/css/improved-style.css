@@ -823,3 +823,24 @@ form {
         page-break-inside: avoid;
     }
 }
+
+.btn-add,
+.btn-remove {
+  width: 20px;             /* mismo ancho */
+  height: 20px;            /* misma altura */
+  border: none;
+  border-radius: 5px;
+  color: white;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.btn-add {
+  background-color: #007bff; /* azul */
+}
+
+.btn-remove {
+  background-color: #ff0000; /* rojo */
+  margin-left: 10px;
+}

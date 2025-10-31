@@ -246,9 +246,9 @@ document.addEventListener("DOMContentLoaded", () => {
         <label for="metodoPago" class="form-label">Método de Pago:</label>
         <select id="metodoPago" value="<?php echo $metodoPago;?>" name="metodoPago" onchange="mostrarCuentaContable()" class="form-control">
           <option value="">Selecciona un método de pago</option>
-          <option value="efectivo" <?php if($metodoPago=='efectivo') echo 'selected'; ?>>Efectivo</option>
-          <option value="transferencia" <?php if($metodoPago=='transferencia') echo 'selected'; ?>>Transferencia</option>
-          <option value="credito" <?php if($metodoPago=='credito') echo 'selected'; ?>>Crédito</option>
+          <option value="Efectivo" <?php if($metodoPago=='Efectivo') echo 'selected'; ?>>Efectivo</option>
+          <option value="Transferencia" <?php if($metodoPago=='Transferencia') echo 'selected'; ?>>Transferencia</option>
+          <option value="Credito" <?php if($metodoPago=='Credito') echo 'selected'; ?>>Crédito</option>
         </select>
         <br>  
         <label for="cuentaContable" class="form-label">Cuenta Contable:</label>

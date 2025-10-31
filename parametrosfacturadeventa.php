@@ -85,7 +85,7 @@ switch ($accion) {
           tipoRetencion = :tipoRetencion,
           autoRetenciones = :autoRetenciones,
           tipoAutoretencion = :tipoAutoretencion,
-          cuentaRetenciones = :cuentaRetenciones,  -- ✅ Nuevo campo
+          cuentaRetenciones = :cuentaRetenciones, -- Nuevo campo
           activo = :activo
         WHERE id = :id");
 
@@ -452,7 +452,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <th>Consecutivo Final</th>
           <th>Retenciones</th>
           <th>Tipo Retención</th>
-          <th>Cuenta de Retenciones</th> <!-- ✅ Nuevo campo -->
+          <th>Cuenta de Retenciones</th> <!-- Nuevo campo -->
           <th>Autoretenciones</th>
           <th>Tipo de Régimen</th>
           <th>Activo</th>
@@ -475,7 +475,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <td><?php echo htmlspecialchars($usuario['consecutivoFinal']); ?></td>
             <td><?php echo htmlspecialchars($usuario['retenciones']) ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
             <td><?php echo htmlspecialchars($usuario['tipoRetencion']); ?></td>
-            <td><?php echo htmlspecialchars($usuario['cuentaRetenciones']); ?></td> <!-- ✅ Nuevo campo visible -->
+            <td><?php echo htmlspecialchars($usuario['cuentaRetenciones']); ?></td> <!-- Nuevo campo visible -->
             <td><?php echo htmlspecialchars($usuario['autoRetenciones']) ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
             <td><?php echo htmlspecialchars($usuario['tipoAutoretencion']); ?></td>
             <td><?php echo htmlspecialchars($usuario['activo']) ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
@@ -495,7 +495,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <input type="hidden" name="consecutivoFinal" value="<?php echo $usuario['consecutivoFinal']; ?>">
                 <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>">
                 <input type="hidden" name="tipoRetencion" value="<?php echo $usuario['tipoRetencion']; ?>">
-                <input type="hidden" name="cuentaRetenciones" value="<?php echo $usuario['cuentaRetenciones']; ?>"> <!-- ✅ Campo agregado -->
+                <input type="hidden" name="cuentaRetenciones" value="<?php echo $usuario['cuentaRetenciones']; ?>"> <!-- Campo agregado -->
                 <input type="hidden" name="autoRetenciones" value="<?php echo $usuario['autoRetenciones']; ?>">
                 <input type="hidden" name="tipoAutoretencion" value="<?php echo $usuario['tipoAutoretencion']; ?>">
                 <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>">
