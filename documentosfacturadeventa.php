@@ -457,7 +457,7 @@ document.addEventListener("DOMContentLoaded", () => {
               <label for="consecutivo" class="form-label fw-bold">Consecutivo</label>
               <input type="text" class="form-control" id="consecutivo" name="consecutivo"
                     placeholder="Número consecutivo"
-                    value="<?php echo $consecutivo; ?> readonly">
+                    value="<?php echo $consecutivo; ?>" readonly>
             </div>
           </div>
 
@@ -622,13 +622,19 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
         
         <script>
+        // Obtener consecutivo al cargar la página SOLO si no hay ID (modo agregar)
         window.addEventListener('DOMContentLoaded', function() {
-            fetch(window.location.pathname + "?get_consecutivo=1")
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('consecutivo').value = data.consecutivo;
-                })
-                .catch(error => console.error('Error al obtener consecutivo:', error));
+            const txtId = document.getElementById("txtId").value;
+            
+            // Solo obtener nuevo consecutivo si estamos en modo AGREGAR (sin ID)
+            if (!txtId || txtId.trim() === "") {
+                fetch(window.location.pathname + "?get_consecutivo=1")
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('consecutivo').value = data.consecutivo;
+                    })
+                    .catch(error => console.error('Error al obtener consecutivo:', error));
+            }
         });
         // Buscar el cliente solo si es tipo "cliente"
         const inputIdentificacion = document.getElementById("identificacion");
