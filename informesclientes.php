@@ -86,7 +86,7 @@
         <div class="col-md-6 d-flex align-items-stretch mt-4 mt-md-0" data-aos="fade-up" data-aos-delay="200">
           <div class="icon-box">
             <i class="bi bi-cash-stack"></i>
-            <h4><a href="edadesdecarteraclientes.html">EDADES DE CARTERA</a></h4>
+            <h4><a href="edadesdecarteraclientes.php">EDADES DE CARTERA</a></h4>
             <p>El formulario Edades de Cartera clasifica las cuentas por cobrar según su antigüedad (0-30, 31-60, 61-90 y más de 90 días), facilitando la evaluación de cobros, detección de riesgos e implementación de políticas de crédito para un mejor control financiero.</p>
           </div>
         </div>

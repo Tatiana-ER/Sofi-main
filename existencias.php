@@ -61,18 +61,6 @@ if (isset($_POST['codigo'])) {
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
   <style>
-    table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    th, td {
-        border: 1px solid black;
-        padding: 10px;
-        text-align: center;
-    }
-    th {
-        background-color: #f2f2f2;
-    }
     input[type="text"] {
         width: 100%;
         box-sizing: border-box;
