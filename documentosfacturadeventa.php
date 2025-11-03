@@ -6,7 +6,7 @@ $pdo = $conn->connect();
 
 // Obtener el siguiente consecutivo 
 if (isset($_GET['get_consecutivo'])) {
-    $stmt = $pdo->query("SELECT MAX(consecutivo) AS ultimo FROM facturav");
+    $stmt = $pdo->query("SELECT MAX(CAST(consecutivo AS UNSIGNED)) AS ultimo FROM facturav");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     $ultimoConsecutivo = $row['ultimo'] ?? 0;
     $nuevoConsecutivo = $ultimoConsecutivo + 1;
@@ -32,118 +32,241 @@ if (isset($_POST['detalles'])) {
     $_POST['detalles'] = json_decode($_POST['detalles'], true);
 }
 
-
 switch($accion){
   case "btnAgregar":
-      $sentencia=$pdo->prepare("INSERT INTO facturav(identificacion,nombre,fecha,consecutivo,formaPago,subtotal,ivaTotal,retenciones,valorTotal,observaciones) 
-      VALUES (:identificacion,:nombre,:fecha,:consecutivo,:formaPago,:subtotal,:ivaTotal,:retenciones,:valorTotal,:observaciones)");
-      
-      $sentencia->bindParam(':identificacion',$identificacion);
-      $sentencia->bindParam(':nombre',$nombre);
-      $sentencia->bindParam(':fecha',$fecha);
-      $sentencia->bindParam(':consecutivo',$consecutivo);
-      $sentencia->bindParam(':formaPago',$formaPago);
-      $sentencia->bindParam(':subtotal',$subtotal);
-      $sentencia->bindParam(':ivaTotal',$ivaTotal);
-      $sentencia->bindParam(':retenciones',$retenciones);
-      $sentencia->bindParam(':valorTotal',$valorTotal);
-      $sentencia->bindParam(':observaciones',$observaciones);
-      $sentencia->execute();
+      try {
+          $pdo->beginTransaction();
 
-      $idFactura = $pdo->lastInsertId();
+          // Insertar factura
+          $sentencia=$pdo->prepare("INSERT INTO facturav(identificacion,nombre,fecha,consecutivo,formaPago,subtotal,ivaTotal,retenciones,valorTotal,observaciones) 
+          VALUES (:identificacion,:nombre,:fecha,:consecutivo,:formaPago,:subtotal,:ivaTotal,:retenciones,:valorTotal,:observaciones)");
+          
+          $sentencia->bindParam(':identificacion',$identificacion);
+          $sentencia->bindParam(':nombre',$nombre);
+          $sentencia->bindParam(':fecha',$fecha);
+          $sentencia->bindParam(':consecutivo',$consecutivo);
+          $sentencia->bindParam(':formaPago',$formaPago);
+          $sentencia->bindParam(':subtotal',$subtotal);
+          $sentencia->bindParam(':ivaTotal',$ivaTotal);
+          $sentencia->bindParam(':retenciones',$retenciones);
+          $sentencia->bindParam(':valorTotal',$valorTotal);
+          $sentencia->bindParam(':observaciones',$observaciones);
+          $sentencia->execute();
 
-      if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
-          $sqlDetalle = "INSERT INTO factura_detalle 
-                        (id_factura, codigoProducto, nombreProducto, cantidad, precio_unitario, iva, total)
-                        VALUES (:id_factura, :codigoProducto, :nombreProducto, :cantidad, :precio_unitario, :iva, :total)";
-          $stmtDetalle = $pdo->prepare($sqlDetalle);
+          $idFactura = $pdo->lastInsertId();
 
-          foreach ($_POST['detalles'] as $detalle) {
-              $stmtDetalle->execute([
-                  ':id_factura' => $idFactura,
-                  ':codigoProducto' => $detalle['codigoProducto'],
-                  ':nombreProducto' => $detalle['nombreProducto'],
-                  ':cantidad' => $detalle['cantidad'],
-                  ':precio_unitario' => $detalle['precio'],
-                  ':iva' => $detalle['iva'],
-                  ':total' => $detalle['precioTotal']
-              ]);
+          if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
+              $sqlDetalle = "INSERT INTO factura_detalle 
+                            (id_factura, codigoProducto, nombreProducto, cantidad, precio_unitario, iva, total)
+                            VALUES (:id_factura, :codigoProducto, :nombreProducto, :cantidad, :precio_unitario, :iva, :total)";
+              $stmtDetalle = $pdo->prepare($sqlDetalle);
+
+              // Preparar consultas para verificar tipo de item y actualizar inventario
+              $checkItem = $pdo->prepare("SELECT tipoItem, cantidad FROM productoinventarios WHERE codigoProducto = :codigo");
+              $updateStock = $pdo->prepare("UPDATE productoinventarios SET cantidad = cantidad - :cantidad WHERE codigoProducto = :codigo");
+
+              foreach ($_POST['detalles'] as $detalle) {
+                  // Verificar tipo de item (Producto o Servicio)
+                  $checkItem->execute([':codigo' => $detalle['codigoProducto']]);
+                  $item = $checkItem->fetch(PDO::FETCH_ASSOC);
+
+                  if (!$item) {
+                      throw new Exception("El código {$detalle['codigoProducto']} no existe en el inventario.");
+                  }
+
+                  // Solo validar y descontar stock si es un PRODUCTO (no servicio)
+                  if (strtolower($item['tipoItem']) === 'producto') {
+                      if ($item['cantidad'] < $detalle['cantidad']) {
+                          throw new Exception("Stock insuficiente para {$detalle['nombreProducto']}. Disponible: {$item['cantidad']}, Solicitado: {$detalle['cantidad']}");
+                      }
+
+                      // Descontar del inventario solo productos
+                      $updateStock->execute([
+                          ':cantidad' => $detalle['cantidad'],
+                          ':codigo' => $detalle['codigoProducto']
+                      ]);
+                  }
+
+                  // Insertar detalle de factura (tanto para productos como servicios)
+                  $stmtDetalle->execute([
+                      ':id_factura' => $idFactura,
+                      ':codigoProducto' => $detalle['codigoProducto'],
+                      ':nombreProducto' => $detalle['nombreProducto'],
+                      ':cantidad' => $detalle['cantidad'],
+                      ':precio_unitario' => $detalle['precio'],
+                      ':iva' => $detalle['iva'],
+                      ':total' => $detalle['precioTotal']
+                  ]);
+              }
           }
-      }
 
-      header("Location: ".$_SERVER['PHP_SELF']."?msg=agregado");
-      exit;
+          $pdo->commit();
+          header("Location: ".$_SERVER['PHP_SELF']."?msg=agregado");
+          exit;
+
+      } catch (Exception $e) {
+          $pdo->rollBack();
+          header("Location: ".$_SERVER['PHP_SELF']."?msg=error&detalle=".urlencode($e->getMessage()));
+          exit;
+      }
   break;
 
   case "btnModificar":
-      $sentencia = $pdo->prepare("UPDATE facturav 
-                                  SET identificacion = :identificacion,
-                                      nombre = :nombre,
-                                      fecha = :fecha,
-                                      consecutivo = :consecutivo,
-                                      formaPago = :formaPago,
-                                      subtotal = :subtotal,
-                                      ivaTotal = :ivaTotal,
-                                      retenciones = :retenciones,
-                                      valorTotal = :valorTotal,
-                                      observaciones = :observaciones
-                                  WHERE id = :id");
+      try {
+          $pdo->beginTransaction();
 
-      $sentencia->bindParam(':identificacion', $identificacion);
-      $sentencia->bindParam(':nombre', $nombre);
-      $sentencia->bindParam(':fecha', $fecha);
-      $sentencia->bindParam(':consecutivo', $consecutivo);
-      $sentencia->bindParam(':formaPago', $formaPago);
-      $sentencia->bindParam(':subtotal', $subtotal);
-      $sentencia->bindParam(':ivaTotal', $ivaTotal);
-      $sentencia->bindParam(':retenciones', $retenciones);
-      $sentencia->bindParam(':valorTotal', $valorTotal);
-      $sentencia->bindParam(':observaciones', $observaciones);
-      $sentencia->bindParam(':id', $txtId);
-      $sentencia->execute();
+          // Obtener detalles antiguos para restaurar inventario (solo productos)
+          $stmtOldDetails = $pdo->prepare("
+              SELECT fd.codigoProducto, fd.cantidad, pi.tipoItem 
+              FROM factura_detalle fd
+              INNER JOIN productoinventarios pi ON fd.codigoProducto = pi.codigoProducto
+              WHERE fd.id_factura = :id_factura
+          ");
+          $stmtOldDetails->execute([':id_factura' => $txtId]);
+          $oldDetails = $stmtOldDetails->fetchAll(PDO::FETCH_ASSOC);
 
-      // Eliminar detalles antiguos
-      $deleteDetalle = $pdo->prepare("DELETE FROM factura_detalle WHERE id_factura = :id_factura");
-      $deleteDetalle->bindParam(':id_factura', $txtId);
-      $deleteDetalle->execute();
-
-      // Insertar nuevos detalles
-      if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
-          $sqlDetalle = "INSERT INTO factura_detalle 
-                        (id_factura, codigoProducto, nombreProducto, cantidad, precio_unitario, iva, total)
-                        VALUES (:id_factura, :codigoProducto, :nombreProducto, :cantidad, :precio_unitario, :iva, :total)";
-          $stmtDetalle = $pdo->prepare($sqlDetalle);
-
-          foreach ($_POST['detalles'] as $detalle) {
-              $stmtDetalle->execute([
-                  ':id_factura' => $txtId,
-                  ':codigoProducto' => $detalle['codigoProducto'],
-                  ':nombreProducto' => $detalle['nombreProducto'],
-                  ':cantidad' => $detalle['cantidad'],
-                  ':precio_unitario' => $detalle['precio'],
-                  ':iva' => $detalle['iva'],
-                  ':total' => $detalle['precioTotal']
-              ]);
+          // Restaurar inventario solo de productos (no servicios)
+          $restoreStock = $pdo->prepare("UPDATE productoinventarios SET cantidad = cantidad + :cantidad WHERE codigoProducto = :codigo");
+          foreach ($oldDetails as $old) {
+              if (strtolower($old['tipoItem']) === 'producto') {
+                  $restoreStock->execute([
+                      ':cantidad' => $old['cantidad'],
+                      ':codigo' => $old['codigoProducto']
+                  ]);
+              }
           }
-      }
 
-      header("Location: ".$_SERVER['PHP_SELF']."?msg=modificado");
-      exit;
+          // Actualizar factura
+          $sentencia = $pdo->prepare("UPDATE facturav 
+                                      SET identificacion = :identificacion,
+                                          nombre = :nombre,
+                                          fecha = :fecha,
+                                          consecutivo = :consecutivo,
+                                          formaPago = :formaPago,
+                                          subtotal = :subtotal,
+                                          ivaTotal = :ivaTotal,
+                                          retenciones = :retenciones,
+                                          valorTotal = :valorTotal,
+                                          observaciones = :observaciones
+                                      WHERE id = :id");
+
+          $sentencia->bindParam(':identificacion', $identificacion);
+          $sentencia->bindParam(':nombre', $nombre);
+          $sentencia->bindParam(':fecha', $fecha);
+          $sentencia->bindParam(':consecutivo', $consecutivo);
+          $sentencia->bindParam(':formaPago', $formaPago);
+          $sentencia->bindParam(':subtotal', $subtotal);
+          $sentencia->bindParam(':ivaTotal', $ivaTotal);
+          $sentencia->bindParam(':retenciones', $retenciones);
+          $sentencia->bindParam(':valorTotal', $valorTotal);
+          $sentencia->bindParam(':observaciones', $observaciones);
+          $sentencia->bindParam(':id', $txtId);
+          $sentencia->execute();
+
+          // Eliminar detalles antiguos
+          $deleteDetalle = $pdo->prepare("DELETE FROM factura_detalle WHERE id_factura = :id_factura");
+          $deleteDetalle->bindParam(':id_factura', $txtId);
+          $deleteDetalle->execute();
+
+          // Insertar nuevos detalles y descontar inventario
+          if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
+              $sqlDetalle = "INSERT INTO factura_detalle 
+                            (id_factura, codigoProducto, nombreProducto, cantidad, precio_unitario, iva, total)
+                            VALUES (:id_factura, :codigoProducto, :nombreProducto, :cantidad, :precio_unitario, :iva, :total)";
+              $stmtDetalle = $pdo->prepare($sqlDetalle);
+
+              $checkItem = $pdo->prepare("SELECT tipoItem, cantidad FROM productoinventarios WHERE codigoProducto = :codigo");
+              $updateStock = $pdo->prepare("UPDATE productoinventarios SET cantidad = cantidad - :cantidad WHERE codigoProducto = :codigo");
+
+              foreach ($_POST['detalles'] as $detalle) {
+                  // Verificar tipo de item
+                  $checkItem->execute([':codigo' => $detalle['codigoProducto']]);
+                  $item = $checkItem->fetch(PDO::FETCH_ASSOC);
+
+                  if (!$item) {
+                      throw new Exception("El código {$detalle['codigoProducto']} no existe en el inventario.");
+                  }
+
+                  // Solo validar y descontar si es PRODUCTO
+                  if (strtolower($item['tipoItem']) === 'producto') {
+                      if ($item['cantidad'] < $detalle['cantidad']) {
+                          throw new Exception("Stock insuficiente para {$detalle['nombreProducto']}. Disponible: {$item['cantidad']}, Solicitado: {$detalle['cantidad']}");
+                      }
+
+                      $updateStock->execute([
+                          ':cantidad' => $detalle['cantidad'],
+                          ':codigo' => $detalle['codigoProducto']
+                      ]);
+                  }
+
+                  // Insertar detalle
+                  $stmtDetalle->execute([
+                      ':id_factura' => $txtId,
+                      ':codigoProducto' => $detalle['codigoProducto'],
+                      ':nombreProducto' => $detalle['nombreProducto'],
+                      ':cantidad' => $detalle['cantidad'],
+                      ':precio_unitario' => $detalle['precio'],
+                      ':iva' => $detalle['iva'],
+                      ':total' => $detalle['precioTotal']
+                  ]);
+              }
+          }
+
+          $pdo->commit();
+          header("Location: ".$_SERVER['PHP_SELF']."?msg=modificado");
+          exit;
+
+      } catch (Exception $e) {
+          $pdo->rollBack();
+          header("Location: ".$_SERVER['PHP_SELF']."?msg=error&detalle=".urlencode($e->getMessage()));
+          exit;
+      }
   break;
 
   case "btnEliminar":
-      // Primero eliminar los detalles asociados
-      $sentenciaDetalle = $pdo->prepare("DELETE FROM factura_detalle WHERE id_factura = :id");
-      $sentenciaDetalle->bindParam(':id', $txtId);
-      $sentenciaDetalle->execute();
+      try {
+          $pdo->beginTransaction();
 
-      // Luego eliminar la factura principal
-      $sentencia = $pdo->prepare("DELETE FROM facturav WHERE id = :id");
-      $sentencia->bindParam(':id', $txtId);
-      $sentencia->execute();
+          // Obtener detalles para restaurar inventario (solo productos)
+          $stmtDetails = $pdo->prepare("
+              SELECT fd.codigoProducto, fd.cantidad, pi.tipoItem 
+              FROM factura_detalle fd
+              INNER JOIN productoinventarios pi ON fd.codigoProducto = pi.codigoProducto
+              WHERE fd.id_factura = :id_factura
+          ");
+          $stmtDetails->execute([':id_factura' => $txtId]);
+          $details = $stmtDetails->fetchAll(PDO::FETCH_ASSOC);
 
-      header("Location: ".$_SERVER['PHP_SELF']."?msg=eliminado");
-      exit;
+          // Restaurar inventario solo de productos
+          $restoreStock = $pdo->prepare("UPDATE productoinventarios SET cantidad = cantidad + :cantidad WHERE codigoProducto = :codigo");
+          foreach ($details as $detail) {
+              if (strtolower($detail['tipoItem']) === 'producto') {
+                  $restoreStock->execute([
+                      ':cantidad' => $detail['cantidad'],
+                      ':codigo' => $detail['codigoProducto']
+                  ]);
+              }
+          }
+
+          // Eliminar detalles
+          $sentenciaDetalle = $pdo->prepare("DELETE FROM factura_detalle WHERE id_factura = :id");
+          $sentenciaDetalle->bindParam(':id', $txtId);
+          $sentenciaDetalle->execute();
+
+          // Eliminar factura
+          $sentencia = $pdo->prepare("DELETE FROM facturav WHERE id = :id");
+          $sentencia->bindParam(':id', $txtId);
+          $sentencia->execute();
+
+          $pdo->commit();
+          header("Location: ".$_SERVER['PHP_SELF']."?msg=eliminado");
+          exit;
+
+      } catch (Exception $e) {
+          $pdo->rollBack();
+          header("Location: ".$_SERVER['PHP_SELF']."?msg=error&detalle=".urlencode($e->getMessage()));
+          exit;
+      }
   break;
 
   case "btnEditar":
@@ -174,9 +297,9 @@ switch($accion){
   break;
 }
 
-  $sentencia= $pdo->prepare("SELECT * FROM `facturav` WHERE 1");
-  $sentencia->execute();
-  $lista=$sentencia->fetchALL(PDO::FETCH_ASSOC);
+$sentencia= $pdo->prepare("SELECT * FROM `facturav` WHERE 1");
+$sentencia->execute();
+$lista=$sentencia->fetchALL(PDO::FETCH_ASSOC);
 
 // Buscar cliente por identificación o nombre
 if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['identificacion']) || isset($_POST['nombreCliente'])) && !isset($_POST['accion'])) {
@@ -186,7 +309,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['identificacion']) || 
     $cliente = null;
 
     if (!empty($identificacion)) {
-        // Buscar por cédula
         $stmt = $pdo->prepare("
             SELECT cedula, CONCAT(nombres, ' ', apellidos) AS nombreCompleto
             FROM catalogosterceros
@@ -197,7 +319,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['identificacion']) || 
         $stmt->execute();
         $cliente = $stmt->fetch(PDO::FETCH_ASSOC);
     } elseif (!empty($nombreCliente)) {
-        // Buscar por nombre
         $likeNombre = "%$nombreCliente%";
         $stmt = $pdo->prepare("
             SELECT cedula, CONCAT(nombres, ' ', apellidos) AS nombreCompleto
@@ -221,15 +342,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['identificacion']) || 
     exit;
 }
 
-// Buscar producto por código o nombre
+// Buscar producto por código o nombre (con verificación de stock y tipo)
 if (isset($_POST['codigoProducto']) || isset($_POST['nombreProducto'])) {
     $codigo = trim($_POST['codigoProducto'] ?? '');
     $nombre = trim($_POST['nombreProducto'] ?? '');
     $producto = null;
 
     if ($codigo !== '') {
-        // Buscar solo por código exacto
-        $stmt = $pdo->prepare("SELECT codigoProducto, descripcionProducto 
+        $stmt = $pdo->prepare("SELECT codigoProducto, descripcionProducto, cantidad, tipoItem 
                                FROM productoinventarios 
                                WHERE codigoProducto = :codigo 
                                LIMIT 1");
@@ -238,9 +358,8 @@ if (isset($_POST['codigoProducto']) || isset($_POST['nombreProducto'])) {
         $producto = $stmt->fetch(PDO::FETCH_ASSOC);
     } 
     elseif ($nombre !== '') {
-        // Buscar solo por nombre (LIKE)
         $likeNombre = "%$nombre%";
-        $stmt = $pdo->prepare("SELECT codigoProducto, descripcionProducto 
+        $stmt = $pdo->prepare("SELECT codigoProducto, descripcionProducto, cantidad, tipoItem 
                                FROM productoinventarios 
                                WHERE descripcionProducto LIKE :nombre 
                                LIMIT 1");
@@ -250,10 +369,18 @@ if (isset($_POST['codigoProducto']) || isset($_POST['nombreProducto'])) {
     }
 
     if ($producto) {
-        echo json_encode([
+        $response = [
             "codigoProducto" => $producto['codigoProducto'],
-            "nombreProducto" => $producto['descripcionProducto']
-        ]);
+            "nombreProducto" => $producto['descripcionProducto'],
+            "tipoItem" => $producto['tipoItem']
+        ];
+        
+        // Solo mostrar stock si es producto (no servicio)
+        if (strtolower($producto['tipoItem']) === 'producto') {
+            $response['stockDisponible'] = $producto['cantidad'];
+        }
+        
+        echo json_encode($response);
     } else {
         echo json_encode(["nombreProducto" => "No encontrado"]);
     }
@@ -277,7 +404,7 @@ document.addEventListener("DOMContentLoaded", () => {
       Swal.fire({
         icon: 'success',
         title: 'Guardado exitosamente',
-        text: 'El parametro factura de venta se ha agregado correctamente',
+        text: 'La factura de venta se ha agregado y el inventario se ha actualizado',
         confirmButtonColor: '#3085d6'
       });
       break;
@@ -286,7 +413,7 @@ document.addEventListener("DOMContentLoaded", () => {
       Swal.fire({
         icon: 'success',
         title: 'Modificado correctamente',
-        text: 'Los datos se actualizaron con éxito',
+        text: 'Los datos se actualizaron y el inventario se ajustó correctamente',
         confirmButtonColor: '#3085d6'
       });
       break;
@@ -295,16 +422,26 @@ document.addEventListener("DOMContentLoaded", () => {
       Swal.fire({
         icon: 'success',
         title: 'Eliminado correctamente',
-        text: 'El parametro factura de venta fue eliminado del registro',
+        text: 'La factura fue eliminada y el inventario se restauró',
         confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "error":
+      const detalle = new URLSearchParams(window.location.search).get('detalle');
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: detalle || 'Ocurrió un error al procesar la operación',
+        confirmButtonColor: '#d33'
       });
       break;
   }
 
-  // Quita el parámetro ?msg=... de la URL sin recargar
   if (window.history.replaceState) {
     const url = new URL(window.location);
     url.searchParams.delete('msg');
+    url.searchParams.delete('detalle');
     window.history.replaceState({}, document.title, url);
   }
 });
@@ -510,7 +647,7 @@ document.addEventListener("DOMContentLoaded", () => {
               <select class="form-select" id="formaPago" name="formaPago" required>
                 <option value="">Seleccione una opción</option>
                 <?php foreach ($mediosPago as $medio): ?>
-                  <option value="<?= htmlspecialchars($medio['metodoPago']) ?>"
+                  <option value="<?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>"
                     <?= ($formaPago == $medio['metodoPago']) ? 'selected' : '' ?>>
                     <?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>
                   </option>

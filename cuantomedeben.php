@@ -96,18 +96,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['action'] === 'fetchCliente'
       font-size: 18px;
       margin-top: 20px;
     }
-    table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    th, td {
-        border: 1px solid black;
-        padding: 10px;
-        text-align: center;
-    }
-    th {
-        background-color: #f2f2f2;
-    }
   </style>
 
 </head>
@@ -173,28 +161,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['action'] === 'fetchCliente'
           <h6>INFORME</h6>
         </div>
 
-        <table id="informe">
-          <tr>
-            <th>Identificación</th>
-            <th>Nombre del cliente</th>
-            <th>Total Cartera</th>
-            <th>Valor Anticipos</th>
-            <th>Saldo por cobrar</th>
-          </tr>
-          <tr>
-            <td><input type="text" id="identificacion" name="identificacion"  readonly></td>
-            <td><input type="text" id="nombreCliente" name="nombreCliente" readonly></td>
-            <td><input type="text" id="totalCartera" name="totalCartera" readonly></td>
-            <td><input type="text" id="valorAnticipos" name="valorAnticipos" readonly></td>
-            <td><input type="text" id="saldoCobrar" name="saldoCobrar" readonly></td>
-          </tr>
-          <tr>
-            <th colspan="2">TOTAL</th>
-            <td><input type="text" id="totalCarteraSum" name="totalCarteraSum"></td>
-            <td><input type="text" id="totalAnticiposSum" name="totalAnticiposSum"></td>
-            <td><input type="text" id="totalSaldoSum" name="totalSaldoSum"></td>
-          </tr>
-        </table>
+        <div class="row">
+          <div class="table-container">
+            <table id="informe">
+              <tr>
+                <th>Identificación</th>
+                <th>Nombre del cliente</th>
+                <th>Total Cartera</th>
+                <th>Valor Anticipos</th>
+                <th>Saldo por cobrar</th>
+              </tr>
+              <tr>
+                <td><input type="text" id="identificacion" name="identificacion"  readonly></td>
+                <td><input type="text" id="nombreCliente" name="nombreCliente" readonly></td>
+                <td><input type="text" id="totalCartera" name="totalCartera" readonly></td>
+                <td><input type="text" id="valorAnticipos" name="valorAnticipos" readonly></td>
+                <td><input type="text" id="saldoCobrar" name="saldoCobrar" readonly></td>
+              </tr>
+              <tr>
+                <th colspan="2">TOTAL</th>
+                <td><input type="text" id="totalCarteraSum" name="totalCarteraSum"></td>
+                <td><input type="text" id="totalAnticiposSum" name="totalAnticiposSum"></td>
+                <td><input type="text" id="totalSaldoSum" name="totalSaldoSum"></td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
         <br><br>
         <button type="submit" class="btn btn-primary mt-3">Descargar PDF</button>
 

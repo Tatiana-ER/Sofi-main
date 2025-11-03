@@ -21,7 +21,7 @@ $accion = (isset($_POST['accion'])) ? $_POST['accion'] : "";
 
 // Obtener el siguiente consecutivo 
 if (isset($_GET['get_consecutivo'])) {
-    $stmt = $pdo->query("SELECT MAX(consecutivo) AS ultimo FROM facturac");
+    $stmt = $pdo->query("SELECT MAX(CAST(consecutivo AS UNSIGNED)) AS ultimo FROM facturac");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     $ultimoConsecutivo = $row['ultimo'] ?? 0;
     $nuevoConsecutivo = $ultimoConsecutivo + 1;
