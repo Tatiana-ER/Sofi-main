@@ -1,15 +1,15 @@
 <?php
 include("connection.php");
-
+ 
 $conn = new connection();
 $pdo = $conn->connect();
-
+ 
 $search = isset($_REQUEST['search']) ? trim($_REQUEST['search']) : '';
-
+ 
 if (isset($_GET['search'])) {
     error_log(" Buscando: " . $_GET['search']);
 }
-
+ 
 $txtId = $_POST['txtId'] ?? "";
 $codigoDocumento = $_POST['codigoDocumento'] ?? "";
 $descripcionDocumento = $_POST['descripcionDocumento'] ?? "";
@@ -27,12 +27,12 @@ $autoRetenciones = isset($_POST['autoRetenciones']) ? 1 : 0;
 $tipoAutoretencion = $_POST['tipoAutoretencion'] ?? "";
 $cuentaRetenciones = $_POST['cuentaRetenciones'] ?? ""; // ✅ Nuevo campo
 $activo = isset($_POST['activo']) ? 1 : 0;
-
+ 
 $accion = $_POST['accion'] ?? "";
-
+ 
 // Inicializa $lista para evitar el warning
 $lista = [];
-
+ 
 switch ($accion) {
   case "btnAgregar":
       $sentencia = $pdo->prepare("INSERT INTO facturadeventa(
@@ -46,7 +46,7 @@ switch ($accion) {
         :consecutivoInicial, :consecutivoFinal, :retenciones, :tipoRetencion,
         :autoRetenciones, :tipoAutoretencion, :cuentaRetenciones, :activo
       )");
-
+ 
       $sentencia->bindParam(':codigoDocumento', $codigoDocumento);
       $sentencia->bindParam(':descripcionDocumento', $descripcionDocumento);
       $sentencia->bindParam(':resolucionDian', $resolucionDian);
@@ -64,13 +64,13 @@ switch ($accion) {
       $sentencia->bindParam(':cuentaRetenciones', $cuentaRetenciones);
       $sentencia->bindParam(':activo', $activo);
       $sentencia->execute();
-
+ 
       header("Location: ".$_SERVER['PHP_SELF']."?msg=agregado");
       exit;
   break;
-
+ 
   case "btnModificar":
-      $sentencia = $pdo->prepare("UPDATE facturadeventa SET 
+      $sentencia = $pdo->prepare("UPDATE facturadeventa SET
           codigoDocumento = :codigoDocumento,
           descripcionDocumento = :descripcionDocumento,
           resolucionDian = :resolucionDian,
@@ -88,7 +88,7 @@ switch ($accion) {
           cuentaRetenciones = :cuentaRetenciones, -- Nuevo campo
           activo = :activo
         WHERE id = :id");
-
+ 
       $sentencia->bindParam(':codigoDocumento', $codigoDocumento);
       $sentencia->bindParam(':descripcionDocumento', $descripcionDocumento);
       $sentencia->bindParam(':resolucionDian', $resolucionDian);
@@ -107,39 +107,39 @@ switch ($accion) {
       $sentencia->bindParam(':activo', $activo);
       $sentencia->bindParam(':id', $txtId);
       $sentencia->execute();
-
+ 
       header("Location: ".$_SERVER['PHP_SELF']."?msg=modificado");
       exit;
   break;
-
+ 
   case "btnEliminar":
       $sentencia = $pdo->prepare("DELETE FROM facturadeventa WHERE id = :id");
       $sentencia->bindParam(':id', $txtId);
       $sentencia->execute();
-
+ 
       header("Location: ".$_SERVER['PHP_SELF']."?msg=eliminado");
       exit;
   break;
 }
-
-
+ 
+ 
 // Consulta para llenar la tabla (faltaba)
 if (!empty($search)) {
-    $sentencia = $pdo->prepare("SELECT * FROM facturadeventa 
-                                WHERE codigoDocumento LIKE :search 
-                                   OR descripcionDocumento LIKE :search 
-                                   OR tipoRetencion LIKE :search 
+    $sentencia = $pdo->prepare("SELECT * FROM facturadeventa
+                                WHERE codigoDocumento LIKE :search
+                                   OR descripcionDocumento LIKE :search
+                                   OR tipoRetencion LIKE :search
                                    OR cuentaRetenciones LIKE :search
                                 ORDER BY id DESC");
     $sentencia->bindValue(':search', "%$search%");
 } else {
     $sentencia = $pdo->prepare("SELECT * FROM facturadeventa ORDER BY id DESC");
 }
-
+ 
 $sentencia->execute();
 $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
 ?>
-
+ 
 <?php if (isset($_GET['msg'])): ?>
 <script>
 document.addEventListener("DOMContentLoaded", () => {
@@ -152,7 +152,7 @@ document.addEventListener("DOMContentLoaded", () => {
         confirmButtonColor: '#3085d6'
       });
       break;
-
+ 
     case "modificado":
       Swal.fire({
         icon: 'success',
@@ -161,7 +161,7 @@ document.addEventListener("DOMContentLoaded", () => {
         confirmButtonColor: '#3085d6'
       });
       break;
-
+ 
     case "eliminado":
       Swal.fire({
         icon: 'success',
@@ -171,7 +171,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       break;
   }
-
+ 
   // Quita el parámetro ?msg=... de la URL sin recargar
   if (window.history.replaceState) {
     const url = new URL(window.location);
@@ -181,25 +181,25 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 </script>
 <?php endif; ?>
-
+ 
 <!DOCTYPE html>
 <html lang="en">
-
+ 
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
-
+ 
   <title>SOFI - UDES</title>
   <meta content="" name="description">
   <meta content="" name="keywords">
-
+ 
   <!-- Favicons -->
   <link href="assets/img/favicon.png" rel="icon">
   <link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
-
+ 
   <!-- Google Fonts -->
-  <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Raleway:300,300i,400,400i,500,500i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet">
-
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Raleway:300,300i,400,400i,500,500i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i%22 rel="stylesheet">
+ 
   <!-- Vendor CSS Files -->
   <link href="assets/vendor/animate.css/animate.min.css" rel="stylesheet">
   <link href="assets/vendor/aos/aos.css" rel="stylesheet">
@@ -213,20 +213,20 @@ document.addEventListener("DOMContentLoaded", () => {
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> 
-
+ 
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+ 
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-
+ 
   <link href="assets/css/improved-style.css" rel="stylesheet">
-
-  <style> 
+ 
+  <style>
     input[type="text"] {
       width: 100%;
       box-sizing: border-box;
       padding: 5px;
     }
-
+ 
     .add-row-btn {
       cursor: pointer;
       background-color: #0d6efd;
@@ -237,12 +237,12 @@ document.addEventListener("DOMContentLoaded", () => {
       margin-top: 20px;
     }
   </style>
-
-
+ 
+ 
 </head>
-
+ 
 <body>
-
+ 
   <!-- ======= Header ======= -->
   <header id="header" class="fixed-top d-flex align-items-center ">
     <div class="container d-flex align-items-center justify-content-between">
@@ -268,15 +268,15 @@ document.addEventListener("DOMContentLoaded", () => {
       </nav><!-- .navbar -->
     </div>
   </header><!-- End Header -->
-
+ 
    <!-- ======= Services Section ======= -->
    <section id="services" class="services">
     <button class="btn-ir" onclick="window.location.href='catalogosparametrosdedocumentos.php'">
         <i class="fa-solid fa-arrow-left"></i> Regresar
       </button>
     <div class="container" data-aos="fade-up">
-
-      
+ 
+     
       <div class="section-title">
         <h2>FACTURA DE VENTA</h2>
         <p>Para crear un nuevo tipo de documento diligencie los campos a continuación:</p>
@@ -284,10 +284,10 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     <div id="pdfContent">
       <form id="formDocumentos" action="" method="post" class="container mt-3">
-
+ 
         <!-- ID oculto -->
         <input type="hidden" value="<?php echo $txtId; ?>" id="txtId" name="txtId">
-
+ 
         <!-- Código y Descripción -->
        <div class="row g-3">
         <div class="col-md-4">
@@ -296,7 +296,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 placeholder="Ingresa el código..."
                 value="<?php echo $codigoDocumento; ?>" required>
         </div>
-
+ 
         <div class="col-md-8">
           <label for="descripcionDocumento" class="form-label fw-bold">Descripción del documento*</label>
           <input type="text" class="form-control" id="descripcionDocumento" name="descripcionDocumento"
@@ -304,7 +304,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 value="<?php echo $descripcionDocumento; ?>" required>
         </div>
       </div>
-
+ 
         <!-- Datos de resolución -->
         <div class="row g-3 mt-2">
           <div class="col-md-4">
@@ -313,13 +313,13 @@ document.addEventListener("DOMContentLoaded", () => {
                   placeholder="Ej: 12345"
                   value="<?php echo $numeroResolucion; ?>">
           </div>
-
+ 
           <div class="col-md-4">
             <label for="fechaInicio" class="form-label fw-bold">Fecha de inicio</label>
             <input type="date" class="form-control" id="fechaInicio" name="fechaInicio"
                   value="<?php echo $fechaInicio; ?>">
           </div>
-
+ 
           <div class="col-md-4">
             <label for="vigencia" class="form-label fw-bold">Vigencia (meses)</label>
             <input type="number" class="form-control" id="vigencia" name="vigencia"
@@ -327,7 +327,7 @@ document.addEventListener("DOMContentLoaded", () => {
                   value="<?php echo $vigencia; ?>">
           </div>
         </div>
-
+ 
         <!-- Fecha finalización -->
         <div class="row g-3 mt-2">
           <div class="col-md-4">
@@ -336,7 +336,7 @@ document.addEventListener("DOMContentLoaded", () => {
                   value="<?php echo $fechaFinalizacion; ?>" readonly>
           </div>
         </div>
-
+ 
         <!-- Prefijo y consecutivos -->
         <div class="row g-3 mt-2">
           <div class="col-md-4">
@@ -345,14 +345,14 @@ document.addEventListener("DOMContentLoaded", () => {
                   placeholder="Ej: FAC"
                   value="<?php echo $prefijo; ?>">
           </div>
-
+ 
           <div class="col-md-4">
             <label for="consecutivoInicial" class="form-label fw-bold">Consecutivo inicial</label>
             <input type="number" class="form-control" id="consecutivoInicial" name="consecutivoInicial"
                   placeholder="Ej: 1"
                   value="<?php echo $consecutivoInicial; ?>">
           </div>
-
+ 
           <div class="col-md-4">
             <label for="consecutivoFinal" class="form-label fw-bold">Consecutivo final</label>
             <input type="number" class="form-control" id="consecutivoFinal" name="consecutivoFinal"
@@ -360,7 +360,7 @@ document.addEventListener("DOMContentLoaded", () => {
                   value="<?php echo $consecutivoFinal; ?>">
           </div>
         </div>
-
+ 
         <!-- Retenciones -->
         <div class="row g-3 mt-3">
           <div class="col-md-6">
@@ -376,7 +376,7 @@ document.addEventListener("DOMContentLoaded", () => {
               <option value="3" <?php if ($tipoRetencion == 3) echo 'selected'; ?>>Retención de ICA</option>
             </select>
           </div>
-
+ 
           <div class="col-md-6">
             <div class="form-check mb-2">
               <input type="checkbox" class="form-check-input" id="autoRetenciones" name="autoRetenciones"
@@ -391,7 +391,7 @@ document.addEventListener("DOMContentLoaded", () => {
             </select>
           </div>
         </div>
-
+ 
         <!-- NUEVO CAMPO: Cuentas contables de retención -->
         <div class="row g-3 mt-3">
           <div class="col-md-6">
@@ -403,7 +403,7 @@ document.addEventListener("DOMContentLoaded", () => {
             </select>
           </div>
         </div>
-
+ 
         <!-- Activo -->
         <div class="row g-3 mt-3">
           <div class="col-md-6 d-flex align-items-center">
@@ -414,9 +414,9 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
           </div>
         </div>
-
+ 
       </div>
-
+ 
         <!-- Botones -->
         <div class="mt-4">
           <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
@@ -426,17 +426,17 @@ document.addEventListener("DOMContentLoaded", () => {
           <button type="button" id="btnDescargar" class="btn btn-success">
             💾 Guardar (en PC)
           </button>
-          
+         
           <button type="button" id="btnImprimir" class="btn btn-primary">
-             🖨️ Imprimir 
+             🖨️ Imprimir
           </button>
         </div>
-
-        </form> 
-
+ 
+        </form>
+ 
       <div class="row">
      <div class="table-container">
-
+ 
      <table class="table-container">
       <thead>
         <tr>
@@ -459,7 +459,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <th>Acción</th>
         </tr>
       </thead>
-
+ 
       <tbody>
         <?php foreach($lista as $usuario){ ?>
           <tr>
@@ -479,7 +479,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <td><?php echo htmlspecialchars($usuario['autoRetenciones']) ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
             <td><?php echo htmlspecialchars($usuario['tipoAutoretencion']); ?></td>
             <td><?php echo htmlspecialchars($usuario['activo']) ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
-
+ 
             <td>
               <form action="" method="post" style="display:flex; gap:5px;">
                 <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
@@ -499,7 +499,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <input type="hidden" name="autoRetenciones" value="<?php echo $usuario['autoRetenciones']; ?>">
                 <input type="hidden" name="tipoAutoretencion" value="<?php echo $usuario['tipoAutoretencion']; ?>">
                 <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>">
-
+ 
                 <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-pventa" title="Editar">
                     <i class="fas fa-edit"></i>
                 </button>
@@ -512,11 +512,11 @@ document.addEventListener("DOMContentLoaded", () => {
         <?php } ?>
       </tbody>
     </table>
-
+ 
   </div>
 </div>
-
-      <script> 
+ 
+      <script>
         // Cuentas contables de retención con Select2 y búsqueda AJAX cuentaRetenciones
         $(document).ready(function () {
           // Inicializar Select2 para cuentas de retención
@@ -534,7 +534,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 return {
                   results: data.map(function (item) {
                     return { id: item.valor, text: item.texto };
-                  }), 
+                  }),
                 };
               },
               cache: true,
@@ -552,19 +552,19 @@ document.addEventListener("DOMContentLoaded", () => {
             },
             minimumInputLength: 0
           });
-
+ 
         });
-
+ 
         /* El campo fechaFinalizacion se calcula automáticamente a partir de fechaInicio y vigencia */
         document.addEventListener('DOMContentLoaded', function () {
           const fechaInicioInput = document.getElementById('fechaInicio');
           const vigenciaInput = document.getElementById('vigencia');
           const fechaFinalInput = document.getElementById('fechaFinalizacion');
-
+ 
           function calcularFechaFinalizacion() {
             const fechaInicio = new Date(fechaInicioInput.value);
             const vigencia = parseInt(vigenciaInput.value);
-
+ 
             if (!isNaN(fechaInicio.getTime()) && !isNaN(vigencia)) {
               const nuevaFecha = new Date(fechaInicio);
               nuevaFecha.setMonth(nuevaFecha.getMonth() + vigencia);
@@ -576,11 +576,11 @@ document.addEventListener("DOMContentLoaded", () => {
               fechaFinalInput.value = '';
             }
           }
-
+ 
           fechaInicioInput.addEventListener('change', calcularFechaFinalizacion);
           vigenciaInput.addEventListener('input', calcularFechaFinalizacion);
         });
-
+ 
         // Script para alternar botones
         document.addEventListener("DOMContentLoaded", function() {
           const id = document.getElementById("txtId").value;
@@ -591,7 +591,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const btnDescargar = document.getElementById("btnDescargar");
           const btnImprimir = document.getElementById("btnImprimir");
           const form = document.getElementById("formDocumentos");
-
+ 
           function modoAgregar() {
             // Ocultar/mostrar botones
             btnAgregar.style.display = "inline-block";
@@ -600,7 +600,7 @@ document.addEventListener("DOMContentLoaded", () => {
             btnCancelar.style.display = "none";
             btnDescargar.style.display = "none";
             btnImprimir.style.display = "none";
-
+ 
             // Limpiar todos los campos manualmente
             form.querySelectorAll("input, select, textarea").forEach(el => {
               if (el.type === "radio" || el.type === "checkbox") {
@@ -609,16 +609,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 el.value = "";
               }
             });
-
+ 
             // Si tienes checkbox "Activo", lo marcamos por defecto
             const chkActivo = document.querySelector('input[name="activo"]');
             if (chkActivo) chkActivo.checked = true;
-
+ 
             // Asegurar que el ID quede vacío
             const txtId = document.getElementById("txtId");
             if (txtId) txtId.value = "";
           }
-
+ 
           // Estado inicial (modo modificar o agregar)
           if (id && id.trim() !== "") {
             btnAgregar.style.display = "none";
@@ -630,12 +630,12 @@ document.addEventListener("DOMContentLoaded", () => {
           } else {
             modoAgregar();
           }
-
+ 
           // Evento cancelar
           btnCancelar.addEventListener("click", function(e) {
             e.preventDefault();
             modoAgregar();
-            
+           
             // AJUSTE ADICIONAL: Limpiar los parámetros de edición de la URL
             if (window.history.replaceState) {
                 const url = new URL(window.location);
@@ -649,26 +649,26 @@ document.addEventListener("DOMContentLoaded", () => {
             }
            });
         });
-
+ 
         // Funciones de confirmación con SweetAlert2
           document.addEventListener("DOMContentLoaded", () => {
           // Selecciona TODOS los formularios de la página
           const forms = document.querySelectorAll("form");
-
+ 
           forms.forEach((form) => {
             form.addEventListener("submit", function (e) {
               const boton = e.submitter; // botón que disparó el envío
               const accion = boton?.value;
-
+ 
               // Solo mostrar confirmación para modificar o eliminar
               if (accion === "btnModificar" || accion === "btnEliminar") {
                 e.preventDefault(); // detener envío temporalmente
-
+ 
                 let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar registro?";
                 let texto = accion === "btnModificar"
                   ? "Se actualizarán los datos de esta cuenta contable."
                   : "Esta acción eliminará el registro permanentemente.";
-
+ 
                 Swal.fire({
                   title: titulo,
                   text: texto,
@@ -689,7 +689,7 @@ document.addEventListener("DOMContentLoaded", () => {
                       form.appendChild(inputAccion);
                     }
                     inputAccion.value = accion;
-
+ 
                     form.submit(); // Enviar el formulario correspondiente
                   }
                 });
@@ -697,39 +697,39 @@ document.addEventListener("DOMContentLoaded", () => {
             });
           });
         });
-
+ 
         // --- FUNCIONALIDAD DE GUARDAR (en PC) A PDF ---
         document.addEventListener("DOMContentLoaded", function() {
             const btnDescargar = document.getElementById("btnDescargar");
-
+ 
             if (btnDescargar) {
                 btnDescargar.addEventListener("click", function() {
                     // Elemento HTML que queremos convertir a PDF
                     const element = document.getElementById('pdfContent');
-                    
+                   
                     // Opcional: Obtener el código del documento para el nombre del archivo
                     const codigoDocumento = document.getElementById('codigoDocumento').value || 'Factura-Venta';
-                    
+                   
                     // 1. Configuración de html2pdf
                     const opt = {
                     // Márgenes muy reducidos o cero en la parte superior
                     margin: [0.1, 0.5, 0.5, 0.5], // [arriba, derecha, abajo, izquierda]
                     filename: `${codigoDocumento}_FacturaDeVenta.pdf`,
                     image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { 
-                             scale: 2, 
-                             logging: false, 
-                             dpi: 192, 
+                    html2canvas: {
+                             scale: 2,
+                             logging: false,
+                             dpi: 192,
                              letterRendering: true,
                              scrollY: 0,
                              windowHeight: element.scrollHeight // Asegura que se capture todo el alto
                         },
                         jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
                     };
-
+ 
                     // 2. Ejecutar la conversión
                     html2pdf().set(opt).from(element).save();
-                    
+                   
                     // Mensaje de SweetAlert
                     Swal.fire({
                         icon: 'success',
@@ -743,27 +743,27 @@ document.addEventListener("DOMContentLoaded", () => {
         // --- FUNCIONALIDAD DE IMPRIMIR ---
         document.addEventListener("DOMContentLoaded", function() {
             const btnImprimir = document.getElementById("btnImprimir");
-
+ 
             if (btnImprimir) {
                 btnImprimir.addEventListener("click", function() {
-                    window.print(); 
+                    window.print();
                 });
             }
         });
       </script>    
     </div>
   </section><!-- End Services Section -->
-
+ 
     <!-- Footer -->
     <footer id="footer" class="footer-minimalista">
       <p>Universidad de Santander - Ingeniería de Software</p>
       <p>Todos los derechos reservados © 2025</p>
       <p>Creado por iniciativa del programa de Contaduría Pública</p>
     </footer><!-- End Footer -->
-
+ 
   <div id="preloader"></div>
   <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
-
+ 
   <!-- Vendor JS Files -->
   <script src="assets/vendor/aos/aos.js"></script>
   <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
@@ -771,10 +771,10 @@ document.addEventListener("DOMContentLoaded", () => {
   <script src="assets/vendor/isotope-layout/isotope.pkgd.min.js"></script>
   <script src="assets/vendor/swiper/swiper-bundle.min.js"></script>
   <script src="assets/vendor/php-email-form/validate.js"></script>
-
+ 
   <!-- Template Main JS File -->
   <script src="assets/js/main.js"></script>
-
+ 
 </body>
-
+ 
 </html>

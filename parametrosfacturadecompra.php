@@ -1,89 +1,147 @@
 <?php
-  
-include ("connection.php");
+include("connection.php");
 
 $conn = new connection();
 $pdo = $conn->connect();
 
-$txtId=(isset($_POST['txtId']))?$_POST['txtId']:"";
-$codigoDocumento=(isset($_POST['codigoDocumento']))?$_POST['codigoDocumento']:"";
-$descripcionDocumento=(isset($_POST['descripcionDocumento']))?$_POST['descripcionDocumento']:"";
-$documentoSoporte = isset($_POST['documentoSoporte']) ? 'Sí' : 'No';
-$prefijo=(isset($_POST['prefijo']))?$_POST['prefijo']:"";
-$consecutivoInicial=(isset($_POST['consecutivoInicial']))?$_POST['consecutivoInicial']:"";
-$consecutivoFinal=(isset($_POST['consecutivoFinal']))?$_POST['consecutivoFinal']:"";
-$retenciones = isset($_POST['retenciones']) ? $_POST['retenciones'] : '';
-$activo=(isset($_POST['activo']))?$_POST['activo']:"";
-$accion=(isset($_POST['accion']))?$_POST['accion']:"";
+// Variables iniciales - IMPORTANTE: Se toman de POST siempre
+$txtId = $_POST['txtId'] ?? "";
+$codigoDocumento = $_POST['codigoDocumento'] ?? "";
+$descripcionDocumento = $_POST['descripcionDocumento'] ?? "";
+$documentoSoporte = isset($_POST['documentoSoporte']) ? 1 : 0;
+$prefijo = $_POST['prefijo'] ?? "";
+$consecutivoInicial = $_POST['consecutivoInicial'] ?? "";
+$consecutivoFinal = $_POST['consecutivoFinal'] ?? "";
+$retenciones = $_POST['retenciones'] ?? "";
+$activo = isset($_POST['activo']) ? 1 : 0;
+$accion = $_POST['accion'] ?? "";
 
-switch($accion){
-  case "btnAgregar":
+switch ($accion) {
+    case "btnAgregar":
+        $sentencia = $pdo->prepare("INSERT INTO facturadecompra (
+            codigoDocumento,
+            descripcionDocumento,
+            documentoSoporte,
+            prefijo,
+            consecutivoInicial,
+            consecutivoFinal,
+            retenciones,
+            activo
+        ) VALUES (
+            :codigoDocumento,
+            :descripcionDocumento,
+            :documentoSoporte,
+            :prefijo,
+            :consecutivoInicial,
+            :consecutivoFinal,
+            :retenciones,
+            :activo
+        )");
 
-      $sentencia=$pdo->prepare("INSERT INTO facturadecompra(codigoDocumento,descripcionDocumento,documentoSoporte,prefijo,consecutivoInicial,consecutivoFinal,retenciones,activo) 
-      VALUES (:codigoDocumento,:descripcionDocumento,:documentoSoporte,:prefijo,:consecutivoInicial,:consecutivoFinal,:retenciones,:activo)");
-      
+        $sentencia->bindParam(':codigoDocumento', $codigoDocumento);
+        $sentencia->bindParam(':descripcionDocumento', $descripcionDocumento);
+        $sentencia->bindParam(':documentoSoporte', $documentoSoporte);
+        $sentencia->bindParam(':prefijo', $prefijo);
+        $sentencia->bindParam(':consecutivoInicial', $consecutivoInicial);
+        $sentencia->bindParam(':consecutivoFinal', $consecutivoFinal);
+        $sentencia->bindParam(':retenciones', $retenciones);
+        $sentencia->bindParam(':activo', $activo);
+        $sentencia->execute();
 
-      $sentencia->bindParam(':codigoDocumento',$codigoDocumento);
-      $sentencia->bindParam(':descripcionDocumento',$descripcionDocumento);
-      $sentencia->bindParam(':documentoSoporte',$documentoSoporte);
-      $sentencia->bindParam(':prefijo',$prefijo);
-      $sentencia->bindParam(':consecutivoInicial',$consecutivoInicial);
-      $sentencia->bindParam(':consecutivoFinal',$consecutivoFinal);
-      $sentencia->bindParam(':retenciones',$retenciones);
-      $sentencia->bindParam(':activo',$activo);
-      $sentencia->execute();
+        header("Location: " . $_SERVER['PHP_SELF'] . "?msg=agregado");
+        exit();
+        break;
 
-  break;
-  
-  case "btnModificar":
-      $sentencia = $pdo->prepare("UPDATE facturadecompra 
-                                  SET codigoDocumento = :codigoDocumento,
-                                      descripcionDocumento = :descripcionDocumento,
-                                      documentoSoporte = :documentoSoporte,
-                                      prefijo = :prefijo,
-                                      consecutivoInicial = :consecutivoInicial,
-                                      consecutivoFinal = :consecutivoFinal,
-                                      retenciones = :retenciones,
-                                      activo = :activo
-                                  WHERE id = :id");
+    case "btnModificar":
+        $sentencia = $pdo->prepare("UPDATE facturadecompra 
+            SET codigoDocumento = :codigoDocumento,
+                descripcionDocumento = :descripcionDocumento,
+                documentoSoporte = :documentoSoporte,
+                prefijo = :prefijo,
+                consecutivoInicial = :consecutivoInicial,
+                consecutivoFinal = :consecutivoFinal,
+                retenciones = :retenciones,
+                activo = :activo
+            WHERE id = :id");
 
-      // Enlazamos los parámetros 
+        $sentencia->bindParam(':codigoDocumento', $codigoDocumento);
+        $sentencia->bindParam(':descripcionDocumento', $descripcionDocumento);
+        $sentencia->bindParam(':documentoSoporte', $documentoSoporte);
+        $sentencia->bindParam(':prefijo', $prefijo);
+        $sentencia->bindParam(':consecutivoInicial', $consecutivoInicial);
+        $sentencia->bindParam(':consecutivoFinal', $consecutivoFinal);
+        $sentencia->bindParam(':retenciones', $retenciones);
+        $sentencia->bindParam(':activo', $activo);
+        $sentencia->bindParam(':id', $txtId);
+        $sentencia->execute();
 
-      $sentencia->bindParam(':codigoDocumento', $codigoDocumento);
-      $sentencia->bindParam(':descripcionDocumento', $descripcionDocumento);
-      $sentencia->bindParam(':documentoSoporte', $documentoSoporte);
-      $sentencia->bindParam(':prefijo', $prefijo);
-      $sentencia->bindParam(':consecutivoInicial', $consecutivoInicial);
-      $sentencia->bindParam(':consecutivoFinal', $consecutivoFinal);
-      $sentencia->bindParam(':retenciones', $retenciones);
-      $sentencia->bindParam(':activo', $activo);
-      $sentencia->bindParam(':id', $txtId);
+        header("Location: " . $_SERVER['PHP_SELF'] . "?msg=modificado");
+        exit();
+        break;
 
-      // Ejecutamos la sentencia
-      $sentencia->execute();
+    case "btnEliminar":
+        $sentencia = $pdo->prepare("DELETE FROM facturadecompra WHERE id = :id");
+        $sentencia->bindParam(':id', $txtId);
+        $sentencia->execute();
 
-      // Opcional: Redirigir o mostrar mensaje de éxito
-      echo "<script>alert('Datos actualizados correctamente');</script>";
+        header("Location: " . $_SERVER['PHP_SELF'] . "?msg=eliminado");
+        exit();
+        break;
 
-  break;
-
-  case "btnEliminar":
-
-    $sentencia = $pdo->prepare("DELETE FROM facturadecompra WHERE id = :id");
-    $sentencia->bindParam(':id', $txtId);
-    $sentencia->execute();
-
-
-  break;
+    case "btnEditar":
+        // NO hacemos nada aquí, los datos ya vienen en $_POST desde los campos hidden
+        // Las variables ya están cargadas al inicio del script
+        break;
 }
 
-  $sentencia= $pdo->prepare("SELECT * FROM `facturadecompra` WHERE 1");
-  $sentencia->execute();
-  $lista=$sentencia->fetchALL(PDO::FETCH_ASSOC);
-
-  
-
+// Consulta para mostrar la tabla
+$sentencia = $pdo->prepare("SELECT * FROM facturadecompra ORDER BY id DESC");
+$sentencia->execute();
+$lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
 ?>
+
+<!-- SweetAlert -->
+<?php if (isset($_GET['msg'])): ?>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  switch ("<?= $_GET['msg'] ?>") {
+    case "agregado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Guardado exitosamente',
+        text: 'El parametro factura de compra se ha agregado correctamente',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "modificado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Modificado correctamente',
+        text: 'Los datos se actualizaron con éxito',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "eliminado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Eliminado correctamente',
+        text: 'El parametro factura de compra fue eliminado del registro',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+  }
+
+  // Quita el parámetro ?msg=... de la URL sin recargar
+  if (window.history.replaceState) {
+    const url = new URL(window.location);
+    url.searchParams.delete('msg');
+    window.history.replaceState({}, document.title, url);
+  }
+});
+</script>
+<?php endif; ?>
 
 <!DOCTYPE html>
 <html lang="en">
@@ -114,6 +172,7 @@ switch($accion){
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
@@ -175,122 +234,336 @@ switch($accion){
       <div class="section-title">
         <h2>FACTURA DE COMPRA</h2>
         <p>Para crear un nuevo tipo de documento diligencie los campos a continuación:</p>
-      <p>(Los campos marcados con * son obligatorios)</p>
+        <p>(Los campos marcados con * son obligatorios)</p>
       </div>
+      
+    <div id="pdfContent">
+      <form id="formDocumentos" action="" method="post" class="container mt-3">
 
-      <form action="" method="post">
+        <!-- ID oculto -->
+        <input type="hidden" value="<?php echo $txtId; ?>" id="txtId" name="txtId">
 
-      <div class="mb-3">
-          <label for="codigoDocumento" class="form-label">Codigo de documento*</label>
-          <input type="number" class="form-control" value="<?php echo $codigoDocumento;?>" id="codigoDocumento" name="codigoDocumento" placeholder="" required>
-        </div>
-        <div class="mb-3">
-          <label for="descripcionDocumento" class="form-label">Descripción documento*</label>
-          <input type="text" class="form-control" value="<?php echo $descripcionDocumento;?>" id="descripcionDocumento" name="descripcionDocumento" placeholder="" required>
-        </div>
-        <div class="mb-3">
-        <input type="checkbox" id="documentoSoporte" name="documentoSoporte" value="Sí">
-        <label for="documentoSoporte">Documento soporte?</label>
+        <!-- Código y Descripción -->
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label for="codigoDocumento" class="form-label fw-bold">Código de documento*</label>
+            <input type="number" class="form-control" id="codigoDocumento" name="codigoDocumento"
+                  placeholder="Ingresa el código..."
+                  value="<?php echo htmlspecialchars($codigoDocumento); ?>" required>
+          </div>
 
-        </div>
-
-        <div class="mb-3">
-          <label for="prefijo" class="form-label">Prefijo</label>
-          <input type="text" class="form-control" value="<?php echo $prefijo;?>" id="prefijo" name="prefijo" placeholder="">
-        </div>
-
-        <div class="mb-3">
-          <label for="consecutivoInicial" class="form-label">Consecutivo inicial</label>
-          <input type="text" class="form-control" value="<?php echo $consecutivoInicial;?>" id="consecutivoInicial" name="consecutivoInicial" placeholder="">
+          <div class="col-md-8">
+            <label for="descripcionDocumento" class="form-label fw-bold">Descripción del documento*</label>
+            <input type="text" class="form-control" id="descripcionDocumento" name="descripcionDocumento"
+                  placeholder="Ej: Factura de compra, Nota crédito..."
+                  value="<?php echo htmlspecialchars($descripcionDocumento); ?>" required>
+          </div>
         </div>
 
-        <div class="mb-3">
-          <label for="consecutivoFinal" class="form-label">Consecutivo final</label>
-          <input type="text" class="form-control" value="<?php echo $consecutivoFinal;?>" id="consecutivoFinal" name="consecutivoFinal" placeholder="">
+        <!-- Documento soporte -->
+        <div class="row g-3 mt-3">
+          <div class="col-md-6 d-flex align-items-center">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="documentoSoporte" name="documentoSoporte"
+                    <?php if ($documentoSoporte) echo 'checked'; ?>>
+              <label class="form-check-label fw-bold" for="documentoSoporte">Documento Soporte</label>
+            </div>
+          </div>
         </div>
 
-        <div class="mb-3">
-          <label for="retenciones" class="form-label">Retenciones</label>
-          <select id="retenciones" name="retenciones" class="form-select" required>
-            <option value="">Seleccione el tipo de retención</option>
-            <option value="Renta">Retención a la Renta</option>
-            <option value="IVA">Retención de IVA</option>
-            <option value="ICA">Retención de ICA</option>
-          </select>
+        <!-- Prefijo, Consecutivo inicial y final -->
+        <div class="row g-3 mt-2">
+          <div class="col-md-4">
+            <label for="prefijo" class="form-label fw-bold">Prefijo</label>
+            <input type="text" class="form-control" value="<?php echo htmlspecialchars($prefijo);?>" 
+                   id="prefijo" name="prefijo" placeholder="">
+          </div>
+
+          <div class="col-md-4">
+            <label for="consecutivoInicial" class="form-label fw-bold">Consecutivo Inicial</label>
+            <input type="text" class="form-control" value="<?php echo htmlspecialchars($consecutivoInicial);?>" 
+                   id="consecutivoInicial" name="consecutivoInicial" placeholder="">
+          </div>
+
+          <div class="col-md-4">
+            <label for="consecutivoFinal" class="form-label fw-bold">Consecutivo Final</label>
+            <input type="text" class="form-control" value="<?php echo htmlspecialchars($consecutivoFinal);?>" 
+                   id="consecutivoFinal" name="consecutivoFinal" placeholder="">
+          </div>
         </div>
 
-
-        <div class="mb-3">
-          <label for="activo" class="form-label">Activo*</label>
-          <input type="checkbox" class="" value="<?php echo $activo;?>" id="activo" name="activo" placeholder="" required>
+        <!-- Retenciones -->
+        <div class="row g-3 mt-3">
+          <div class="col-md-4">
+            <label for="retenciones" class="form-label fw-bold">Retenciones</label>
+            <select name="retenciones" id="retenciones" class="form-control">
+              <option value="">Seleccione el tipo de retención</option>
+              <option value="Retención a la Renta" <?php if($retenciones == 'Retención a la Renta') echo 'selected'; ?>>Retención a la Renta</option>
+              <option value="Retención de IVA" <?php if($retenciones == 'Retención de IVA') echo 'selected'; ?>>Retención de IVA</option>
+              <option value="Retención de ICA" <?php if($retenciones == 'Retención de ICA') echo 'selected'; ?>>Retención de ICA</option>
+            </select>
+          </div>
         </div>
 
-        <button value="btnAgregar" type="submit" class="btn btn-primary"  name="accion">Guardar</button>
-        <button value="btnModificar" type="submit" class="btn btn-primary"  name="accion" >Modificar</button>
-        <button value="btnEliminar" type="submit" class="btn btn-primary"  name="accion" >Eliminar</button>
+        <!-- Activo -->
+        <div class="row g-3 mt-3">
+          <div class="col-md-6 d-flex align-items-center">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="activo" name="activo"
+                    <?php if ($activo) echo 'checked'; ?>>
+              <label class="form-check-label fw-bold" for="activo">Activo</label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Botones -->
+        <div class="mt-4">
+          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
+          <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion">Modificar</button>
+          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-danger" name="accion">Eliminar</button>
+          <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">Cancelar</button>
+          <button type="button" id="btnDescargar" class="btn btn-success">
+            💾 Guardar (en PC)
+          </button>
+          <button type="button" id="btnImprimir" class="btn btn-primary">
+            🖨️ Imprimir 
+          </button>
+        </div>
+
       </form>
+    </div>
 
-        <div class="row">
-          <div class="table-container">
-            <table class="table-container">
-              <thead>
+    <!-- TABLA -->
+    <div class="row mt-4">
+      <div class="table-container">
+       <table class="table-container">
+          <thead>
+            <tr>
+              <th>Código Documento</th>
+              <th>Descripción Documento</th>
+              <th>Documento Soporte</th>
+              <th>Prefijo</th>
+              <th>Consecutivo Inicial</th>
+              <th>Consecutivo Final</th>
+              <th>Retenciones</th> 
+              <th>Activo</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            <?php foreach($lista as $usuario){ ?>
               <tr>
-                <th>Código Documento</th>
-                <th>Descripción Documento</th>
-                <th>Documento Soporte</th>
-                <th>Prefijo</th>
-                <th>Consecutivo Inicial</th>
-                <th>Consecutivo Final</th>
-                <th>Retenciones</th>
-                <th>Activo</th>
-                <th>Acción</th>
-              </tr>
-            </thead>
+                <td><?php echo htmlspecialchars($usuario['codigoDocumento']); ?></td>
+                <td><?php echo htmlspecialchars($usuario['descripcionDocumento']); ?></td>
+                <td><?php echo $usuario['documentoSoporte'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
+                <td><?php echo htmlspecialchars($usuario['prefijo']); ?></td>
+                <td><?php echo htmlspecialchars($usuario['consecutivoInicial']); ?></td>
+                <td><?php echo htmlspecialchars($usuario['consecutivoFinal']); ?></td>
+                <td><?php echo htmlspecialchars($usuario['retenciones']); ?></td>
+                <td><?php echo $usuario['activo'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
 
-            <tbody>
-              <?php foreach($lista as $usuario){ ?>
-                <tr>
-                  <td><?php echo $usuario['codigoDocumento']; ?></td>
-                  <td><?php echo $usuario['descripcionDocumento']; ?></td>
-                  <td><?php echo $usuario['documentoSoporte']; ?></td>
-                  <td><?php echo $usuario['prefijo']; ?></td>
-                  <td><?php echo $usuario['consecutivoInicial']; ?></td>
-                  <td><?php echo $usuario['consecutivoFinal']; ?></td>
-                  <td><?php echo $usuario['retenciones']; ?></td>
-                  <td><?php echo $usuario['activo']; ?></td>
-                  <td>
-                    <form action="" method="post">
-                      <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
-                      <input type="hidden" name="codigoDocumento" value="<?php echo $usuario['codigoDocumento']; ?>">
-                      <input type="hidden" name="descripcionDocumento" value="<?php echo $usuario['descripcionDocumento']; ?>">
-                      <input type="hidden" name="documentoSoporte" value="<?php echo $usuario['documentoSoporte']; ?>">
-                      <input type="hidden" name="prefijo" value="<?php echo $usuario['prefijo']; ?>">
-                      <input type="hidden" name="consecutivoInicial" value="<?php echo $usuario['consecutivoInicial']; ?>">
-                      <input type="hidden" name="consecutivoFinal" value="<?php echo $usuario['consecutivoFinal']; ?>">
-                      <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>">
-                      <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>">
+                <td>
+                  <form action="" method="post" style="display:flex; gap:5px;">
+                    <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                    <input type="hidden" name="codigoDocumento" value="<?php echo $usuario['codigoDocumento']; ?>">
+                    <input type="hidden" name="descripcionDocumento" value="<?php echo $usuario['descripcionDocumento']; ?>">
+                    <input type="hidden" name="documentoSoporte" value="<?php echo $usuario['documentoSoporte']; ?>">
+                    <input type="hidden" name="prefijo" value="<?php echo $usuario['prefijo']; ?>">
+                    <input type="hidden" name="consecutivoInicial" value="<?php echo $usuario['consecutivoInicial']; ?>">
+                    <input type="hidden" name="consecutivoFinal" value="<?php echo $usuario['consecutivoFinal']; ?>">
+                    <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>">
+                    <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>">
 
-                      <input type="submit" value="Editar" name="accion" class="btn btn-secondary btn-sm">
-                      <button value="btnEliminar" type="submit" class="btn btn-danger btn-sm" name="accion">Eliminar</button>
-                    </form>
+                    <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-pventa" title="Editar">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button type="submit" name="accion" value="btnEliminar" class="btn btn-sm btn-danger" title="Eliminar">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                  </form>
                 </td>
               </tr>
             <?php } ?>
           </tbody>
         </table>
       </div>
-  </div>
+    </div>
 
-   </div>
+    <script>
+      // Script para alternar botones
+      document.addEventListener("DOMContentLoaded", function() {
+        const id = document.getElementById("txtId").value;
+        const btnAgregar = document.getElementById("btnAgregar");
+        const btnModificar = document.getElementById("btnModificar");
+        const btnEliminar = document.getElementById("btnEliminar");
+        const btnCancelar = document.getElementById("btnCancelar");
+        const btnDescargar = document.getElementById("btnDescargar");
+        const btnImprimir = document.getElementById("btnImprimir");
+        const form = document.getElementById("formDocumentos");
+
+        function modoAgregar() {
+          // Ocultar/mostrar botones
+          btnAgregar.style.display = "inline-block";
+          btnModificar.style.display = "none";
+          btnEliminar.style.display = "none";
+          btnCancelar.style.display = "none";
+          btnDescargar.style.display = "none";
+          btnImprimir.style.display = "none";
+
+          // Limpiar todos los campos manualmente
+          form.querySelectorAll("input, select, textarea").forEach(el => {
+            if (el.type === "radio" || el.type === "checkbox") {
+              el.checked = false;
+            } else {
+              el.value = "";
+            }
+          });
+
+          // Si tienes checkbox "Activo", lo marcamos por defecto
+          const chkActivo = document.querySelector('input[name="activo"]');
+          if (chkActivo) chkActivo.checked = true;
+
+          // Asegurar que el ID quede vacío
+          const txtId = document.getElementById("txtId");
+          if (txtId) txtId.value = "";
+        }
+
+        // Estado inicial (modo modificar o agregar)
+        if (id && id.trim() !== "") {
+          btnAgregar.style.display = "none";
+          btnModificar.style.display = "inline-block";
+          btnEliminar.style.display = "inline-block";
+          btnCancelar.style.display = "inline-block";
+          btnDescargar.style.display = "inline-block";
+          btnImprimir.style.display = "inline-block";
+        } else {
+          modoAgregar();
+        }
+
+        // Evento cancelar
+        btnCancelar.addEventListener("click", function(e) {
+          e.preventDefault();
+          modoAgregar();
+          
+          // AJUSTE ADICIONAL: Limpiar los parámetros de edición de la URL
+          if (window.history.replaceState) {
+            const url = new URL(window.location);
+            // Elimina todos los parámetros POST que se cargan al editar
+            url.searchParams.forEach((value, key) => {
+              if (key !== 'msg') { // Dejamos 'msg' por si acaso
+                url.searchParams.delete(key);
+              }
+            });
+            window.history.replaceState({}, document.title, url);
+          }
+        });
+      });
+
+      // Funciones de confirmación con SweetAlert2
+      document.addEventListener("DOMContentLoaded", () => {
+        // Selecciona TODOS los formularios de la página
+        const forms = document.querySelectorAll("form");
+
+        forms.forEach((form) => {
+          form.addEventListener("submit", function (e) {
+            const boton = e.submitter; // botón que disparó el envío
+            const accion = boton?.value;
+
+            // Solo mostrar confirmación para modificar o eliminar
+            if (accion === "btnModificar" || accion === "btnEliminar") {
+              e.preventDefault(); // detener envío temporalmente
+
+              let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar registro?";
+              let texto = accion === "btnModificar"
+                ? "Se actualizarán los datos de este documento."
+                : "Esta acción eliminará el registro permanentemente.";
+
+              Swal.fire({
+                title: titulo,
+                text: texto,
+                icon: "warning",
+                showCancelButton: true,
+                confirmButtonText: "Sí, continuar",
+                cancelButtonText: "Cancelar",
+                confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+                cancelButtonColor: "#6c757d",
+              }).then((result) => {
+                if (result.isConfirmed) {
+                  // Crear (si no existe) un campo oculto con la acción seleccionada
+                  let inputAccion = form.querySelector("input[name='accionOculta']");
+                  if (!inputAccion) {
+                    inputAccion = document.createElement("input");
+                    inputAccion.type = "hidden";
+                    inputAccion.name = "accion";
+                    form.appendChild(inputAccion);
+                  }
+                  inputAccion.value = accion;
+
+                  form.submit(); // Enviar el formulario correspondiente
+                }
+              });
+            }
+          });
+        });
+      });
+
+      // --- FUNCIONALIDAD DE GUARDAR (en PC) A PDF ---
+      document.addEventListener("DOMContentLoaded", function() {
+        const btnDescargar = document.getElementById("btnDescargar");
+
+        if (btnDescargar) {
+          btnDescargar.addEventListener("click", function() {
+            const element = document.getElementById('pdfContent');
+            const codigoDocumento = document.getElementById('codigoDocumento').value || 'Factura-Compra';
+            
+            const opt = {
+              margin: [0.1, 0.5, 0.5, 0.5],
+              filename: `${codigoDocumento}_FacturaDeCompra.pdf`,
+              image: { type: 'jpeg', quality: 0.98 },
+              html2canvas: {
+                scale: 2,
+                logging: false,
+                dpi: 192,
+                letterRendering: true,
+                scrollY: 0,
+                windowHeight: element.scrollHeight
+              },
+              jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save();
+            
+            Swal.fire({
+              icon: 'success',
+              title: 'PDF Generado',
+              text: 'El formulario se ha guardado como PDF en su PC.',
+              confirmButtonColor: '#3085d6'
+            });
+          });
+        }
+      });
+
+      // --- FUNCIONALIDAD DE IMPRIMIR ---
+      document.addEventListener("DOMContentLoaded", function() {
+        const btnImprimir = document.getElementById("btnImprimir");
+
+        if (btnImprimir) {
+          btnImprimir.addEventListener("click", function() {
+            window.print();
+          });
+        }
+      });
+    </script>    
+  </div>
   </section><!-- End Services Section -->
 
-    <!-- ======= Footer ======= -->
-    <footer id="footer" class="footer-minimalista">
-      <p>Universidad de Santander - Ingeniería de Software</p>
-      <p>Todos los derechos reservados © 2025</p>
-      <p>Creado por iniciativa del programa de Contaduría Pública</p>
-    </footer><!-- End Footer -->
-
+  <!-- ======= Footer ======= -->
+  <footer id="footer" class="footer-minimalista">
+    <p>Universidad de Santander - Ingeniería de Software</p>
+    <p>Todos los derechos reservados © 2025</p>
+    <p>Creado por iniciativa del programa de Contaduría Pública</p>
+  </footer><!-- End Footer -->
 
   <div id="preloader"></div>
   <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>

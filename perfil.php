@@ -5,12 +5,15 @@ if ($conexion->connect_error) {
     die("Error de conexión: " . $conexion->connect_error);
 }
 
+// Variables iniciales
 $persona = $cedula = $digito = $nombres = $apellidos = $razon = "";
 $departamento = $ciudad = $direccion = $email = $telefono = "";
 $responsabilidadesInput = ""; 
 $regimen = $actividad = "";
 $tarifa = 0;
 $aiu = 0;
+
+$mostrarMensaje = isset($_GET['guardado']) && $_GET['guardado'] == 1 ? "guardar" : null;
 
 // Procesar el formulario cuando se envíe
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -40,8 +43,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (strlen($cedula) > 10) {
         $cedula = substr($cedula, 0, 10);
     }
-
-    $mostrarMensaje = null; // Inicializamos la variable aquí
 
     if (!ctype_digit($cedula)) {
         $mostrarMensaje = "cedulaInvalida";
@@ -77,7 +78,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         );
 
         if ($stmt->execute()) {
-            $mostrarMensaje = "guardar";
+            header("Location: " . $_SERVER['PHP_SELF'] . "?guardado=1");
+            exit();
         } else {
             $mostrarMensaje = "error";
             $errorGuardar = $stmt->error;
@@ -88,8 +90,39 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 
 $conexion->close();
-
 ?>
+
+<?php if (isset($mostrarMensaje)): ?>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    <?php if ($mostrarMensaje === "guardar"): ?>
+        Swal.fire({
+            icon: 'success',
+            title: 'Datos guardados correctamente',
+            confirmButtonColor: '#3085d6'
+        });
+    <?php elseif ($mostrarMensaje === "error"): ?>
+        Swal.fire({
+            icon: 'error',
+            title: 'Error al guardar los datos',
+            text: 'Por favor revisa la conexión o los campos ingresados.'
+        });
+    <?php elseif ($mostrarMensaje === "cedulaInvalida"): ?>
+        Swal.fire({
+            icon: 'warning',
+            title: 'Cédula inválida',
+            text: 'Debe contener solo números.'
+        });
+    <?php endif; ?>
+
+    if (window.history.replaceState) {
+        const url = new URL(window.location);
+        url.searchParams.delete('guardado');
+        window.history.replaceState({}, document.title, url);
+    }
+});
+</script>
+<?php endif; ?>
 
 <!DOCTYPE html>
 
@@ -120,7 +153,11 @@ $conexion->close();
   <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>    
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+ <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+ <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+ <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>   
+   
 
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
@@ -171,31 +208,28 @@ $conexion->close();
           <div class="mb-3">
             <h2>DATOS DE USUARIO</h2>
             <br>
-            <div>
-            <label for="label3" class="form-label">Tipo de persona*</label>
-              <br>
-              <label>
-                <input type="radio" id="personaNatural" name="persona" value="natural" onclick="toggleFields()">
-                Persona Natural
-              </label>
-              <label>
-                <input type="radio" id="personaJuridica" name="persona" value="juridica" onclick="toggleFields()">
-                Persona Jurídica
-            </label>
-            </div>
-            <br>
-            <div>
-             <label for="cedula">Cédula o NIT:</label>
-                <input type="text" id="cedula" name="cedula" 
-                  class="form-control"
-                  maxlength="10" 
-                  pattern="\d{1,10}" 
-                  title="Ingrese solo números (máximo 10 dígitos)"
-                  placeholder="Ej: 1234567890">
-            <br>
-            <div>
-              <label for="digito" class="form-label">Dígito de verificación</label>
-              <input 
+            <div class="row mb-3">
+                  <!-- Tipo de persona -->
+                  <div class="col-md-4">
+                    <label class="form-label">Tipo de persona*</label><br>
+                    <div class="form-check form-check-inline">
+                      <input class="form-check-input" type="radio" id="personaNatural" name="persona" value="natural" onclick="toggleFields()">
+                      <label class="form-check-label" for="personaNatural">Persona Natural</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                      <input class="form-check-input" type="radio" id="personaJuridica" name="persona" value="juridica" onclick="toggleFields()">
+                      <label class="form-check-label" for="personaJuridica">Persona Jurídica</label>
+                    </div>
+                  </div>
+              <!-- Cédula o NIT -->
+              <div class="col-md-4">
+                <label for="cedula" class="form-label">Cédula o NIT*</label>
+                <input type="text" class="form-control" id="cedula" name="cedula" placeholder="Ej: 1234567890">
+              </div>
+              <!-- Dígito de verificación -->
+              <div class="col-md-4">
+                <label for="digito" class="form-label">Dígito de verificación</label>
+                <input 
                   type="text" 
                   class="form-control" 
                   id="digito" 
@@ -205,84 +239,118 @@ $conexion->close();
                   title="Solo se permite un dígito entre 0 y 9"
                   placeholder="Dígito entre 0 y 9"
                   value="<?php echo htmlspecialchars($digito); ?>">
+              </div>
             </div>
 
-            <div>
-              <label for="nombres" class="form-label">Nombres</label>
-              <input type="text" name="nombres" class="form-control" id="nombres" disabled>
-            </div>
-            <div>
-              <label for="apellidos" class="form-label">Apellidos</label>
-              <input type="text" name="apellidos" class="form-control" id="apellidos" disabled>
-            </div>
-            <div>
-              <label for="razon" class="form-label">Razón Social</label>
-              <input type="text" name="razon" class="form-control" id="razon" disabled>       
-            </div>
-            <br>
-            <div class="form-group">
-              <label for="departamento" class="form-label">Departamento*</label>
-              <input type="text" name="departamento" id="departamento" class="form-control" placeholder="Buscar departamento..." autocomplete="off" required>
-            </div>
-            <div class="form-group mt-3">
-              <label for="ciudad"class="form-label">Ciudad*</label>
-              <select id="ciudad" name="ciudad" class="form-control" disabled required>
-                  <option value="">Selecciona una ciudad...</option>
-              </select>
-            </div>
-            <br>
-            <label for="direccion" class="form-label">Dirección*</label>
-            <input type="text" name="direccion" class="form-control" id="direccion" placeholder="ej: Cll 12 #52-16" required>
-            <br>
-            <label for="telefono" class="form-label">Telefono</label>
-            <input type="number" name="telefono" class="form-control" id="telefono" placeholder="">
-            <br>
-              <label for="email" class="form-label">Correo Electronico*</label>
-            <input type="email" name="email" class="form-control" id="email" placeholder="example@correo.com" required>
-            <br>
-          </div>
+            <!-- Nombres, apellidos y razón social -->
+              <div class="row g-3 mt-2">
+                <div class="col-md-4">
+                  <label for="nombres" class="form-label">Nombres</label>
+                  <input type="text" class="form-control" id="nombres" name="nombres"
+                        value="<?php echo $nombres; ?>" disabled>
+                </div>
+                <div class="col-md-4">
+                  <label for="apellidos" class="form-label">Apellidos</label>
+                  <input type="text" class="form-control" id="apellidos" name="apellidos"
+                        value="<?php echo $apellidos; ?>" disabled>
+                </div>
+                <div class="col-md-4">
+                  <label for="razon" class="form-label">Razón Social</label>
+                  <input type="text" class="form-control" id="razon" name="razon"
+                        value="<?php echo $razon ?>" disabled>
+                </div>
+              </div>
 
+                <!-- Departamento y ciudad -->
+                <div class="row g-3 mt-2">
+                  <div class="col-md-6">
+                    <label for="departamento" class="form-label">Departamento*</label>
+                    <input type="text" class="form-control" id="departamento" name="departamento"
+                          placeholder="Buscar departamento..." autocomplete="off"
+                          value="<?php echo $departamento; ?>" required>
+                  </div>
+                  <div class="col-md-6">
+                    <label for="ciudad" class="form-label">Ciudad*</label>
+                    <select id="ciudad" name="ciudad" class="form-control" disabled>
+                      <option value="">Selecciona una ciudad...</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Dirección, teléfono y correo -->
+                <div class="row g-3 mt-2">
+                  <div class="col-md-4">
+                    <label for="direccion" class="form-label">Dirección*</label>
+                    <input type="text" class="form-control" id="direccion" name="direccion"
+                          placeholder="ej: Cll 12 #52-16"
+                          value="<?php echo $direccion; ?>" required>
+                  </div>
+                  <div class="col-md-4">
+                    <label for="telefono" class="form-label">Teléfono</label>
+                    <input type="number" class="form-control" id="telefono" name="telefono"
+                          value="<?php echo $telefono; ?>">
+                  </div>
+                  <div class="col-md-4">
+                    <label for="email" class="form-label">Correo electrónico*</label>
+                    <input type="email" class="form-control" id="email" name="email"
+                          placeholder="example@correo.com"
+                          value="<?php echo $email; ?>" required>
+                  </div>
+                </div>
+                  </div>
+            <br>
           <div class="mb-3">
             <h2>PERFIL TRIBUTARIO</h2>
             <br>
-            <select class="form-select" name="regimen" aria-label="Default select example" required>
-              <option selected disabled>Tipo de régimen</option>
-              <option value="Responsable de IVA">Responsable de IVA</option>
-              <option value="No responsable de IVA">No responsable de IVA</option>
-              <option value="Régimen simple de tributación">Régimen simple de tributación</option>
-              <option value="Régimen especial">Régimen especial</option>
-            </select>
-            <br>
-            <label for="actividadEconomica" class="form-label">Codigo de actividad económica</label>
-            <input type="text" name="actividadEconomica" class="form-control" id="actividadEconomica" placeholder="">
-            <br>
-            <label for="actividad" class="form-label">Actividad económica</label>
-            <input type="text" name="actividad" class="form-control" id="actividad" placeholder="">
-            <br>
-            <label for="tarifa" class="form-label">Tarifa ICA</label>
-            <input type="number" name="tarifa" class="form-control" id="tarifa" step="0.0001" placeholder="ej: 0.004">
-            <br>
-            <label for="aiu" class="form-label">Manejo de AIU</label>
-            <input type="checkbox" name="aiu" id="aiu">
-            </div>
+            <!-- Fila 1: Tipo de régimen, Código actividad, Actividad económica -->
+            <div class="row g-3 mt-2">
+              <div class="col-md-4">
+                <label for="regimen" class="form-label">Tipo de régimen*</label>
+                <select class="form-select" name="regimen" id="regimen" required>
+                  <option selected disabled>Seleccione un régimen...</option>
+                  <option value="Responsable de IVA">Responsable de IVA</option>
+                  <option value="No responsable de IVA">No responsable de IVA</option>
+                  <option value="Régimen simple de tributación">Régimen simple de tributación</option>
+                  <option value="Régimen especial">Régimen especial</option>
+                </select>
               </div>
-              <!-- INCLUDE (en <head> o antes del cierre de body): jQuery y Select2 -->
-              <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-              <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-              <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
-              <!-- Campo en el formulario -->
-              <label for="responsabilidadesTributarias">Responsabilidades Tributarias*</label>
-              <select id="responsabilidadesTributarias" name="responsabilidades[]" class="form-select" multiple="multiple" required>
-                <!-- Opciones se llenan por JS -->
-              </select>
-              <div id="seleccionadas" class="mt-2"></div>
+              <div class="col-md-4">
+                <label for="actividadEconomica" class="form-label">Código de actividad económica</label>
+                <input type="text" name="actividadEconomica" class="form-control" id="actividadEconomica" placeholder="Ej: 6201">
+              </div>
 
-            <!-- Campo oculto que sí se envía -->
-            <input type="hidden" id="responsabilidadesInput" name="responsabilidadesSeleccionadas">
+              <div class="col-md-4">
+                <label for="actividad" class="form-label">Actividad económica</label>
+                <input type="text" name="actividad" class="form-control" id="actividad" placeholder="Ej: Comercio al por menor de alimentos">
+              </div>
+            </div>
+              <!-- Fila 2: Tarifa ICA, AIU, Responsabilidades Tributarias -->
+              <div class="row g-3 mt-2">
+                <div class="col-md-4">
+                  <label for="tarifa" class="form-label">Tarifa ICA</label>
+                  <input type="number" name="tarifa" class="form-control" id="tarifa" step="0.0001" placeholder="Ej: 0.004">
+                </div>
 
-            <br>
-            <button value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
+                <div class="col-md-4 d-flex align-items-center">
+                  <div>
+                    <label for="aiu" class="form-label d-block">Manejo de AIU</label>
+                    <input type="checkbox" name="aiu" id="aiu" style="transform: scale(1.3); margin-top: 6px;">
+                  </div>
+                </div>
+
+                <!-- Campo en el formulario --> 
+                <label for="responsabilidadesTributarias">Responsabilidades Tributarias*</label>
+                <select id="responsabilidadesTributarias" name="responsabilidades[]" class="form-select" multiple="multiple" required> 
+                    <!-- Opciones se llenan por JS --> 
+                </select> 
+                 <div id="seleccionadas" class="mt-2"></div> 
+                 <!-- Campo oculto que sí se envía --> 
+                <input type="hidden" id="responsabilidadesInput" name="responsabilidadesSeleccionadas">
+
+                  <!-- Botón -->
+                <div class="mt-4">
+                <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
 
 
           <!-- Script de los campos departamentos y ciudades-->
@@ -742,14 +810,11 @@ $conexion->close();
               $select.select2({
                 placeholder: 'Seleccione una o varias responsabilidades',
                 width: '100%',
-                dropdownParent: $('body'),        // <- muy importante: evita recortes por contenedores
-                maximumSelectionLength: 10,       // opcional: límite de items seleccionables
-                closeOnSelect: false,             // útil para múltiples selecciones
-                // para controlar tamaño del dropdown:
+                dropdownParent: $('body'),        
+                maximumSelectionLength: 10,      
+                closeOnSelect: false,             
                 dropdownCssClass: 'custom-select2-dropdown'
               });
-
-              // Aumentar z-index del dropdown para que no quede detrás del footer
               const style = document.createElement('style');
               style.innerHTML = `
                 .select2-container--open { z-index: 99999 !important; }
@@ -770,7 +835,6 @@ $conexion->close();
       <p>Creado por iniciativa del programa de Contaduría Pública</p>
     </footer><!-- End Footer -->
 
-
   <div id="preloader"></div>
   <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
 
@@ -784,34 +848,5 @@ $conexion->close();
 
   <!-- Template Main JS File -->
   <script src="assets/js/main.js"></script>
-
-  <?php if (isset($mostrarMensaje)): ?>
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            <?php if ($mostrarMensaje === "guardar"): ?>
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Datos guardados correctamente',
-                    confirmButtonColor: '#3085d6'
-                });
-            <?php elseif ($mostrarMensaje === "error"): ?>
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error al guardar los datos',
-                    text: 'Por favor revisa la conexión o los campos ingresados.'
-                });
-            <?php elseif ($mostrarMensaje === "cedulaInvalida"): ?>
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Cédula inválida',
-                    text: 'Debe contener solo números.'
-                });
-            <?php endif; ?>
-        });
-        </script>
-        <?php endif; ?>
-
-
   </body>
-
 </html>
