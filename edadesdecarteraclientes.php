@@ -31,18 +31,6 @@
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
   <style>
-    table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    th, td {
-        border: 1px solid black;
-        padding: 10px;
-        text-align: center;
-    }
-    th {
-        background-color: #f2f2f2;
-    }
     input[type="text"] {
         width: 100%;
         box-sizing: border-box;
@@ -122,45 +110,44 @@
       </div>
 
       <div class="section-subtitle">
-        <br><br><br>
         <h6>INFORME</h6>
       </div>  
-
-      <div>
-        <table id="informe-table">
-          <tr>
-              <th>Identificación</th>
-              <th>Nombre del cliente</th>
-              <th>Documento</th>
-              <th>Fecha de vencimiento</th>
-              <th>Saldo sin vencer</th>
-              <th>Vencido 1-30 días</th>
-              <th>Vencido 31-60 días</th>
-              <th>Mayor de 60 días</th>
-          </tr>
-          <tr>
-              <td><input type="text" name="identificacion"></td>
-              <td><input type="text" name="nombre_cliente"></td>
-              <td><input type="text" name="documento"></td>
-              <td><input type="text" name="fecha_de_vencimiento"></td>
-              <td><input type="text" name="saldo_sin_vencer"></td>
-              <td><input type="text" name="vencido_1-30_dias"></td>
-              <td><input type="text" name="vencido_31-60_dias"></td>
-              <td><input type="text" name="vencido_mayor_60dias"></td>
-          </tr>
-          <tr>
-              <th colspan="2">TOTAL</th>
-              <td><input type="text" name="total_9"></td>
-              <td><input type="text" name="total_10"></td>
-              <td><input type="text" name="total_11"></td>
-              <td><input type="text" name="total_12"></td>
-              <td><input type="text" name="total_13"></td>
-              <td><input type="text" name="total_14"></td>
-          </tr>
-        </table>
-        <button type="button" class="add-row-btn" onclick="addRow()">+ Añadir fila</button>
+      <div class="row">
+        <div class="table-container">
+                    <table id="informe-table">
+                <tr>
+                    <th>Identificación</th>
+                    <th>Nombre del cliente</th>
+                    <th>Documento</th>
+                    <th>Fecha de vencimiento</th>
+                    <th>Saldo sin vencer</th>
+                    <th>Vencido 1-30 días</th>
+                    <th>Vencido 31-60 días</th>
+                    <th>Mayor de 60 días</th>
+                </tr>
+                <tr>
+                    <td><input type="text" name="identificacion"></td>
+                    <td><input type="text" name="nombre_cliente"></td>
+                    <td><input type="text" name="documento"></td>
+                    <td><input type="text" name="fecha_de_vencimiento"></td>
+                    <td><input type="text" name="saldo_sin_vencer"></td>
+                    <td><input type="text" name="vencido_1-30_dias"></td>
+                    <td><input type="text" name="vencido_31-60_dias"></td>
+                    <td><input type="text" name="vencido_mayor_60dias"></td>
+                </tr>
+                <tr>
+                    <th colspan="2">TOTAL</th>
+                    <td><input type="text" name="total_9"></td>
+                    <td><input type="text" name="total_10"></td>
+                    <td><input type="text" name="total_11"></td>
+                    <td><input type="text" name="total_12"></td>
+                    <td><input type="text" name="total_13"></td>
+                    <td><input type="text" name="total_14"></td>
+                </tr>
+              </table>
+              <button type="button" class="add-row-btn" onclick="addRow()">+ Añadir fila</button>
+        </div>
       </div>
-
 
       <script>
         function addRow() {

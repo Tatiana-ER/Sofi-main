@@ -79,11 +79,11 @@ if (!empty($search)) {
 
 // 2. Si no hay búsqueda, filtramos según el método de pago
 $codigos_prefijo = [];
-if ($metodoPago === "Efectivo") {
+if ($metodoPago === "efectivo") {
     $codigos_prefijo = ['1105'];
-} elseif ($metodoPago === "Transferencia") {
+} elseif ($metodoPago === "transferencia") {
     $codigos_prefijo = ['1110', '1120'];
-} elseif ($metodoPago === "Credito") {
+} elseif ($metodoPago === "credito") {
     $codigos_prefijo = ['1305', '2205', '2335'];
 }
 

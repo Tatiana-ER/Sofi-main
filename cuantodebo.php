@@ -62,18 +62,6 @@ if (isset($_GET['cedula'])) {
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
   <style>
-    table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    th, td {
-        border: 1px solid black;
-        padding: 10px;
-        text-align: center;
-    }
-    th {
-        background-color: #f2f2f2;
-    }
     input[type="text"] {
         width: 100%;
         box-sizing: border-box;
@@ -150,30 +138,33 @@ if (isset($_GET['cedula'])) {
         <div class="section-subtitle">
           <h6>INFORME</h6>
         </div>  
-
-        <div>
-          <table id="informe">
-            <tr>
-                <th>Identificación</th>
-                <th>Nombre del cliente</th>
-                <th>Total Cartera</th>
-                <th>Valor Anticipos</th>
-                <th>Saldo por pagar</th>
-            </tr>
-            <tr>
-                <td><input type="text" name="identificacion" readonly></td>
-                <td><input type="text" name="nombreCliente" readonly></td>
-                <td><input type="text" name="totalCartera"></td>
-                <td><input type="text" name="valorAnticipos"></td>
-                <td><input type="text" name="saldoPagar"></td>
-            </tr>
-            <tr>
-                <th colspan="2">TOTAL</th>
-                <td><input type="text" name="total_9"></td>
-                <td><input type="text" name="total_10"></td>
-                <td><input type="text" name="total_11"></td>
-            </tr>
-          </table>
+        <div class="row">
+          <div class="table-container">
+            <table id="informe">
+              <tr>
+                  <th>Identificación</th>
+                  <th>Nombre del cliente</th>
+                  <th>Total Cartera</th>
+                  <th>Valor Anticipos</th>
+                  <th>Saldo por pagar</th>
+              </tr>
+              <tr>
+                  <td><input type="text" name="identificacion" readonly></td>
+                  <td><input type="text" name="nombreCliente" readonly></td>
+                  <td><input type="text" name="totalCartera"></td>
+                  <td><input type="text" name="valorAnticipos"></td>
+                  <td><input type="text" name="saldoPagar"></td>
+              </tr>
+              <tr>
+                  <th colspan="2">TOTAL</th>
+                  <td><input type="text" name="total_9"></td>
+                  <td><input type="text" name="total_10"></td>
+                  <td><input type="text" name="total_11"></td>
+              </tr>
+            </table>
+          </div>
+        </div>
+          
           <button type="button" class="add-row-btn" onclick="addRow()">+ Añadir fila</button>
           <br><br><br>
           <button type="submit" class="btn btn-primary" onclick="prepararPDF()">Descargar PDF</button>
