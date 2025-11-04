@@ -444,9 +444,10 @@ document.addEventListener("DOMContentLoaded", () => {
             <select class="form-select" id="forma-pago" name="forma-pago" required>
               <option value="">Seleccione una opción</option>
               <?php foreach ($mediosPago as $medio): ?>
-                <option value="<?= htmlspecialchars($medio['metodoPago']) ?>" <?= ($formaPago == $medio['metodoPago']) ? 'selected' : '' ?>>
-                  <?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>
-                </option>
+                  <option value="<?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>"
+                    <?= ($formaPago == $medio['metodoPago']) ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>
+                  </option>
               <?php endforeach; ?>
             </select>
           </div>
