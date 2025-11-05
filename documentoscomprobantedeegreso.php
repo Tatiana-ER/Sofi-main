@@ -287,22 +287,6 @@ document.addEventListener("DOMContentLoaded", () => {
       box-sizing: border-box;
       padding: 5px;
     }
-
-    .table-container table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    .table-container th, .table-container td {
-      padding: 8px;
-      border: 1px solid #ddd;
-      text-align: left;
-    }
-
-    .table-container th {
-      background-color: #f2f2f2;
-      font-weight: bold;
-    }
  
     .btn-add, .btn-remove {
       cursor: pointer;
