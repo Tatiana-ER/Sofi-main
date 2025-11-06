@@ -1,162 +1,467 @@
 <?php
 include("connection.php");
- 
+
 $conn = new connection();
 $pdo = $conn->connect();
- 
+
+// Obtener consecutivo automático
 if (isset($_GET['get_consecutivo'])) {
-    $stmt = $pdo->query("SELECT MAX(consecutivo) AS ultimo FROM doccomprobanteegreso");
+    $stmt = $pdo->query("SELECT MAX(CAST(consecutivo AS UNSIGNED)) AS ultimo FROM doccomprobanteegreso");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     $ultimoConsecutivo = $row['ultimo'] ?? 0;
     $nuevoConsecutivo = $ultimoConsecutivo + 1;
     echo json_encode(['consecutivo' => $nuevoConsecutivo]);
     exit;
 }
- 
-if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['accion']) && $_POST['accion'] === 'btnAgregar') {
-    try {
-        $fecha = $_POST['fecha'];
-        $consecutivo = $_POST['consecutivo'];
-        $identificacion = $_POST['identificacion'];
-        $nombre = $_POST['nombre'];
-        $formaPago = $_POST['formaPago'];
-        $valorTotal = $_POST['valorTotal'];
-        $observaciones = $_POST['observaciones'];
- 
-        // Insertar encabezado
-        $stmt = $pdo->prepare("INSERT INTO doccomprobanteegreso (consecutivo, fecha, identificacion, nombreProveedor, formaPago, valorTotal, observaciones) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$consecutivo, $fecha, $identificacion, $nombre, $formaPago, $valorTotal, $observaciones]);
- 
-        $reciboId = $pdo->lastInsertId();
- 
-        // Detalles de las facturas (recolectar desde JS idealmente como array de inputs ocultos)
-        if (isset($_POST['numeroFactura']) && is_array($_POST['numeroFactura'])) {
-            foreach ($_POST['numeroFactura'] as $i => $factura) {
-                $fechaVenc = $_POST['fechaVencimiento'][$i] ?? null;
-                $valor = $_POST['valor'][$i] ?? 0;
- 
-                $stmt = $pdo->prepare("INSERT INTO detalle_docrecibodecaja (recibo_id, numeroFactura, fechaVencimiento, valor) VALUES (?, ?, ?, ?)");
-                $stmt->execute([$reciboId, $factura, $fechaVenc, $valor]);
-            }
-        }
- 
-        echo "<script>alert('Comprobante registrado correctamente'); window.location.href='dashboard.php';</script>";
- 
-    } catch (PDOException $e) {
-        echo "<script>alert('Error al registrar: " . $e->getMessage() . "');</script>";
+
+// Obtener facturas a crédito del proveedor
+if (isset($_GET['get_facturas']) && isset($_GET['identificacion'])) {
+    $identificacion = $_GET['identificacion'];
+    
+    $stmt = $pdo->prepare("
+        SELECT 
+            id, 
+            consecutivo, 
+            fecha, 
+            CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(10,2)) as valorTotal
+        FROM facturac 
+        WHERE identificacion = :identificacion 
+        AND formaPago LIKE '%Credito%'
+        ORDER BY fecha DESC
+    ");
+    $stmt->bindParam(':identificacion', $identificacion);
+    $stmt->execute();
+    $facturas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    echo json_encode($facturas);
+    exit;
+}
+
+// Obtener detalles de un comprobante para editar
+if (isset($_GET['get_detalles']) && isset($_GET['idComprobante'])) {
+    $idComprobante = $_GET['idComprobante'];
+    
+    $stmt = $pdo->prepare("
+        SELECT 
+            consecutivoFactura,
+            valorAplicado,
+            fechaVencimiento
+        FROM detalle_comprobante_egreso
+        WHERE idComprobante = :idComprobante
+        ORDER BY id
+    ");
+    $stmt->bindParam(':idComprobante', $idComprobante);
+    $stmt->execute();
+    $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    echo json_encode($detalles);
+    exit;
+}
+
+// Buscar proveedor
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['buscar_proveedor'])) {
+    $identificacion = $_POST['identificacion'];
+    
+    $stmt = $pdo->prepare("SELECT nombres, apellidos FROM catalogosterceros WHERE cedula = :cedula AND tipoTercero = 'proveedor'");
+    $stmt->bindParam(':cedula', $identificacion);
+    $stmt->execute();
+    $proveedor = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($proveedor) {
+        echo json_encode([
+            "nombre" => trim($proveedor['nombres'] . " " . $proveedor['apellidos'])
+        ]);
+    } else {
+        echo json_encode([
+            "nombre" => "No encontrado o no es un proveedor"
+        ]);
     }
+    exit;
 }
- 
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['identificacion'])) {
-  $identificacion = $_POST['identificacion'];
- 
-  // Consultar nombre del proveedor
-  $stmt = $pdo->prepare("SELECT nombres, apellidos FROM catalogosterceros WHERE cedula = :cedula AND tipoTercero = 'proveedor'");
-  $stmt->bindParam(':cedula', $identificacion, PDO::PARAM_INT);
-  $stmt->execute();
-  $cliente = $stmt->fetch(PDO::FETCH_ASSOC);
- 
-  $nombreCompleto = $cliente ? $cliente['nombres'] . " " . $cliente['apellidos'] : "No encontrado o no es un cliente";
- 
-  // Obtener última factura registrada
-  $stmt = $pdo->prepare("SELECT numeroFactura, valorTotal FROM facturac WHERE identificacion = :identificacion ORDER BY id DESC LIMIT 1");
-  $stmt->bindParam(':identificacion', $identificacion, PDO::PARAM_INT);
-  $stmt->execute();
-  $factura = $stmt->fetch(PDO::FETCH_ASSOC);
- 
-  echo json_encode([
-      "nombre" => $nombreCompleto,
-      "numeroFactura" => $factura['numeroFactura'] ?? "",
-      "valorTotal" => $factura['valorTotal'] ?? ""
-  ]);
-  exit;
+
+// Variables iniciales
+$txtId = $_POST['txtId'] ?? "";
+$fecha = $_POST['fecha'] ?? "";
+$consecutivo = $_POST['consecutivo'] ?? "";
+$identificacion = $_POST['identificacion'] ?? "";
+$nombre = $_POST['nombre'] ?? "";
+$numeroFactura = $_POST['numeroFactura'] ?? "";
+$fechaVencimiento = $_POST['fechaVencimiento'] ?? "";
+$valor = $_POST['valor'] ?? "";
+$valorTotal = $_POST['valorTotal'] ?? "";
+$formaPago = $_POST['formaPago'] ?? "";
+$observaciones = $_POST['observaciones'] ?? "";
+$accion = $_POST['accion'] ?? "";
+
+// Datos de facturas (JSON)
+$facturasData = $_POST['facturasData'] ?? "";
+
+switch($accion) {
+    case "btnAgregar":
+        try {
+            $pdo->beginTransaction();
+            
+            // Insertar comprobante principal
+            $sentencia = $pdo->prepare("INSERT INTO doccomprobanteegreso(
+                fecha, consecutivo, identificacion, nombre, numeroFactura, 
+                fechaVencimiento, valor, valorTotal, formaPago, observaciones
+            ) VALUES (
+                :fecha, :consecutivo, :identificacion, :nombre, :numeroFactura, 
+                :fechaVencimiento, :valor, :valorTotal, :formaPago, :observaciones
+            )");
+            
+            $sentencia->bindParam(':fecha', $fecha);
+            $sentencia->bindParam(':consecutivo', $consecutivo);
+            $sentencia->bindParam(':identificacion', $identificacion);
+            $sentencia->bindParam(':nombre', $nombre);
+            $sentencia->bindParam(':numeroFactura', $numeroFactura);
+            $sentencia->bindParam(':fechaVencimiento', $fechaVencimiento);
+            $sentencia->bindParam(':valor', $valor);
+            $sentencia->bindParam(':valorTotal', $valorTotal);
+            $sentencia->bindParam(':formaPago', $formaPago);
+            $sentencia->bindParam(':observaciones', $observaciones);
+            $sentencia->execute();
+            
+            $idComprobante = $pdo->lastInsertId();
+            
+            // Insertar detalles de facturas
+            if (!empty($facturasData)) {
+                $dataArray = json_decode($facturasData, true);
+                
+                foreach ($dataArray as $facturaData) {
+                    $stmtDetalle = $pdo->prepare("
+                        INSERT INTO detalle_comprobante_egreso 
+                        (idComprobante, consecutivoFactura, valorAplicado, fechaVencimiento)
+                        VALUES (:idComprobante, :consecutivo, :valor, :fechaVenc)
+                    ");
+                    $stmtDetalle->execute([
+                        ':idComprobante' => $idComprobante,
+                        ':consecutivo' => $facturaData['consecutivo'],
+                        ':valor' => $facturaData['valor'],
+                        ':fechaVenc' => $facturaData['fechaVencimiento'] ?: null
+                    ]);
+                }
+            }
+            
+            $pdo->commit();
+            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=agregado");
+            exit();
+            
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=error&detalle=" . urlencode($e->getMessage()));
+            exit();
+        }
+        break;
+
+    case "btnModificar":
+        try {
+            $pdo->beginTransaction();
+            
+            // Actualizar comprobante principal
+            $sentencia = $pdo->prepare("UPDATE doccomprobanteegreso SET
+                fecha = :fecha,
+                consecutivo = :consecutivo,
+                identificacion = :identificacion,
+                nombre = :nombre,
+                numeroFactura = :numeroFactura,
+                fechaVencimiento = :fechaVencimiento,
+                valor = :valor,
+                valorTotal = :valorTotal,
+                formaPago = :formaPago,
+                observaciones = :observaciones
+                WHERE id = :id");
+            
+            $sentencia->bindParam(':fecha', $fecha);
+            $sentencia->bindParam(':consecutivo', $consecutivo);
+            $sentencia->bindParam(':identificacion', $identificacion);
+            $sentencia->bindParam(':nombre', $nombre);
+            $sentencia->bindParam(':numeroFactura', $numeroFactura);
+            $sentencia->bindParam(':fechaVencimiento', $fechaVencimiento);
+            $sentencia->bindParam(':valor', $valor);
+            $sentencia->bindParam(':valorTotal', $valorTotal);
+            $sentencia->bindParam(':formaPago', $formaPago);
+            $sentencia->bindParam(':observaciones', $observaciones);
+            $sentencia->bindParam(':id', $txtId);
+            $sentencia->execute();
+            
+            // Eliminar detalles antiguos
+            $stmtDelete = $pdo->prepare("DELETE FROM detalle_comprobante_egreso WHERE idComprobante = :idComprobante");
+            $stmtDelete->execute([':idComprobante' => $txtId]);
+            
+            // Insertar nuevos detalles
+            if (!empty($facturasData)) {
+                $dataArray = json_decode($facturasData, true);
+                
+                foreach ($dataArray as $facturaData) {
+                    $stmtDetalle = $pdo->prepare("
+                        INSERT INTO detalle_comprobante_egreso 
+                        (idComprobante, consecutivoFactura, valorAplicado, fechaVencimiento)
+                        VALUES (:idComprobante, :consecutivo, :valor, :fechaVenc)
+                    ");
+                    $stmtDetalle->execute([
+                        ':idComprobante' => $txtId,
+                        ':consecutivo' => $facturaData['consecutivo'],
+                        ':valor' => $facturaData['valor'],
+                        ':fechaVenc' => $facturaData['fechaVencimiento'] ?: null
+                    ]);
+                }
+            }
+            
+            $pdo->commit();
+            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=modificado");
+            exit();
+            
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=error&detalle=" . urlencode($e->getMessage()));
+            exit();
+        }
+        break;
+
+    case "btnEliminar":
+        try {
+            $pdo->beginTransaction();
+            
+            // Eliminar comprobante (cascade eliminará los detalles)
+            $sentencia = $pdo->prepare("DELETE FROM doccomprobanteegreso WHERE id = :id");
+            $sentencia->bindParam(':id', $txtId);
+            $sentencia->execute();
+            
+            $pdo->commit();
+            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=eliminado");
+            exit();
+            
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=error&detalle=" . urlencode($e->getMessage()));
+            exit();
+        }
+        break;
+
+    case "btnEditar":
+        // Los datos ya vienen en $_POST desde los campos hidden
+        break;
 }
- 
-// visualisar metodos de pago
+
+// Consulta para mostrar la tabla con información de detalles
+$sentencia = $pdo->prepare("
+    SELECT 
+        c.*,
+        (SELECT COUNT(*) FROM detalle_comprobante_egreso WHERE idComprobante = c.id) as numFacturas
+    FROM doccomprobanteegreso c
+    ORDER BY CAST(c.consecutivo AS UNSIGNED) DESC
+");
+$sentencia->execute();
+$lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
+
+// Obtener medios de pago
 $mediosPago = [];
 $stmt = $pdo->query("SELECT metodoPago, cuentaContable FROM mediosdepago");
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $mediosPago[] = $row;
 }
- 
 ?>
- 
+
+<!-- SweetAlert -->
+<?php if (isset($_GET['msg'])): ?>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const msg = "<?= $_GET['msg'] ?>";
+  const detalle = "<?= $_GET['detalle'] ?? '' ?>";
+  
+  switch (msg) {
+    case "agregado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Guardado exitosamente',
+        text: 'El comprobante de egreso se ha agregado correctamente',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "modificado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Modificado correctamente',
+        text: 'Los datos se actualizaron con éxito',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "eliminado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Eliminado correctamente',
+        text: 'El comprobante de egreso fue eliminado del registro',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+      
+    case "error":
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: detalle || 'Ocurrió un error al procesar la solicitud',
+        confirmButtonColor: '#d33'
+      });
+      break;
+  }
+
+  if (window.history.replaceState) {
+    const url = new URL(window.location);
+    url.searchParams.delete('msg');
+    url.searchParams.delete('detalle');
+    window.history.replaceState({}, document.title, url);
+  }
+});
+</script>
+<?php endif; ?>
+
 <!DOCTYPE html>
-<html lang="en">
- 
+<html lang="es">
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
- 
-  <title>SOFI - UDES</title>
-  <meta content="" name="description">
-  <meta content="" name="keywords">
- 
+  <title>Comprobante de Egreso - SOFI</title>
+  
   <!-- Favicons -->
   <link href="assets/img/favicon.png" rel="icon">
-  <link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
- 
+  
   <!-- Google Fonts -->
-  <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Raleway:300,300i,400,400i,500,500i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i%22 rel="stylesheet">
- 
-  <!-- Vendor CSS Files -->
-  <link href="assets/vendor/animate.css/animate.min.css" rel="stylesheet">
-  <link href="assets/vendor/aos/aos.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700|Raleway:300,400,500,600,700|Poppins:300,400,500,600,700" rel="stylesheet">
+  
+  <!-- Vendor CSS -->
   <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
-  <link href="assets/vendor/boxicons/css/boxicons.min.css" rel="stylesheet">
-  <link href="assets/vendor/glightbox/css/glightbox.min.css" rel="stylesheet">
-  <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
-  <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>  
- 
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  
   <link href="assets/css/improved-style.css" rel="stylesheet">
- 
+
   <style>
-    input[type="text"] {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 5px;
+    .table-container {
+      overflow-x: auto;
+      margin-top: 20px;
     }
- 
-    .add-row-btn {
-      cursor: pointer;
-      background-color: #0d6efd;
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    table th {
+      background: #0d6efd;
+      color: white;
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    
+    table td {
+      padding: 10px;
+      border-bottom: 1px solid #dee2e6;
+      font-size: 14px;
+    }
+    
+    table tbody tr:hover {
+      background: #f8f9fa;
+    }
+    
+    .factura-row {
+      background: #f8f9fa;
+      transition: all 0.2s;
+    }
+    
+    .factura-row:hover {
+      background: #e9ecef;
+    }
+    
+    .btn-cargar-facturas {
+      margin-top: 15px;
+      margin-bottom: 10px;
+      background: #198754;
       color: white;
       border: none;
-      padding: 10px;
-      font-size: 18px;
-      margin-top: 20px;
-    }
-    .form-group {
-      margin-bottom: 15px;
-    }
-    .form-group label {
+      padding: 10px 25px;
+      border-radius: 5px;
+      cursor: pointer;
       font-weight: bold;
-      display: inline-block;
-      width: 150px;
+      transition: all 0.3s;
     }
+    
+    .btn-cargar-facturas:hover {
+      background: #146c43;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    
     .totals {
       margin-top: 20px;
-      text-align: left;
+      text-align: right;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 5px;
+      border: 2px solid #0d6efd;
     }
+    
     .totals label {
       font-weight: bold;
+      font-size: 18px;
+      color: #0d6efd;
+      margin-right: 10px;
     }
+    
     .totals input {
-      width: 160px;
+      width: 200px;
+      font-size: 20px;
+      font-weight: bold;
+      text-align: right;
+      display: inline-block;
+      border: 2px solid #0d6efd;
+      color: #0d6efd;
+    }
+    
+    .badge {
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .badge-info {
+      background: #0dcaf0;
+      color: #000;
+    }
+    
+    .info-box {
+      background: #e7f3ff;
+      border-left: 4px solid #0d6efd;
+      padding: 12px;
+      margin: 15px 0;
+      border-radius: 4px;
+    }
+    
+    .info-box i {
+      color: #0d6efd;
+      margin-right: 8px;
+    }
+    
+    .form-control:focus {
+      border-color: #0d6efd;
+      box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
     }
   </style>
- 
 </head>
- 
+
 <body>
- 
-  <!-- ======= Header ======= -->
-  <header id="header" class="fixed-top d-flex align-items-center ">
+  <!-- Header -->
+  <header id="header" class="fixed-top d-flex align-items-center">
     <div class="container d-flex align-items-center justify-content-between">
-     <h1 class="logo">
+      <h1 class="logo">
         <a href="dashboard.php">
           <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
           Software Financiero
@@ -164,183 +469,560 @@ while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
       </h1>
       <nav id="navbar" class="navbar">
         <ul>
-          <li>
-            <a class="nav-link scrollto active" href="dashboard.php" style="color: darkblue;">Inicio</a>
-          </li>
-          <li>
-            <a class="nav-link scrollto active" href="perfil.php" style="color: darkblue;">Mi Negocio</a>
-          </li>
-          <li>
-            <a class="nav-link scrollto active" href="index.php" style="color: darkblue;">Cerrar Sesión</a>
-          </li>
+          <li><a class="nav-link" href="dashboard.php">Inicio</a></li>
+          <li><a class="nav-link" href="perfil.php">Mi Negocio</a></li>
+          <li><a class="nav-link" href="index.php">Cerrar Sesión</a></li>
         </ul>
         <i class="bi bi-list mobile-nav-toggle"></i>
-      </nav><!-- .navbar -->
+      </nav>
     </div>
-  </header><!-- End Header -->
- 
-    <!-- ======= Services Section ======= -->
-    <section id="services" class="services">
-            <button class="btn-ir" onclick="window.location.href='menudocumentos.php'">
-        <i class="fa-solid fa-arrow-left"></i> Regresar
-      </button>
-      <div class="container" data-aos="fade-up">
- 
-        <div class="section-title">
-          <h2>COMPROBANTE DE EGRESO</h2>
-          <p>Para crear un nuevo comprobante de egreso diligencie los campos a continuación:</p>
-          <p>(Los campos marcados con * son obligatorios)</p>
-        </div>
-       
-        <form method="POST" action="">
-          <div class="mb-3">
-            <label for="fecha" class="form-label">Fecha de documento*</label>
-            <input type="date" name="fecha" class="form-control" id="fecha" placeholder="" required>
-          </div>
-          <div class="mb-3">
-            <label for="consecutivo" class="form-label">Consecutivo</label>
-            <input type="text" name="consecutivo" class="form-control" id="consecutivo" placeholder="">
-          </div>
-          <div class="mb-3">
-            <label for="identificacion" class="form-label">Identificación del proveedor (NIT o CC)*</label>
-            <input type="number" name="identificacion" class="form-control" id="identificacion" placeholder="" required>
-          </div>
-          <div class="mb-3">
-            <label for="nombre" class="form-label">Nombre del proveedor</label>
-            <input type="text" name="nombre" class="form-control" id="nombre" placeholder="">
-          </div>
- 
-          <div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Número de factura </th>
-                  <th>Fecha de vencimiento</th>
-                  <th>Valor</th>
-                  <th>¿Seleccionar?</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="product-table">
-                <tr>
-                  <td><input type="text" placeholder="Número de factura"></td>
-                  <td><input type="text" placeholder="Fecha de vencimiento"></td>
-                  <td><input type="number" class="quantity" placeholder="Valor"></td>
-                  <td><input type="checkbox" class="" placeholder=""></td>
-                  <td><button class="add-row" onclick="addRow()">+</button></td>
-                </tr>
-              </tbody>
-            </table>
-          </div><br>
- 
-          <div class="totals">
-            <div class="form-group">
-                <label for="valor-total">VALOR TOTAL</label>
-                <input type="text" id="valorTotal" class="valorTSotal" readonly>
-            </div>
-          </div>
- 
-          <div class="form-group">
-              <label for="forma-pago">FORMA DE PAGO</label>
-              <select type="text" id="formaPago" name="formaPago">
-                  <option value="">Seleccione una opción</option>
-                  <?php foreach ($mediosPago as $medio): ?>
-                      <option value="<?= htmlspecialchars($medio['metodoPago']) ?>">
-                          <?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>
-                      </option>
-                  <?php endforeach; ?>
-              </select>
-          </div><br><br>
- 
-          <div class="mb-3">
-            <label for="observaciones" class="form-label">Observaciones</label>
-            <input type="text" name="observaciones" class="form-control" id="exampleFormControlInput1" placeholder="">
-          </div>
- 
-          <br>
-          <button value="btnAgregar" type="submit" class="btn btn-primary"  name="accion" >Agregar</button>
-        </form>
- 
-        <script>
-          window.addEventListener('DOMContentLoaded', function() {
-            fetch(window.location.pathname + "?get_consecutivo=1")
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('consecutivo').value = data.consecutivo;
-                })
-                .catch(error => console.error('Error al obtener consecutivo:', error));
-        });
-        // Buscar el cliente solo si es tipo "cliente"
-        document.getElementById("identificacion").addEventListener("input", function () {
-            let identificacion = this.value;
- 
-            if (identificacion.length > 0) {
-                fetch("", {
-                    method: "POST",
-                    body: new URLSearchParams({ identificacion: identificacion }),
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    // Mostrar nombre
-                    document.getElementById("nombre").value = data.nombre;
- 
-                    // Insertar factura en la primera fila
-                    const fila = document.querySelector("#product-table tr");
-                    if (fila) {
-                        fila.cells[0].querySelector("input").value = data.numeroFactura || "";
-                        fila.cells[2].querySelector("input").value = data.valorTotal || "";
-                    }
- 
-                    // Mostrar valor total
-                    document.getElementById("valorTotal").value = data.valorTotal || "";
-                })
-                .catch(error => console.error("Error en la consulta:", error));
-            } else {
-                document.getElementById("nombre").value = "";
-                document.getElementById("valorTotal").value = "";
-            }
-        });
- 
- 
-        // Función para agregar una nueva fila con eventos de cálculo
-        window.addRow = function () {
-            const tableBody = document.getElementById("product-table");
-            const lastRow = tableBody.lastElementChild;
-            const newRow = lastRow.cloneNode(true);
- 
-            // Limpiar los valores de la nueva fila
-            newRow.querySelectorAll("input").forEach(input => input.value = "");
- 
-            // Agregar la nueva fila a la tabla
-            tableBody.appendChild(newRow);
-        };
-        </script>
-        <br>
+  </header>
+
+  <!-- Main Section -->
+  <section id="services" class="services">
+    <button class="btn-ir" onclick="window.location.href='menudocumentos.php'">
+      <i class="fa-solid fa-arrow-left"></i> Regresar
+    </button>
+    
+    <div class="container" data-aos="fade-up">
+      <div class="section-title">
+        <h2>COMPROBANTE DE EGRESO</h2>
+        <p>Registre los pagos realizados a sus proveedores</p>
+        <p>(Los campos marcados con * son obligatorios)</p>
       </div>
-    </section><!-- End Services Section -->
- 
-    <!-- ======= Footer ======= -->
-    <footer id="footer" class="footer-minimalista">
-      <p>Universidad de Santander - Ingeniería de Software</p>
-      <p>Todos los derechos reservados © 2025</p>
-      <p>Creado por iniciativa del programa de Contaduría Pública</p>
-    </footer><!-- End Footer -->
- 
-  <div id="preloader"></div>
-  <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
- 
-  <!-- Vendor JS Files -->
+      
+      <form id="formComprobanteEgreso" action="" method="post">
+        <input type="hidden" value="<?php echo $txtId; ?>" id="txtId" name="txtId">
+        <input type="hidden" id="numeroFactura" name="numeroFactura">
+        <input type="hidden" id="fechaVencimiento" name="fechaVencimiento">
+        <input type="hidden" id="valor" name="valor">
+        <input type="hidden" id="facturasData" name="facturasData">
+
+        <!-- Fecha y Consecutivo -->
+        <div class="row g-3 mt-2">
+          <div class="col-md-6">
+            <label for="fecha" class="form-label fw-bold">Fecha del Comprobante*</label>
+            <input type="date" class="form-control" id="fecha" name="fecha"
+                   value="<?php echo htmlspecialchars($fecha); ?>" required>
+          </div>
+          <div class="col-md-6">
+            <label for="consecutivo" class="form-label fw-bold">Consecutivo*</label>
+            <input type="text" class="form-control" id="consecutivo" name="consecutivo"
+                   value="<?php echo htmlspecialchars($consecutivo); ?>" readonly required>
+          </div>
+        </div>
+
+        <!-- Proveedor -->
+        <div class="row g-3 mt-2">
+          <div class="col-md-6">
+            <label for="identificacion" class="form-label fw-bold">Identificación del Proveedor*</label>
+            <input type="number" class="form-control" id="identificacion" name="identificacion"
+                   placeholder="Ej: 123456789"
+                   value="<?php echo htmlspecialchars($identificacion); ?>" required>
+          </div>
+          <div class="col-md-6">
+            <label for="nombre" class="form-label fw-bold">Nombre del Proveedor*</label>
+            <input type="text" class="form-control" id="nombre" name="nombre"
+                   placeholder="Nombre del proveedor"
+                   value="<?php echo htmlspecialchars($nombre); ?>" readonly required>
+          </div>
+        </div>
+
+        <button type="button" class="btn-cargar-facturas" id="btnCargarFacturas">
+          <i class="fas fa-file-invoice"></i> Cargar Facturas de Compra Pendientes
+        </button>
+
+        <!-- Tabla de facturas -->
+        <div class="table-container">
+          <table id="tablaFacturas">
+            <thead>
+              <tr>
+                <th style="width: 15%;">Consecutivo</th>
+                <th style="width: 15%;">Fecha Factura</th>
+                <th style="width: 15%;">Valor Total Factura</th>
+                <th style="width: 15%;">Fecha Vencimiento*</th>
+                <th style="width: 20%;">Valor a Pagar*</th>
+                <th style="width: 10%; text-align: center;">Seleccionar</th>
+              </tr>
+            </thead>
+            <tbody id="facturasBody">
+              <tr>
+                <td colspan="6" class="text-center" style="padding: 30px;">
+                  <i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>
+                  Ingrese una identificación y cargue las facturas pendientes
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Total -->
+        <div class="totals">
+          <label for="valorTotal"><i class="fas fa-dollar-sign"></i> VALOR TOTAL A PAGAR:</label>
+          <input type="text" id="valorTotal" name="valorTotal" class="form-control" 
+                 value="<?php echo htmlspecialchars($valorTotal); ?>" readonly>
+        </div>
+
+        <!-- Forma de Pago -->
+        <div class="row g-3 mt-3">
+          <div class="col-md-6">
+            <label for="formaPago" class="form-label fw-bold">Forma de Pago*</label>
+            <select id="formaPago" name="formaPago" class="form-control" required>
+              <option value="">Seleccione una opción</option>
+              <?php foreach ($mediosPago as $medio): ?>
+                <option value="<?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>" 
+                        <?php if($formaPago == $medio['metodoPago']) echo 'selected'; ?>>
+                  <?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        </div>
+
+        <!-- Observaciones -->
+        <div class="mb-3 mt-3">
+          <label for="observaciones" class="form-label fw-bold">Observaciones</label>
+          <textarea class="form-control" id="observaciones" name="observaciones" rows="3" 
+                    placeholder="Ingrese observaciones adicionales (opcional)"><?php echo htmlspecialchars($observaciones); ?></textarea>
+        </div>
+
+        <!-- Botones -->
+        <div class="mt-4 mb-4">
+          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">
+            <i class="fas fa-save"></i> Guardar Comprobante
+          </button>
+          <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion" style="display:none;">
+            <i class="fas fa-edit"></i> Modificar
+          </button>
+          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-danger" name="accion" style="display:none;">
+            <i class="fas fa-trash"></i> Eliminar
+          </button>
+          <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">
+            <i class="fas fa-times"></i> Cancelar
+          </button>
+        </div>
+      </form>
+
+      <!-- Tabla de registros -->
+      <div class="section-title mt-5">
+        <h3>Comprobantes de Egreso Registrados</h3>
+      </div>
+      
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Consecutivo</th>
+              <th>Fecha</th>
+              <th>Proveedor</th>
+              <th>Facturas Aplicadas</th>
+              <th>Valor Total</th>
+              <th>Forma de Pago</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php if(count($lista) > 0): ?>
+              <?php foreach($lista as $comprobante): ?>
+                <tr>
+                  <td><strong><?php echo htmlspecialchars($comprobante['consecutivo']); ?></strong></td>
+                  <td><?php echo date('d/m/Y', strtotime($comprobante['fecha'])); ?></td>
+                  <td>
+                    <strong><?php echo htmlspecialchars($comprobante['nombre']); ?></strong><br>
+                    <small class="text-muted">ID: <?php echo htmlspecialchars($comprobante['identificacion']); ?></small>
+                  </td>
+                  <td>
+                    <?php echo htmlspecialchars($comprobante['numeroFactura']); ?>
+                    <br><span class="badge badge-info"><?php echo $comprobante['numFacturas']; ?> factura(s)</span>
+                  </td>
+                  <td><strong style="color: #dc3545;">$<?php echo number_format($comprobante['valorTotal'], 2); ?></strong></td>
+                  <td><?php echo htmlspecialchars($comprobante['formaPago']); ?></td>
+                  <td>
+                    <form action="" method="post" style="display:flex; gap:5px;">
+                      <input type="hidden" name="txtId" value="<?php echo $comprobante['id']; ?>">
+                      <input type="hidden" name="fecha" value="<?php echo $comprobante['fecha']; ?>">
+                      <input type="hidden" name="consecutivo" value="<?php echo $comprobante['consecutivo']; ?>">
+                      <input type="hidden" name="identificacion" value="<?php echo $comprobante['identificacion']; ?>">
+                      <input type="hidden" name="nombre" value="<?php echo $comprobante['nombre']; ?>">
+                      <input type="hidden" name="numeroFactura" value="<?php echo $comprobante['numeroFactura']; ?>">
+                      <input type="hidden" name="fechaVencimiento" value="<?php echo $comprobante['fechaVencimiento']; ?>">
+                      <input type="hidden" name="valor" value="<?php echo $comprobante['valor']; ?>">
+                      <input type="hidden" name="valorTotal" value="<?php echo $comprobante['valorTotal']; ?>">
+                      <input type="hidden" name="formaPago" value="<?php echo $comprobante['formaPago']; ?>">
+                      <input type="hidden" name="observaciones" value="<?php echo $comprobante['observaciones']; ?>">
+
+                      <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info" title="Editar">
+                        <i class="fas fa-edit"></i>
+                      </button>
+                      <button type="submit" name="accion" value="btnEliminar" class="btn btn-sm btn-danger" title="Eliminar">
+                        <i class="fas fa-trash-alt"></i>
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <tr>
+                <td colspan="7" class="text-center" style="padding: 30px;">
+                  No hay comprobantes de egreso registrados
+                </td>
+              </tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer id="footer" class="footer-minimalista">
+    <p>Universidad de Santander - Ingeniería de Software</p>
+    <p>Todos los derechos reservados © 2025</p>
+  </footer>
+
+  <script>
+    // Variable global para modo edición
+    let modoEdicion = false;
+
+    // Obtener consecutivo
+    window.addEventListener('DOMContentLoaded', function() {
+      const txtId = document.getElementById('txtId').value;
+      
+      if (!txtId || txtId.trim() === "") {
+        fetch(window.location.pathname + "?get_consecutivo=1")
+          .then(r => r.json())
+          .then(data => {
+            document.getElementById('consecutivo').value = data.consecutivo;
+          })
+          .catch(err => console.error('Error:', err));
+      } else {
+        modoEdicion = true;
+      }
+    });
+
+    // Buscar proveedor
+    document.getElementById("identificacion").addEventListener("input", function() {
+      let identificacion = this.value;
+      
+      if (identificacion.length > 0) {
+        fetch("", {
+          method: "POST",
+          body: new URLSearchParams({ 
+            buscar_proveedor: "1",
+            identificacion: identificacion 
+          }),
+          headers: { "Content-Type": "application/x-www-form-urlencoded" }
+        })
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById("nombre").value = data.nombre;
+        })
+        .catch(err => console.error("Error:", err));
+      } else {
+        document.getElementById("nombre").value = "";
+        if (!modoEdicion) {
+          document.getElementById("facturasBody").innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 30px;"><i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>Ingrese una identificación</td></tr>';
+        }
+      }
+    });
+
+    // Cargar facturas pendientes
+    document.getElementById("btnCargarFacturas").addEventListener("click", function() {
+      const identificacion = document.getElementById("identificacion").value;
+      const txtId = document.getElementById("txtId").value;
+      
+      if (!identificacion) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Atención',
+          text: 'Debe ingresar una identificación primero',
+          confirmButtonColor: '#3085d6'
+        });
+        return;
+      }
+      
+      const tbody = document.getElementById("facturasBody");
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center"><i class="fas fa-spinner fa-spin"></i> Cargando facturas...</td></tr>';
+      
+      fetch(`?get_facturas=1&identificacion=${identificacion}`)
+        .then(r => r.json())
+        .then(facturas => {
+          if (facturas.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 30px;"><i class="fas fa-inbox" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>No hay facturas de compra a crédito pendientes para este proveedor</td></tr>';
+            return;
+          }
+          
+          tbody.innerHTML = "";
+          
+          // Si estamos editando, cargar los detalles previos
+          if (txtId && txtId.trim() !== "") {
+            fetch(`?get_detalles=1&idComprobante=${txtId}`)
+              .then(r => r.json())
+              .then(detalles => {
+                renderFacturas(facturas, detalles);
+              })
+              .catch(err => {
+                console.error(err);
+                renderFacturas(facturas, []);
+              });
+          } else {
+            renderFacturas(facturas, []);
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error al cargar las facturas</td></tr>';
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudieron cargar las facturas',
+            confirmButtonColor: '#d33'
+          });
+        });
+    });
+
+    // Renderizar facturas con o sin detalles previos
+    function renderFacturas(facturas, detalles) {
+      const tbody = document.getElementById("facturasBody");
+      tbody.innerHTML = "";
+      
+      facturas.forEach(f => {
+        const tr = document.createElement("tr");
+        tr.className = "factura-row";
+        tr.dataset.consecutivo = f.consecutivo;
+        tr.dataset.valorTotal = f.valorTotal;
+        
+        // Buscar si esta factura estaba previamente seleccionada
+        const detalleExistente = detalles.find(d => d.consecutivoFactura === f.consecutivo);
+        
+        tr.innerHTML = `
+          <td><strong>${f.consecutivo}</strong></td>
+          <td>${formatDate(f.fecha)}</td>
+          <td><strong>${parseFloat(f.valorTotal).toFixed(2)}</strong></td>
+          <td>
+            <input type="date" 
+                   class="form-control fecha-venc" 
+                   value="${detalleExistente ? detalleExistente.fechaVencimiento : ''}"
+                   placeholder="Fecha vencimiento">
+          </td>
+          <td>
+            <input type="number" 
+                   class="form-control valor-aplicar" 
+                   step="0.01" 
+                   min="0" 
+                   value="${detalleExistente ? parseFloat(detalleExistente.valorAplicado).toFixed(2) : ''}"
+                   placeholder="0.00">
+          </td>
+          <td style="text-align: center;">
+            <input type="checkbox" 
+                   class="factura-checkbox form-check-input" 
+                   style="width: 20px; height: 20px;"
+                   ${detalleExistente ? 'checked' : ''}>
+          </td>
+        `;
+        
+        tbody.appendChild(tr);
+      });
+      
+      // Agregar eventos
+      document.querySelectorAll(".valor-aplicar").forEach(input => {
+        input.addEventListener("input", calcularTotal);
+      });
+      
+      document.querySelectorAll(".factura-checkbox").forEach(checkbox => {
+        checkbox.addEventListener("change", calcularTotal);
+      });
+      
+      // Calcular total inicial si hay detalles
+      if (detalles.length > 0) {
+        calcularTotal();
+      }
+    }
+
+    // Formatear fecha
+    function formatDate(dateStr) {
+      if (!dateStr) return 'N/A';
+      const d = new Date(dateStr + 'T00:00:00');
+      return d.toLocaleDateString('es-CO');
+    }
+
+    // Calcular total
+    function calcularTotal() {
+      let total = 0;
+      let facturasSeleccionadas = [];
+      let fechasVencimiento = [];
+      let valoresAplicados = [];
+      let facturasData = [];
+      
+      document.querySelectorAll(".factura-row").forEach(row => {
+        const checkbox = row.querySelector(".factura-checkbox");
+        const valorInput = row.querySelector(".valor-aplicar");
+        const fechaVencInput = row.querySelector(".fecha-venc");
+        
+        if (checkbox && checkbox.checked && valorInput && valorInput.value) {
+          const valor = parseFloat(valorInput.value) || 0;
+          
+          if (valor > 0) {
+            total += valor;
+            facturasSeleccionadas.push(row.dataset.consecutivo);
+            valoresAplicados.push(valor.toFixed(2));
+            
+            const fechaVenc = fechaVencInput && fechaVencInput.value ? fechaVencInput.value : '';
+            if (fechaVenc) {
+              fechasVencimiento.push(fechaVenc);
+            }
+            
+            // Agregar a array de objetos para JSON
+            facturasData.push({
+              consecutivo: row.dataset.consecutivo,
+              valor: valor.toFixed(2),
+              fechaVencimiento: fechaVenc
+            });
+          }
+        }
+      });
+      
+      document.getElementById("valorTotal").value = total.toFixed(2);
+      document.getElementById("numeroFactura").value = facturasSeleccionadas.join(', ');
+      document.getElementById("valor").value = valoresAplicados.join(', ');
+      document.getElementById("fechaVencimiento").value = fechasVencimiento.join(', ');
+      document.getElementById("facturasData").value = JSON.stringify(facturasData);
+    }
+
+    // Modo agregar/editar
+    document.addEventListener("DOMContentLoaded", function() {
+      const id = document.getElementById("txtId").value;
+      const btnAgregar = document.getElementById("btnAgregar");
+      const btnModificar = document.getElementById("btnModificar");
+      const btnEliminar = document.getElementById("btnEliminar");
+      const btnCancelar = document.getElementById("btnCancelar");
+      const form = document.getElementById("formComprobanteEgreso");
+
+      function modoAgregar() {
+        btnAgregar.style.display = "inline-block";
+        btnModificar.style.display = "none";
+        btnEliminar.style.display = "none";
+        btnCancelar.style.display = "none";
+
+        form.querySelectorAll("input, select, textarea").forEach(el => {
+          if (el.type === "checkbox") {
+            el.checked = false;
+          } else if (el.id !== "consecutivo" && el.type !== "hidden") {
+            el.value = "";
+          }
+        });
+
+        document.getElementById("txtId").value = "";
+        document.getElementById("facturasBody").innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 30px;"><i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>Seleccione un proveedor y cargue las facturas pendientes</td></tr>';
+        modoEdicion = false;
+      }
+
+      if (id && id.trim() !== "") {
+        btnAgregar.style.display = "none";
+        btnModificar.style.display = "inline-block";
+        btnEliminar.style.display = "inline-block";
+        btnCancelar.style.display = "inline-block";
+        modoEdicion = true;
+        
+        // Auto-cargar facturas si hay identificación
+        const identificacion = document.getElementById("identificacion").value;
+        if (identificacion) {
+          setTimeout(() => {
+            document.getElementById("btnCargarFacturas").click();
+          }, 500);
+        }
+      } else {
+        modoAgregar();
+      }
+
+      btnCancelar.addEventListener("click", function(e) {
+        e.preventDefault();
+        window.location.href = window.location.pathname;
+      });
+    });
+
+    // Validación antes de enviar
+    document.getElementById("formComprobanteEgreso").addEventListener("submit", function(e) {
+      const accion = e.submitter?.value;
+      
+      if (accion === "btnAgregar" || accion === "btnModificar") {
+        const facturasData = document.getElementById("facturasData").value;
+        const valorTotal = document.getElementById("valorTotal").value;
+        
+        if (!facturasData || facturasData === "[]") {
+          e.preventDefault();
+          Swal.fire({
+            icon: 'warning',
+            title: 'Atención',
+            text: 'Debe seleccionar al menos una factura y asignar un valor',
+            confirmButtonColor: '#3085d6'
+          });
+          return false;
+        }
+        
+        if (!valorTotal || parseFloat(valorTotal) <= 0) {
+          e.preventDefault();
+          Swal.fire({
+            icon: 'warning',
+            title: 'Atención',
+            text: 'El valor total debe ser mayor a cero',
+            confirmButtonColor: '#3085d6'
+          });
+          return false;
+        }
+      }
+    });
+
+    // Confirmaciones
+    document.addEventListener("DOMContentLoaded", () => {
+      const forms = document.querySelectorAll("form");
+
+      forms.forEach((form) => {
+        form.addEventListener("submit", function (e) {
+          const boton = e.submitter;
+          const accion = boton?.value;
+
+          if (accion === "btnModificar" || accion === "btnEliminar") {
+            e.preventDefault();
+
+            let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar comprobante?";
+            let texto = accion === "btnModificar"
+              ? "Se actualizarán los datos de este comprobante de egreso."
+              : "Esta acción eliminará el comprobante y sus detalles permanentemente.";
+
+            Swal.fire({
+              title: titulo,
+              text: texto,
+              icon: "warning",
+              showCancelButton: true,
+              confirmButtonText: "Sí, continuar",
+              cancelButtonText: "Cancelar",
+              confirmButtonColor: accion === "btnModificar" ? "#ffc107" : "#d33",
+              cancelButtonColor: "#6c757d",
+            }).then((result) => {
+              if (result.isConfirmed) {
+                let inputAccion = form.querySelector("input[name='accionOculta']");
+                if (!inputAccion) {
+                  inputAccion = document.createElement("input");
+                  inputAccion.type = "hidden";
+                  inputAccion.name = "accion";
+                  form.appendChild(inputAccion);
+                }
+                inputAccion.value = accion;
+                form.submit();
+              }
+            });
+          }
+        });
+      });
+    });
+  </script>
+
+  <!-- Vendor JS -->
   <script src="assets/vendor/aos/aos.js"></script>
   <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="assets/vendor/glightbox/js/glightbox.min.js"></script>
-  <script src="assets/vendor/isotope-layout/isotope.pkgd.min.js"></script>
-  <script src="assets/vendor/swiper/swiper-bundle.min.js"></script>
-  <script src="assets/vendor/php-email-form/validate.js"></script>
- 
-  <!-- Template Main JS File -->
   <script src="assets/js/main.js"></script>
- 
+
 </body>
- 
 </html>
