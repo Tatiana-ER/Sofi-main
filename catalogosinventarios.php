@@ -383,6 +383,10 @@ document.addEventListener("DOMContentLoaded", () => {
           <p class="text-muted">(Los campos marcados con * son obligatorios)</p>
         </div>
 
+        <div class="section-subtitle fw-bold">
+          <i class="fas fa-plus-circle"></i> NUEVA CATEGORIA
+        </div>
+
         <!-- CATEGORÍAS -->
         <div class="mt-4">
 
@@ -402,6 +406,8 @@ document.addEventListener("DOMContentLoaded", () => {
                   <option value="Materiales indirectos o suministros">Materiales indirectos o suministros</option>
                   <option value="Mercancías para la venta">Mercancías para la venta (empresas comerciales)</option>
                   <option value="Repuestos y materiales de mantenimiento">Repuestos y materiales de mantenimiento</option>
+                  <option value="Insumos y suministros">Insumos y suministros</option>
+                  <option value="Productos en consignacion">Productos en consignacion</option>
                 </select>
               </div>
             </div>
@@ -461,7 +467,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <!--TABLA LISTA DE CATEGORÍAS -->
         <div class="mt-5">
             <div class="section-title">
-                <h3>Categorías Registradas</h3>
+                <h3>CATEGORÍAS REGISTRADAS</h3>
             </div>
             <div class="table-responsive">
                 <table class="table-container">
@@ -519,6 +525,10 @@ document.addEventListener("DOMContentLoaded", () => {
           <div  class="section-title">
             <p>Para crear un nuevo producto diligencie los campos a continuación:</p>
             <p class="text-muted">(Los campos marcados con * son obligatorios)</p>
+          </div>
+
+          <div class="section-subtitle fw-bold">
+            <i class="fas fa-plus-circle"></i> NUEVO PRODUCTO O SERVICIO
           </div>
 
           <form action="" method="post" id="formProductos">
@@ -658,7 +668,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <!--TABLA LISTA DE PRODUCTOS -->
         <div class="mt-5">
             <div class="section-title">
-                <h3>Productos/Servicios Registrados</h3>
+                <h3>PRODUCTOS/SERVICIOS REGISTRADOS</h3>
             </div>
             <div class="table-responsive">
                 <table class="table-container">
@@ -836,8 +846,17 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         // Funciones de Edición de Categorías y Productos
-        document.addEventListener("DOMContentLoaded", () => {
-            // Edición de Categorías
+        $(document).ready(function() {
+            // PRIMERO: Inicializar Select2 para unidadMedida
+            $('#unidadMedida').select2({
+                placeholder: "Seleccione o busque una unidad",
+                allowClear: true,
+                width: '100%'
+            });
+
+            // DESPUÉS: Configurar las funciones de edición
+            
+            // ========== EDICIÓN DE CATEGORÍAS ==========
             const formCategorias = document.getElementById('formCategorias');
             const btnGuardarCategoria = document.getElementById('btnGuardarCategoria');
             const btnModificarCategoria = document.getElementById('btnModificarCategoria');
@@ -872,7 +891,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 btnCancelarCategoria.classList.add('d-none');
             });
 
-            // Edición de Productos/Servicios
+            // ========== EDICIÓN DE PRODUCTOS/SERVICIOS ==========
             const formProductos = document.getElementById('formProductos');
             const btnGuardarProducto = document.getElementById('btnGuardarProducto');
             const btnModificarProducto = document.getElementById('btnModificarProducto');
@@ -885,18 +904,34 @@ document.addEventListener("DOMContentLoaded", () => {
                     // Llenar el formulario principal con los datos ocultos de la fila
                     form.querySelectorAll('input[type="hidden"][data-campo]').forEach(input => {
                         const targetId = input.getAttribute('data-campo');
-                        const targetInput = formProductos.querySelector(`#${targetId}`);
+                        const value = input.value;
 
-                        if (targetInput) {
-                            const value = input.value;
-                            if (targetInput.type === 'checkbox') {
-                                // Para checkboxes (productoIva, facturacionCero, activo)
+                        // Manejar campos especiales
+                        if (targetId === 'productoIva' || targetId === 'facturacionCero' || targetId === 'activo') {
+                            // Checkboxes
+                            const targetInput = formProductos.querySelector(`#${targetId}`);
+                            if (targetInput) {
                                 targetInput.checked = (value == 1);
-                            } else if (targetInput.type === 'radio') {
-                                // Para radio buttons (tipoItem)
-                                formProductos.querySelector(`input[name="${targetId}"][value="${value}"]`).checked = true;
-                            } else {
-                                // Para campos de texto/select
+                            }
+                        } else if (targetId === 'tipoItem') {
+                            // Radio buttons
+                            const radioButton = formProductos.querySelector(`input[name="${targetId}"][value="${value}"]`);
+                            if (radioButton) {
+                                radioButton.checked = true;
+                            }
+                        } else if (targetId === 'unidadMedida') {
+                            // Select2 - Usar .val().trigger('change')
+                            $('#unidadMedida').val(value).trigger('change');
+                        } else if (targetId === 'categoriaInventarios') {
+                            // Select normal de categoría
+                            const targetInput = formProductos.querySelector(`#${targetId}`);
+                            if (targetInput) {
+                                targetInput.value = value;
+                            }
+                        } else {
+                            // Campos de texto normales
+                            const targetInput = formProductos.querySelector(`#${targetId}`);
+                            if (targetInput) {
                                 targetInput.value = value;
                             }
                         }
@@ -912,10 +947,15 @@ document.addEventListener("DOMContentLoaded", () => {
             btnCancelarProducto.addEventListener('click', function() {
                 // Limpiar formulario y restablecer botones
                 formProductos.reset();
+                
+                // Limpiar Select2
+                $('#unidadMedida').val(null).trigger('change');
+                
                 document.getElementById('idproducto').value = "";
                 btnGuardarProducto.classList.remove('d-none');
                 btnModificarProducto.classList.add('d-none');
                 btnCancelarProducto.classList.add('d-none');
+                
                 // Asegurar que el checkbox 'Activo' esté marcado por defecto al cancelar
                 document.getElementById('activo').checked = true; 
             });

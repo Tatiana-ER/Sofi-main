@@ -34,7 +34,7 @@ switch($accion){
       $sentencia->execute();
 
       header("Location: ".$_SERVER['PHP_SELF']."?msg=agregado");
-      exit; // Evita reenvío del formulario
+      exit;
     break;
 
  case "btnModificar":
@@ -62,7 +62,6 @@ switch($accion){
     $sentencia->bindParam(':id', $txtId);
     $sentencia->execute();
 
-    // Redirigir y mostrar alerta
     header("Location: ".$_SERVER['PHP_SELF']."?msg=modificado");
     exit;
 
@@ -118,7 +117,6 @@ document.addEventListener("DOMContentLoaded", () => {
       break;
   }
 
-  // Quita el parámetro ?msg=... de la URL sin recargar
   if (window.history.replaceState) {
     const url = new URL(window.location);
     url.searchParams.delete('msg');
@@ -139,14 +137,11 @@ document.addEventListener("DOMContentLoaded", () => {
   <meta content="" name="description">
   <meta content="" name="keywords">
 
-  <!-- Favicons -->
   <link href="assets/img/favicon.png" rel="icon">
   <link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
 
-  <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Raleway:300,300i,400,400i,500,500i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet">
 
-  <!-- Vendor CSS Files -->
   <link href="assets/vendor/animate.css/animate.min.css" rel="stylesheet">
   <link href="assets/vendor/aos/aos.css" rel="stylesheet">
   <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
@@ -176,13 +171,35 @@ document.addEventListener("DOMContentLoaded", () => {
       font-size: 18px;
       margin-top: 20px;
     }
+
+    /* Estilos para los filtros de búsqueda */
+    .search-filters {
+      background-color: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .search-filters input {
+      padding: 8px 12px;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+
+    .search-filters input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+
   </style>
 
 </head>
 
 <body>
 
-  <!-- ======= Header ======= -->
   <header id="header" class="fixed-top d-flex align-items-center ">
     <div class="container d-flex align-items-center justify-content-between">
       <h1 class="logo">
@@ -204,11 +221,10 @@ document.addEventListener("DOMContentLoaded", () => {
           </li>
         </ul>
         <i class="bi bi-list mobile-nav-toggle"></i>
-      </nav><!-- .navbar -->
+      </nav>
     </div>
-  </header><!-- End Header -->
+  </header>
 
-    <!-- ======= Services Section ======= -->
     <section id="services" class="services">
       <button class="btn-ir" onclick="window.location.href='menucatalogos.php'">
         <i class="fa-solid fa-arrow-left"></i> Regresar
@@ -221,18 +237,21 @@ document.addEventListener("DOMContentLoaded", () => {
           <p>(Los campos marcados con * son obligatorios)</p>
         </div>
 
+        <!-- TÍTULO NUEVA CUENTA -->
+        <div class="section-subtitle fw-bold">
+          <i class="fas fa-plus-circle"></i> NUEVA CUENTA
+        </div>
+
         <form id="formCuentas" action="" method="post" class="container mt-3">
 
-        <!-- ID oculto -->
         <input type="hidden" value="<?php echo $txtId; ?>" id="txtId" name="txtId">
 
-        <!-- Clase, Grupo, Cuenta, Subcuenta -->
         <div class="row g-3">
           <div class="col-md-3">
             <label for="clase" class="form-label fw-bold">Clase*</label>
-            <input type="text" class="form-control" id="clase" name="clase"
-                  placeholder="Ingresa una clase..."
-                  value="<?php echo $clase; ?>" required>
+            <select id="clase" name="clase" class="form-select" required>
+              <option value="">Selecciona una clase...</option>
+            </select>
           </div>
 
           <div class="col-md-3">
@@ -257,7 +276,6 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         </div>
 
-        <!-- Auxiliar -->
         <div class="row g-3 mt-2">
           <div class="col-md-4">
             <label for="auxiliar" class="form-label fw-bold">Auxiliar</label>
@@ -267,7 +285,6 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         </div>
 
-        <!-- Módulo inventarios -->
         <div class="row g-3 mt-2">
           <div class="col-md-6 d-flex align-items-center">
             <div class="form-check">
@@ -280,7 +297,6 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         </div>
 
-        <!-- Naturaleza contable -->
         <div class="row g-2 mt-2">
           <div class="col-md-3 ">
             <label class="form-label fw-bold">Naturaleza contable*</label><br>
@@ -296,7 +312,6 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
           </div>
 
-          <!-- Control cartera y activa -->
           <div class="col-md-3">
             <div class="form-check">
               <input type="checkbox" class="form-check-input" id="controlCartera" name="controlCartera"
@@ -314,7 +329,6 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         </div>
 
-        <!-- Botones -->
         <div class="mt-4">
           <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
           <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion">Modificar</button>
@@ -324,10 +338,69 @@ document.addEventListener("DOMContentLoaded", () => {
 
       </form>
 
+        <!-- TÍTULO REPORTE -->
+         <div class="section-title">
+          <h3>REPORTE CUENTAS CONTABLES</h3>
+        </div>
+
+        <!-- FILTROS DE BÚSQUEDA POR COLUMNA -->
+        <div class="search-filters mt-4">
+          <div class="row g-2">
+            <div class="col-md-1">
+              <input type="text" id="searchClase" class="form-control form-control-sm" placeholder="Buscar clase...">
+            </div>
+            <div class="col-md-1">
+              <input type="text" id="searchGrupo" class="form-control form-control-sm" placeholder="Buscar grupo...">
+            </div>
+            <div class="col-md-1">
+              <input type="text" id="searchCuenta" class="form-control form-control-sm" placeholder="Buscar cuenta...">
+            </div>
+            <div class="col-md-2">
+              <input type="text" id="searchSubcuenta" class="form-control form-control-sm" placeholder="Buscar subcuenta...">
+            </div>
+            <div class="col-md-2">
+              <input type="text" id="searchAuxiliar" class="form-control form-control-sm" placeholder="Buscar auxiliar...">
+            </div>
+            <div class="col-md-1">
+              <select id="searchModulo" class="form-select form-select-sm">
+                <option value="">Módulo...</option>
+                <option value="si">Sí</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+            <div class="col-md-1">
+              <select id="searchNaturaleza" class="form-select form-select-sm">
+                <option value="">Naturaleza...</option>
+                <option value="debito">Débito</option>
+                <option value="credito">Crédito</option>
+              </select>
+            </div>
+            <div class="col-md-1">
+              <select id="searchCartera" class="form-select form-select-sm">
+                <option value="">Cartera...</option>
+                <option value="si">Sí</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+            <div class="col-md-1">
+              <select id="searchActiva" class="form-select form-select-sm">
+                <option value="">Activa...</option>
+                <option value="si">Sí</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+            <div class="col-md-1">
+              <button type="button" class="btn btn-sm btn-secondary w-100" onclick="limpiarFiltros()">
+                <i class="fas fa-eraser"></i> Limpiar
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="row">
           <div class="table-container">
 
-            <table>
+            <table id="tablaCuentas">
               <thead>
                 <tr>
                   <th>Clase</th>
@@ -342,6 +415,7 @@ document.addEventListener("DOMContentLoaded", () => {
                   <th>Acción</th>
                 </tr>
               </thead>
+              <tbody>
               <?php foreach($lista as $usuario){ ?>
                 <tr>
                   <td><?php echo $usuario['clase']; ?></td>
@@ -380,6 +454,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 </tr>
               <?php } ?>
+              </tbody>
             </table>
 
 
@@ -387,262 +462,399 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
       </div>
-    </section><!-- End Services Section -->
+    </section>
 
-    <!-- Cuentas Contables Existentes -->
-      <script>
-        document.addEventListener('DOMContentLoaded', function () {
+    <!-- SCRIPT DE BÚSQUEDA POR COLUMNAS -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const tabla = document.getElementById('tablaCuentas');
+      const filas = tabla.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
 
-        // Cargar datos desde el archivo JSON
-        fetch("cuentas_contables.json")
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error("No se pudo cargar el archivo JSON");
-                }
-                return response.json();
-            })
-            .then(datos => {
-                // Una vez cargado el JSON, activa toda la lógica
-                inicializarCatalogo(datos);
-            })
-            .catch(error => console.error("Error al cargar las cuentas contables:", error));
+      function filtrarTabla() {
+        const filtroClase = document.getElementById('searchClase').value.toLowerCase();
+        const filtroGrupo = document.getElementById('searchGrupo').value.toLowerCase();
+        const filtroCuenta = document.getElementById('searchCuenta').value.toLowerCase();
+        const filtroSubcuenta = document.getElementById('searchSubcuenta').value.toLowerCase();
+        const filtroAuxiliar = document.getElementById('searchAuxiliar').value.toLowerCase();
+        const filtroModulo = document.getElementById('searchModulo').value.toLowerCase();
+        const filtroNaturaleza = document.getElementById('searchNaturaleza').value.toLowerCase();
+        const filtroCartera = document.getElementById('searchCartera').value.toLowerCase();
+        const filtroActiva = document.getElementById('searchActiva').value.toLowerCase();
 
-        function inicializarCatalogo(datos) {
-            const inputClase = document.getElementById('clase');
-            const grupoSelect = document.getElementById('grupo');
-            const cuentaSelect = document.getElementById('cuenta');
-            const subcuentaSelect = document.getElementById('subcuenta');
+        for (let i = 0; i < filas.length; i++) {
+          const celdas = filas[i].getElementsByTagName('td');
+          
+          const clase = celdas[0].textContent.toLowerCase();
+          const grupo = celdas[1].textContent.toLowerCase();
+          const cuenta = celdas[2].textContent.toLowerCase();
+          const subcuenta = celdas[3].textContent.toLowerCase();
+          const auxiliar = celdas[4].textContent.toLowerCase();
+          const modulo = celdas[5].innerHTML.includes('check-circle') ? 'si' : 'no';
+          const naturaleza = celdas[6].textContent.toLowerCase();
+          const cartera = celdas[7].innerHTML.includes('check-circle') ? 'si' : 'no';
+          const activa = celdas[8].innerHTML.includes('check-circle') ? 'si' : 'no';
 
-            inputClase.addEventListener('input', function () {
-                const searchTerm = inputClase.value.toLowerCase();
-                const clasesFiltradas = Object.keys(datos).filter(clase =>
-                    clase.toLowerCase().includes(searchTerm)
-                );
-                mostrarSugerencias(clasesFiltradas, 'clase');
-            });
+          const coincide = 
+            clase.includes(filtroClase) &&
+            grupo.includes(filtroGrupo) &&
+            cuenta.includes(filtroCuenta) &&
+            subcuenta.includes(filtroSubcuenta) &&
+            auxiliar.includes(filtroAuxiliar) &&
+            (filtroModulo === '' || modulo === filtroModulo) &&
+            (filtroNaturaleza === '' || naturaleza === filtroNaturaleza) &&
+            (filtroCartera === '' || cartera === filtroCartera) &&
+            (filtroActiva === '' || activa === filtroActiva);
 
-            function mostrarSugerencias(opcionesFiltradas, tipo) {
-                const listaSugerencias = document.createElement('ul');
-                listaSugerencias.classList.add('list-group');
+          filas[i].style.display = coincide ? '' : 'none';
+        }
+      }
 
-                opcionesFiltradas.forEach(opcion => {
-                    const item = document.createElement('li');
-                    item.textContent = opcion;
-                    item.classList.add('list-group-item');
-                    item.addEventListener('click', function () {
-                        if (tipo === 'clase') {
-                            inputClase.value = opcion;
-                            limpiarSugerencias();
-                            activarGrupoSelect(opcion);
-                        }
-                    });
-                    listaSugerencias.appendChild(item);
-                });
+      document.getElementById('searchClase').addEventListener('keyup', filtrarTabla);
+      document.getElementById('searchGrupo').addEventListener('keyup', filtrarTabla);
+      document.getElementById('searchCuenta').addEventListener('keyup', filtrarTabla);
+      document.getElementById('searchSubcuenta').addEventListener('keyup', filtrarTabla);
+      document.getElementById('searchAuxiliar').addEventListener('keyup', filtrarTabla);
+      document.getElementById('searchModulo').addEventListener('change', filtrarTabla);
+      document.getElementById('searchNaturaleza').addEventListener('change', filtrarTabla);
+      document.getElementById('searchCartera').addEventListener('change', filtrarTabla);
+      document.getElementById('searchActiva').addEventListener('change', filtrarTabla);
+    });
 
-                limpiarSugerencias();
-                inputClase.parentNode.appendChild(listaSugerencias);
-            }
+    function limpiarFiltros() {
+      document.getElementById('searchClase').value = '';
+      document.getElementById('searchGrupo').value = '';
+      document.getElementById('searchCuenta').value = '';
+      document.getElementById('searchSubcuenta').value = '';
+      document.getElementById('searchAuxiliar').value = '';
+      document.getElementById('searchModulo').value = '';
+      document.getElementById('searchNaturaleza').value = '';
+      document.getElementById('searchCartera').value = '';
+      document.getElementById('searchActiva').value = '';
+      
+      const filas = document.getElementById('tablaCuentas').getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+      for (let i = 0; i < filas.length; i++) {
+        filas[i].style.display = '';
+      }
+    }
+    </script>
 
-            function limpiarSugerencias() {
-                const listaAnterior = document.querySelector('.list-group');
-                if (listaAnterior) {
-                    listaAnterior.remove();
-                }
-            }
+    <script>
+    let datosCatalogo = null;
 
-            function activarGrupoSelect(clase) {
-                grupoSelect.innerHTML = '<option value="">Selecciona un grupo...</option>';
-                grupoSelect.disabled = false;
+    document.addEventListener('DOMContentLoaded', function () {
+      fetch("cuentas_contables.json")
+        .then(response => {
+          if (!response.ok) {
+            throw new Error("No se pudo cargar el archivo JSON");
+          }
+          return response.json();
+        })
+        .then(datos => {
+          datosCatalogo = datos;
+          inicializarCatalogo(datos);
+          
+          // Verificar si hay datos para edición
+          const claseValue = "<?php echo $clase; ?>";
+          const grupoValue = "<?php echo $grupo; ?>";
+          const cuentaValue = "<?php echo $cuenta; ?>";
+          const subcuentaValue = "<?php echo $subcuenta; ?>";
+          
+          if (claseValue) {
+            cargarDatosEdicion(claseValue, grupoValue, cuentaValue, subcuentaValue);
+          }
+        })
+        .catch(error => console.error("Error al cargar las cuentas contables:", error));
+    });
 
-                Object.keys(datos[clase]).forEach(grupo => {
-                    const option = document.createElement('option');
-                    option.value = grupo;
-                    option.textContent = grupo;
-                    grupoSelect.appendChild(option);
-                });
+    function inicializarCatalogo(datos) {
+      const claseSelect = document.getElementById('clase');
+      const grupoSelect = document.getElementById('grupo');
+      const cuentaSelect = document.getElementById('cuenta');
+      const subcuentaSelect = document.getElementById('subcuenta');
 
-                grupoSelect.addEventListener('change', function () {
-                    activarCuentaSelect(clase, grupoSelect.value);
-                });
-            }
+      // Llenar el select de Clase con todas las opciones
+      Object.keys(datos).forEach(clase => {
+        const option = document.createElement('option');
+        option.value = clase;
+        option.textContent = clase;
+        claseSelect.appendChild(option);
+      });
 
-            function activarCuentaSelect(clase, grupo) {
-                cuentaSelect.innerHTML = '<option value="">Selecciona una cuenta...</option>';
-                cuentaSelect.disabled = false;
+      // Evento cuando se selecciona una clase
+      claseSelect.addEventListener('change', function () {
+        const claseSeleccionada = claseSelect.value;
+        
+        if (claseSeleccionada) {
+          activarGrupoSelect(claseSeleccionada);
+        } else {
+          grupoSelect.innerHTML = '<option value="">Selecciona un grupo...</option>';
+          grupoSelect.disabled = true;
+          cuentaSelect.innerHTML = '<option value="">Selecciona una cuenta...</option>';
+          cuentaSelect.disabled = true;
+          subcuentaSelect.innerHTML = '<option value="">Selecciona una subcuenta...</option>';
+          subcuentaSelect.disabled = true;
+        }
+      });
 
-                Object.keys(datos[clase][grupo]).forEach(cuenta => {
-                    const option = document.createElement('option');
-                    option.value = cuenta;
-                    option.textContent = cuenta;
-                    cuentaSelect.appendChild(option);
-                });
+      function activarGrupoSelect(clase) {
+        grupoSelect.innerHTML = '<option value="">Selecciona un grupo...</option>';
+        grupoSelect.disabled = false;
 
-                cuentaSelect.addEventListener('change', function () {
-                    activarSubcuentaSelect(clase, grupo, cuentaSelect.value);
-                });
-            }
+        Object.keys(datos[clase]).forEach(grupo => {
+          const option = document.createElement('option');
+          option.value = grupo;
+          option.textContent = grupo;
+          grupoSelect.appendChild(option);
+        });
 
-function activarSubcuentaSelect(clase, grupo, cuenta) {
-    subcuentaSelect.innerHTML = '<option value="">Selecciona una subcuenta...</option>';
-    subcuentaSelect.disabled = false;
+        grupoSelect.addEventListener('change', function () {
+          activarCuentaSelect(clase, grupoSelect.value);
+        });
+      }
 
-    const subcuentas = datos[clase][grupo][cuenta];
+      function activarCuentaSelect(clase, grupo) {
+        cuentaSelect.innerHTML = '<option value="">Selecciona una cuenta...</option>';
+        cuentaSelect.disabled = false;
 
-    // Si es un arreglo directamente (como "1105-Caja")
-    if (Array.isArray(subcuentas)) {
-        subcuentas.forEach(subcuenta => {
+        Object.keys(datos[clase][grupo]).forEach(cuenta => {
+          const option = document.createElement('option');
+          option.value = cuenta;
+          option.textContent = cuenta;
+          cuentaSelect.appendChild(option);
+        });
+
+        cuentaSelect.addEventListener('change', function () {
+          activarSubcuentaSelect(clase, grupo, cuentaSelect.value);
+        });
+      }
+
+      function activarSubcuentaSelect(clase, grupo, cuenta) {
+        subcuentaSelect.innerHTML = '<option value="">Selecciona una subcuenta...</option>';
+        subcuentaSelect.disabled = false;
+
+        const subcuentas = datos[clase][grupo][cuenta];
+
+        if (Array.isArray(subcuentas)) {
+          subcuentas.forEach(subcuenta => {
             const option = document.createElement('option');
             option.value = subcuenta;
             option.textContent = subcuenta;
             subcuentaSelect.appendChild(option);
-        });
-    } 
-    // Si es un objeto con más niveles (como "1110-Bancos")
-    else if (typeof subcuentas === 'object' && subcuentas !== null) {
-        Object.keys(subcuentas).forEach(subnivel => {
-            // Primero agregamos la subcuenta principal (ej: "111005-Moneda nacional")
+          });
+        } 
+        else if (typeof subcuentas === 'object' && subcuentas !== null) {
+          Object.keys(subcuentas).forEach(subnivel => {
             const optionMain = document.createElement('option');
             optionMain.value = subnivel;
             optionMain.textContent = subnivel;
             subcuentaSelect.appendChild(optionMain);
 
-            // Luego, si tiene subniveles internos (arreglo), los agregamos con sangría
             const subniveles = subcuentas[subnivel];
             if (Array.isArray(subniveles) && subniveles.length > 0) {
-                subniveles.forEach(subcuenta => {
-                    const option = document.createElement('option');
-                    option.value = subcuenta;
-                    option.textContent = "  ↳ " + subcuenta; // sangría visual
-                    subcuentaSelect.appendChild(option);
-                });
-            }
-        });
-    }
-}
- 
-        }
-    });
-      // Script para alternar botones
-      document.addEventListener("DOMContentLoaded", function() {
-        const id = document.getElementById("txtId").value;
-        const btnAgregar = document.getElementById("btnAgregar");
-        const btnModificar = document.getElementById("btnModificar");
-        const btnEliminar = document.getElementById("btnEliminar");
-        const btnCancelar = document.getElementById("btnCancelar");
-        const form = document.getElementById("formCuentas");
-
-        function modoAgregar() {
-          // Ocultar/mostrar botones
-          btnAgregar.style.display = "inline-block";
-          btnModificar.style.display = "none";
-          btnEliminar.style.display = "none";
-          btnCancelar.style.display = "none";
-
-          // Limpiar todos los campos manualmente
-          form.querySelectorAll("input, select, textarea").forEach(el => {
-            if (el.type === "radio" || el.type === "checkbox") {
-              el.checked = false;
-            } else {
-              el.value = "";
-            }
-          });
-
-          // Si tienes checkbox "Activo", lo marcamos por defecto
-          const chkActivo = document.querySelector('input[name="activo"]');
-          if (chkActivo) chkActivo.checked = true;
-
-          // Asegurar que el ID quede vacío
-          const txtId = document.getElementById("txtId");
-          if (txtId) txtId.value = "";
-        }
-
-        // Estado inicial (modo modificar o agregar)
-        if (id && id.trim() !== "") {
-          btnAgregar.style.display = "none";
-          btnModificar.style.display = "inline-block";
-          btnEliminar.style.display = "inline-block";
-          btnCancelar.style.display = "inline-block";
-        } else {
-          modoAgregar();
-        }
-
-        // Evento cancelar
-        btnCancelar.addEventListener("click", function(e) {
-            e.preventDefault();
-            modoAgregar();
-            
-            // AJUSTE ADICIONAL: Limpiar los parámetros de edición de la URL
-            if (window.history.replaceState) {
-                const url = new URL(window.location);
-                // Elimina todos los parámetros POST que se cargan al editar
-                url.searchParams.forEach((value, key) => {
-                    if (key !== 'msg') { // Dejamos 'msg' por si acaso
-                        url.searchParams.delete(key);
-                    }
-                });
-                window.history.replaceState({}, document.title, url);
-            }
-           });
-      });
-
-      // Funciones de confirmación con SweetAlert2
-        document.addEventListener("DOMContentLoaded", () => {
-        // Selecciona TODOS los formularios de la página
-        const forms = document.querySelectorAll("form");
-
-        forms.forEach((form) => {
-          form.addEventListener("submit", function (e) {
-            const boton = e.submitter; // botón que disparó el envío
-            const accion = boton?.value;
-
-            // Solo mostrar confirmación para modificar o eliminar
-            if (accion === "btnModificar" || accion === "btnEliminar") {
-              e.preventDefault(); // detener envío temporalmente
-
-              let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar registro?";
-              let texto = accion === "btnModificar"
-                ? "Se actualizarán los datos de esta cuenta contable."
-                : "Esta acción eliminará el registro permanentemente.";
-
-              Swal.fire({
-                title: titulo,
-                text: texto,
-                icon: "warning",
-                showCancelButton: true,
-                confirmButtonText: "Sí, continuar",
-                cancelButtonText: "Cancelar",
-                confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
-                cancelButtonColor: "#6c757d",
-              }).then((result) => {
-                if (result.isConfirmed) {
-                  // 🔹 Crear (si no existe) un campo oculto con la acción seleccionada
-                  let inputAccion = form.querySelector("input[name='accionOculta']");
-                  if (!inputAccion) {
-                    inputAccion = document.createElement("input");
-                    inputAccion.type = "hidden";
-                    inputAccion.name = "accion";
-                    form.appendChild(inputAccion);
-                  }
-                  inputAccion.value = accion;
-
-                  form.submit(); // Enviar el formulario correspondiente
-                }
+              subniveles.forEach(subcuenta => {
+                const option = document.createElement('option');
+                option.value = subcuenta;
+                option.textContent = "  ↳ " + subcuenta;
+                subcuentaSelect.appendChild(option);
               });
             }
           });
+        }
+      }
+    }
+
+    // Función para cargar datos al editar
+    function cargarDatosEdicion(clase, grupo, cuenta, subcuenta) {
+      const claseSelect = document.getElementById('clase');
+      const grupoSelect = document.getElementById('grupo');
+      const cuentaSelect = document.getElementById('cuenta');
+      const subcuentaSelect = document.getElementById('subcuenta');
+
+      // Establecer la clase
+      claseSelect.value = clase;
+
+      if (clase && datosCatalogo[clase]) {
+        // Cargar grupos
+        grupoSelect.innerHTML = '<option value="">Selecciona un grupo...</option>';
+        grupoSelect.disabled = false;
+
+        Object.keys(datosCatalogo[clase]).forEach(g => {
+          const option = document.createElement('option');
+          option.value = g;
+          option.textContent = g;
+          if (g === grupo) option.selected = true;
+          grupoSelect.appendChild(option);
+        });
+
+        if (grupo && datosCatalogo[clase][grupo]) {
+          // Cargar cuentas
+          cuentaSelect.innerHTML = '<option value="">Selecciona una cuenta...</option>';
+          cuentaSelect.disabled = false;
+
+          Object.keys(datosCatalogo[clase][grupo]).forEach(c => {
+            const option = document.createElement('option');
+            option.value = c;
+            option.textContent = c;
+            if (c === cuenta) option.selected = true;
+            cuentaSelect.appendChild(option);
+          });
+
+          if (cuenta && datosCatalogo[clase][grupo][cuenta]) {
+            // Cargar subcuentas
+            subcuentaSelect.innerHTML = '<option value="">Selecciona una subcuenta...</option>';
+            subcuentaSelect.disabled = false;
+
+            const subcuentas = datosCatalogo[clase][grupo][cuenta];
+
+            if (Array.isArray(subcuentas)) {
+              subcuentas.forEach(sc => {
+                const option = document.createElement('option');
+                option.value = sc;
+                option.textContent = sc;
+                if (sc === subcuenta) option.selected = true;
+                subcuentaSelect.appendChild(option);
+              });
+            } 
+            else if (typeof subcuentas === 'object' && subcuentas !== null) {
+              Object.keys(subcuentas).forEach(subnivel => {
+                const optionMain = document.createElement('option');
+                optionMain.value = subnivel;
+                optionMain.textContent = subnivel;
+                if (subnivel === subcuenta) optionMain.selected = true;
+                subcuentaSelect.appendChild(optionMain);
+
+                const subniveles = subcuentas[subnivel];
+                if (Array.isArray(subniveles) && subniveles.length > 0) {
+                  subniveles.forEach(sc => {
+                    const option = document.createElement('option');
+                    option.value = sc;
+                    option.textContent = "  ↳ " + sc;
+                    if (sc === subcuenta) option.selected = true;
+                    subcuentaSelect.appendChild(option);
+                  });
+                }
+              });
+            }
+          }
+        }
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+      const id = document.getElementById("txtId").value;
+      const btnAgregar = document.getElementById("btnAgregar");
+      const btnModificar = document.getElementById("btnModificar");
+      const btnEliminar = document.getElementById("btnEliminar");
+      const btnCancelar = document.getElementById("btnCancelar");
+      const form = document.getElementById("formCuentas");
+
+      function modoAgregar() {
+        btnAgregar.style.display = "inline-block";
+        btnModificar.style.display = "none";
+        btnEliminar.style.display = "none";
+        btnCancelar.style.display = "none";
+
+        form.querySelectorAll("input, select, textarea").forEach(el => {
+          if (el.type === "radio" || el.type === "checkbox") {
+            el.checked = false;
+          } else {
+            el.value = "";
+          }
+        });
+
+        // Resetear los selects en cascada
+        document.getElementById('clase').value = "";
+        document.getElementById('grupo').innerHTML = '<option value="">Selecciona un grupo...</option>';
+        document.getElementById('grupo').disabled = true;
+        document.getElementById('cuenta').innerHTML = '<option value="">Selecciona una cuenta...</option>';
+        document.getElementById('cuenta').disabled = true;
+        document.getElementById('subcuenta').innerHTML = '<option value="">Selecciona una subcuenta...</option>';
+        document.getElementById('subcuenta').disabled = true;
+
+        const chkActivo = document.querySelector('input[name="activo"]');
+        if (chkActivo) chkActivo.checked = true;
+
+        const txtId = document.getElementById("txtId");
+        if (txtId) txtId.value = "";
+      }
+
+      if (id && id.trim() !== "") {
+        btnAgregar.style.display = "none";
+        btnModificar.style.display = "inline-block";
+        btnEliminar.style.display = "inline-block";
+        btnCancelar.style.display = "inline-block";
+      } else {
+        modoAgregar();
+      }
+
+      btnCancelar.addEventListener("click", function(e) {
+        e.preventDefault();
+        modoAgregar();
+        
+        if (window.history.replaceState) {
+          const url = new URL(window.location);
+          url.searchParams.forEach((value, key) => {
+            if (key !== 'msg') {
+              url.searchParams.delete(key);
+            }
+          });
+          window.history.replaceState({}, document.title, url);
+        }
+      });
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const forms = document.querySelectorAll("form");
+
+      forms.forEach((form) => {
+        form.addEventListener("submit", function (e) {
+          const boton = e.submitter;
+          const accion = boton?.value;
+
+          if (accion === "btnModificar" || accion === "btnEliminar") {
+            e.preventDefault();
+
+            let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar registro?";
+            let texto = accion === "btnModificar"
+              ? "Se actualizarán los datos de esta cuenta contable."
+              : "Esta acción eliminará el registro permanentemente.";
+
+            Swal.fire({
+              title: titulo,
+              text: texto,
+              icon: "warning",
+              showCancelButton: true,
+              confirmButtonText: "Sí, continuar",
+              cancelButtonText: "Cancelar",
+              confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+              cancelButtonColor: "#6c757d",
+            }).then((result) => {
+              if (result.isConfirmed) {
+                let inputAccion = form.querySelector("input[name='accionOculta']");
+                if (!inputAccion) {
+                  inputAccion = document.createElement("input");
+                  inputAccion.type = "hidden";
+                  inputAccion.name = "accion";
+                  form.appendChild(inputAccion);
+                }
+                inputAccion.value = accion;
+
+                form.submit();
+              }
+            });
+          }
         });
       });
-      </script>
-    </section><!-- End Services Section -->
+    });
+    </script>
+  </section>
 
-  <!-- ======= Footer ======= -->
   <footer id="footer" class="footer-minimalista">
     <p>Universidad de Santander - Ingeniería de Software</p>
     <p>Todos los derechos reservados © 2025</p>
     <p>Creado por iniciativa del programa de Contaduría Pública</p>
-  </footer><!-- End Footer -->
+  </footer>
 
-  <!-- Vendor JS Files -->
   <script src="assets/vendor/aos/aos.js"></script>
   <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="assets/vendor/glightbox/js/glightbox.min.js"></script>
@@ -650,10 +862,8 @@ function activarSubcuentaSelect(clase, grupo, cuenta) {
   <script src="assets/vendor/swiper/swiper-bundle.min.js"></script>
   <script src="assets/vendor/php-email-form/validate.js"></script>
 
-  <!-- Template Main JS File -->
   <script src="assets/js/main.js"></script>
 
-    <!-- Script para el menú móvil -->
   <script>
   document.addEventListener("DOMContentLoaded", function() {
     const toggle = document.querySelector(".mobile-nav-toggle");

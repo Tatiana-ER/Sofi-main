@@ -269,6 +269,10 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
           <p>(Los campos marcados con * son obligatorios)</p>
         </div>
 
+        <div class="section-subtitle fw-bold">
+          <i class="fas fa-plus-circle"></i> NUEVA TERCERO
+        </div>
+
         <form id="formularioTercero" action="" method="post" class="container mt-3">
         <!-- ID oculto -->
         <input type="hidden" value="<?php echo $txtId; ?>" id="txtId" name="txtId">
@@ -415,6 +419,10 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
           <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">Cancelar</button>
         </div>
       </form>
+
+      <div class="section-title">
+          <h3>TERCEROS REGISTRADOS</h3>
+      </div>
 
         <div class="row">
           <div class="table-container">

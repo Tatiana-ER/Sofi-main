@@ -25,12 +25,11 @@ switch($accion){
       $sentencia->execute();
       
       header("Location: ".$_SERVER['PHP_SELF']."?msg=agregado");
-      exit; // Evita reenvío del formulario
+      exit;
 
   break;
 
   case "Editar":
-    // Rellenar los campos con los valores seleccionados
     $txtId = $_POST['txtId'];
     $metodoPago = $_POST['metodoPago'];
     $cuentaContable = $_POST['cuentaContable'];
@@ -42,16 +41,12 @@ switch($accion){
                                       cuentaContable = :cuentaContable
                                   WHERE id = :id");
 
-      // Enlazamos los parámetros 
-
       $sentencia->bindParam(':metodoPago', $metodoPago);
       $sentencia->bindParam(':cuentaContable', $cuentaContable);
       $sentencia->bindParam(':id', $txtId);
 
-      // Ejecutamos la sentencia
       $sentencia->execute();
 
-    // Redirigir y mostrar alerta
     header("Location: ".$_SERVER['PHP_SELF']."?msg=modificado");
     exit;
 
@@ -68,9 +63,15 @@ switch($accion){
 
 }
 
-  $sentencia= $pdo->prepare("SELECT * FROM `mediosdepago` WHERE 1");
+  $sentencia= $pdo->prepare("SELECT * FROM `mediosdepago` ORDER BY metodoPago, cuentaContable");
   $sentencia->execute();
   $lista=$sentencia->fetchALL(PDO::FETCH_ASSOC);
+
+  // Agrupar por método de pago
+  $metodosPorTipo = [];
+  foreach($lista as $item) {
+    $metodosPorTipo[$item['metodoPago']][] = $item;
+  }
 
 ?>
 
@@ -95,19 +96,6 @@ document.addEventListener("DOMContentLoaded", () => {
         title: 'Modificado correctamente',
         text: 'Los datos del método de pago se actualizaron con éxito',
         confirmButtonColor: '#3085d6'
-      }).then(() => {
-        // 🔹 Restablecer el modo agregar
-        const form = document.getElementById("formMetodos");
-        if (form) {
-          form.reset(); // limpia los campos
-          document.getElementById("txtId").value = "";
-        }
-
-        // Mostrar solo el botón de agregar
-        document.getElementById("btnAgregar").style.display = "inline-block";
-        document.getElementById("btnModificar").style.display = "none";
-        document.getElementById("btnEliminar").style.display = "none";
-        document.getElementById("btnCancelar").style.display = "none";
       });
       break;
 
@@ -117,18 +105,10 @@ document.addEventListener("DOMContentLoaded", () => {
         title: 'Eliminado correctamente',
         text: 'El método de pago fue eliminado del registro',
         confirmButtonColor: '#3085d6'
-      }).then(() => {
-        const form = document.getElementById("formMetodos");
-        if (form) form.reset();
-        document.getElementById("btnAgregar").style.display = "inline-block";
-        document.getElementById("btnModificar").style.display = "none";
-        document.getElementById("btnEliminar").style.display = "none";
-        document.getElementById("btnCancelar").style.display = "none";
       });
       break;
   }
 
-  // Quitar el parámetro ?msg=... de la URL
   if (window.history.replaceState) {
     const url = new URL(window.location);
     url.searchParams.delete('msg');
@@ -150,14 +130,11 @@ document.addEventListener("DOMContentLoaded", () => {
   <meta content="" name="description">
   <meta content="" name="keywords">
 
-  <!-- Favicons -->
   <link href="assets/img/favicon.png" rel="icon">
   <link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
 
-  <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Raleway:300,300i,400,400i,500,500i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet">
 
-  <!-- Vendor CSS Files -->
   <link href="assets/vendor/animate.css/animate.min.css" rel="stylesheet">
   <link href="assets/vendor/aos/aos.css" rel="stylesheet">
   <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
@@ -168,10 +145,8 @@ document.addEventListener("DOMContentLoaded", () => {
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <!-- CSS de Select2 -->
   <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 
-  <!-- JS: jQuery y Select2 -->
   <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
@@ -184,21 +159,63 @@ document.addEventListener("DOMContentLoaded", () => {
       padding: 5px;
     }
 
-    .add-row-btn {
+    /* Estilos para tabla desplegable */
+    .metodo-header {
+      color: black;
       cursor: pointer;
-      background-color: #0d6efd;
-      color: white;
-      border: none;
-      padding: 10px;
-      font-size: 18px;
-      margin-top: 20px;
+      font-weight: bold;
+      padding: 12px 15px;
+      transition: all 0.3s ease;
+    }
+
+    .metodo-header:hover {
+      background: linear-gradient(135deg, #5f9fffff 0%, #71aaffff 100%);
+    }
+
+    .metodo-header i {
+      margin-right: 10px;
+      transition: transform 0.3s ease;
+    }
+
+    .metodo-header.collapsed i {
+      transform: rotate(-90deg);
+    }
+
+    .metodo-content {
+      display: none;
+    }
+
+    .metodo-content.show {
+      display: table-row-group;
+    }
+
+    .cuenta-row {
+      background-color: #f8f9fa;
+      border-left: 4px solid #667eea;
+    }
+
+    .cuenta-row:hover {
+      background-color: #e9ecef;
+    }
+
+    .cuenta-codigo {
+      font-weight: 600;
+      color: #667eea;
+    }
+
+    .cuenta-nombre {
+      color: #495057;
+    }
+
+    .table-container table {
+      border-collapse: separate;
+      border-spacing: 0 5px;
     }
   </style>
 </head>
 
 <body>
 
-  <!-- ======= Header ======= -->
   <header id="header" class="fixed-top d-flex align-items-center ">
     <div class="container d-flex align-items-center justify-content-between">
       <h1 class="logo">
@@ -219,11 +236,9 @@ document.addEventListener("DOMContentLoaded", () => {
             <a class="nav-link scrollto active" href="index.php" style="color: darkblue;">Cerrar Sesión</a>
           </li>
         </ul>
-      </nav><!-- .navbar -->
+      </nav>
     </div>
-  </header><!-- End Header -->
-
-    <!-- ======= Services Section ======= -->
+  </header>
 
 <section id="services" class="services">
   <button class="btn-ir" onclick="window.location.href='menucatalogos.php'">
@@ -239,26 +254,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
     <form id="formMetodos" action="" method="post" class="container mt-3">
 
-      <!-- ID oculto -->
       <input type="hidden" value="<?php echo $txtId; ?>" id="txtId" name="txtId">
 
       <div class="container">
-        <label for="metodoPago" class="form-label">Método de Pago:</label>
-        <select id="metodoPago" value="<?php echo $metodoPago;?>" name="metodoPago" onchange="mostrarCuentaContable()" class="form-control">
+        <label for="metodoPago" class="form-label fw-bold">Método de Pago*:</label>
+        <select id="metodoPago" value="<?php echo $metodoPago;?>" name="metodoPago" class="form-control" required>
           <option value="">Selecciona un método de pago</option>
           <option value="Efectivo" <?php if($metodoPago=='Efectivo') echo 'selected'; ?>>Efectivo</option>
-          <option value="Transferencia" <?php if($metodoPago=='Transferencia') echo 'selected'; ?>>Transferencia</option>
+          <option value="Pago Electronico" <?php if($metodoPago=='Pago Electronico' || $metodoPago=='Transferencia') echo 'selected'; ?>>Pago Electrónico</option>
           <option value="Credito" <?php if($metodoPago=='Credito') echo 'selected'; ?>>Crédito</option>
         </select>
         <br>  
-        <label for="cuentaContable" class="form-label">Cuenta Contable:</label>
+        <label for="cuentaContable" class="form-label fw-bold">Cuenta Contable*:</label>
         <select id="cuentaContable" name="cuentaContable" class="form-control" required>
             <option value="">Selecciona una cuenta contable</option>
         </select>
 
       </div>
 
-      <!-- Botones -->
       <div class="mt-4">
         <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
         <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion" style="display:none;">Modificar</button>
@@ -267,184 +280,197 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     </form>
 
-    <!-- Tabla -->
-    <div class="row">
+    <!-- Tabla con desplegables -->
+    <div class="row mt-5">
       <div class="table-container">
         <table>
           <thead>
             <tr>
               <th>Método de Pago</th>
               <th>Cuenta Contable</th>
+              <th>Nombre Cuenta</th>
               <th>Acción</th>
             </tr>
           </thead>
-          <?php foreach($lista as $usuario){ ?>
-          <tr>
-            <td><?php echo $usuario['metodoPago']; ?></td>
-            <td><?php echo $usuario['cuentaContable']; ?></td>
-            <td>
-              <form action="" method="post">
-                <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
-                <input type="hidden" name="metodoPago" value="<?php echo $usuario['metodoPago']; ?>">
-                <input type="hidden" name="cuentaContable" value="<?php echo $usuario['cuentaContable']; ?>">
-                <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-medio" title="Editar">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-              </form>
-            </td>
-          </tr>
-          <?php } ?>
+          <tbody>
+          <?php 
+          $metodosOrdenados = ['Efectivo', 'Pago Electronico', 'Credito'];
+          foreach($metodosOrdenados as $metodo): 
+            // Convertir "Transferencia" a "Pago Electronico" para mostrar
+            $metodoMostrar = $metodo;
+            $cuentasMetodo = [];
+            
+            // Buscar cuentas de este método (incluyendo "Transferencia" como "Pago Electronico")
+            foreach($lista as $item) {
+              $itemMetodo = $item['metodoPago'];
+              if ($itemMetodo == 'Transferencia') $itemMetodo = 'Pago Electronico';
+              
+              if ($itemMetodo == $metodo) {
+                $cuentasMetodo[] = $item;
+              }
+            }
+            
+            if (empty($cuentasMetodo)) continue;
+          ?>
+            <tr class="metodo-header" onclick="toggleMetodo('<?php echo $metodo; ?>')">
+              <td colspan="4">
+                <i class="fas fa-chevron-down"></i>
+                <?php echo $metodoMostrar; ?>
+              </td>
+            </tr>
+            <tbody class="metodo-content" id="content-<?php echo $metodo; ?>">
+              <?php foreach($cuentasMetodo as $usuario): 
+                // Separar código y nombre de la cuenta
+                $cuentaCompleta = $usuario['cuentaContable'];
+                $partes = explode('-', $cuentaCompleta, 2);
+                $codigoCuenta = isset($partes[0]) ? trim($partes[0]) : $cuentaCompleta;
+                $nombreCuenta = isset($partes[1]) ? trim($partes[1]) : '';
+              ?>
+              <tr class="cuenta-row">
+                <td></td>
+                <td class="cuenta-codigo"><?php echo $codigoCuenta; ?></td>
+                <td class="cuenta-nombre"><?php echo $nombreCuenta; ?></td>
+                <td>
+                  <form action="" method="post" style="display: inline;">
+                    <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                    <input type="hidden" name="metodoPago" value="<?php echo $usuario['metodoPago']; ?>">
+                    <input type="hidden" name="cuentaContable" value="<?php echo $usuario['cuentaContable']; ?>">
+                    <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-medio" title="Editar">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          <?php endforeach; ?>
+          </tbody>
         </table>
       </div>
     </div>
 
-<!-- Scripts -->
 <script>
+// Función para expandir/contraer secciones
+function toggleMetodo(metodo) {
+  const content = document.getElementById('content-' + metodo);
+  const header = event.currentTarget;
+  
+  if (content.classList.contains('show')) {
+    content.classList.remove('show');
+    header.classList.add('collapsed');
+  } else {
+    content.classList.add('show');
+    header.classList.remove('collapsed');
+  }
+}
 
-  // Control de botones
-  document.addEventListener("DOMContentLoaded", function() {
-    const id = document.getElementById("txtId").value;
-    const btnAgregar = document.getElementById("btnAgregar");
-    const btnModificar = document.getElementById("btnModificar");
-    const btnEliminar = document.getElementById("btnEliminar");
-    const btnCancelar = document.getElementById("btnCancelar");
-    const form = document.getElementById("formMetodos");
-
-    function modoAgregar() {
-      btnAgregar.style.display = "inline-block";
-      btnModificar.style.display = "none";
-      btnEliminar.style.display = "none";
-      btnCancelar.style.display = "none";
-
-      // Limpiar campos
-      form.querySelectorAll("input, select, textarea").forEach(el => {
-        if (el.type === "radio" || el.type === "checkbox") el.checked = false;
-        else el.value = "";
-      });
-      document.getElementById("txtId").value = "";
-    }
-
-    if (id && id.trim() !== "") {
-      btnAgregar.style.display = "none";
-      btnModificar.style.display = "inline-block";
-      btnEliminar.style.display = "inline-block";
-      btnCancelar.style.display = "inline-block";
-    } else {
-      modoAgregar();
-    }
-
-    btnCancelar.addEventListener("click", function(e) {
-            e.preventDefault();
-            modoAgregar();
-            
-            // AJUSTE ADICIONAL: Limpiar los parámetros de edición de la URL
-            if (window.history.replaceState) {
-                const url = new URL(window.location);
-                // Elimina todos los parámetros POST que se cargan al editar
-                url.searchParams.forEach((value, key) => {
-                    if (key !== 'msg') { // Dejamos 'msg' por si acaso
-                        url.searchParams.delete(key);
-                    }
-                });
-                window.history.replaceState({}, document.title, url);
-            }
-           });
+// Contraer todos por defecto al cargar
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.metodo-header').forEach(function(header) {
+    header.classList.add('collapsed');
   });
+});
 
-  // Confirmaciones SweetAlert2
-  document.addEventListener("DOMContentLoaded", () => {
-    const forms = document.querySelectorAll("form");
+// Control de botones
+document.addEventListener("DOMContentLoaded", function() {
+  const id = document.getElementById("txtId").value;
+  const btnAgregar = document.getElementById("btnAgregar");
+  const btnModificar = document.getElementById("btnModificar");
+  const btnEliminar = document.getElementById("btnEliminar");
+  const btnCancelar = document.getElementById("btnCancelar");
+  const form = document.getElementById("formMetodos");
 
-    forms.forEach(form => {
-      form.addEventListener("submit", function(e) {
-        const boton = e.submitter;
-        const accion = boton?.value;
+  function modoAgregar() {
+    btnAgregar.style.display = "inline-block";
+    btnModificar.style.display = "none";
+    btnEliminar.style.display = "none";
+    btnCancelar.style.display = "none";
 
-        if (accion === "btnAgregar" || accion === "btnModificar" || accion === "btnEliminar") {
-          e.preventDefault();
+    form.querySelectorAll("input, select, textarea").forEach(el => {
+      if (el.type === "radio" || el.type === "checkbox") el.checked = false;
+      else el.value = "";
+    });
+    document.getElementById("txtId").value = "";
+    $('#cuentaContable').val(null).trigger('change');
+  }
 
-          let titulo = "";
-          let texto = "";
-          let icono = "warning";
-          let color = "#3085d6";
+  if (id && id.trim() !== "") {
+    btnAgregar.style.display = "none";
+    btnModificar.style.display = "inline-block";
+    btnEliminar.style.display = "inline-block";
+    btnCancelar.style.display = "inline-block";
+  } else {
+    modoAgregar();
+  }
 
-          if (accion === "btnAgregar") {
-            titulo = "¿Desea agregar este método de pago?";
-            texto = "El nuevo método será registrado en el sistema.";
-            icono = "question";
-            color = "#198754";
-          } else if (accion === "btnModificar") {
-            titulo = "¿Guardar cambios?";
-            texto = "Se actualizarán los datos del método de pago.";
-          } else if (accion === "btnEliminar") {
-            titulo = "¿Eliminar registro?";
-            texto = "Esta acción eliminará el registro permanentemente.";
-            color = "#d33";
-          }
-
-          Swal.fire({
-            title: titulo,
-            text: texto,
-            icon: icono,
-            showCancelButton: true,
-            confirmButtonText: "Sí, continuar",
-            cancelButtonText: "Cancelar",
-            confirmButtonColor: color,
-            cancelButtonColor: "#6c757d",
-          }).then((result) => {
-            if (result.isConfirmed) {
-              let inputAccion = form.querySelector("input[name='accion']");
-              if (!inputAccion) {
-                inputAccion = document.createElement("input");
-                inputAccion.type = "hidden";
-                inputAccion.name = "accion";
-                form.appendChild(inputAccion);
-              }
-              inputAccion.value = accion;
-              form.submit();
-            }
-          });
+  btnCancelar.addEventListener("click", function(e) {
+    e.preventDefault();
+    modoAgregar();
+    
+    if (window.history.replaceState) {
+      const url = new URL(window.location);
+      url.searchParams.forEach((value, key) => {
+        if (key !== 'msg') {
+          url.searchParams.delete(key);
         }
       });
-    });
-
-    // --- Mostrar mensaje de éxito al regresar de PHP ---
-    const urlParams = new URLSearchParams(window.location.search);
-    const success = urlParams.get("success");
-
-    if (success === "agregado") {
-      Swal.fire({
-        title: "¡Registro guardado!",
-        text: "El método de pago se agregó correctamente.",
-        icon: "success",
-        confirmButtonColor: "#198754"
-      });
-    } else if (success === "modificado") {
-      Swal.fire({
-        title: "¡Cambios guardados!",
-        text: "El método de pago se actualizó correctamente.",
-        icon: "success",
-        confirmButtonColor: "#3085d6"
-      });
-    } else if (success === "eliminado") {
-      Swal.fire({
-        title: "¡Registro eliminado!",
-        text: "El método de pago se eliminó correctamente.",
-        icon: "success",
-        confirmButtonColor: "#d33"
-      });
+      window.history.replaceState({}, document.title, url);
     }
   });
+});
+
+// Confirmaciones SweetAlert2
+document.addEventListener("DOMContentLoaded", () => {
+  const forms = document.querySelectorAll("form");
+
+  forms.forEach(form => {
+    form.addEventListener("submit", function(e) {
+      const boton = e.submitter;
+      const accion = boton?.value;
+
+      if (accion === "btnModificar" || accion === "btnEliminar") {
+        e.preventDefault();
+
+        let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar registro?";
+        let texto = accion === "btnModificar"
+          ? "Se actualizarán los datos del método de pago."
+          : "Esta acción eliminará el registro permanentemente.";
+
+        Swal.fire({
+          title: titulo,
+          text: texto,
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonText: "Sí, continuar",
+          cancelButtonText: "Cancelar",
+          confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+          cancelButtonColor: "#6c757d",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            let inputAccion = form.querySelector("input[name='accionOculta']");
+            if (!inputAccion) {
+              inputAccion = document.createElement("input");
+              inputAccion.type = "hidden";
+              inputAccion.name = "accion";
+              form.appendChild(inputAccion);
+            }
+            inputAccion.value = accion;
+            form.submit();
+          }
+        });
+      }
+    });
+  });
+});
 
 $(document).ready(function() {
   const $metodoPago = $('#metodoPago');
   const $cuentaSelect = $('#cuentaContable');
   const cuentaContableGuardada = "<?php echo $cuentaContable; ?>";
 
-  // Inicializar Select2 con búsqueda AJAX
   $cuentaSelect.select2({
     placeholder: "Buscar o seleccionar una cuenta contable",
     allowClear: true,
@@ -456,7 +482,7 @@ $(document).ready(function() {
       data: function (params) {
         return {
           metodo: $metodoPago.val(),
-          search: params.term || '' // texto escrito
+          search: params.term || ''
         };
       },
       processResults: function (data) {
@@ -470,55 +496,34 @@ $(document).ready(function() {
     }
   });
 
-  // Recargar el select si cambia el método de pago
   $metodoPago.on('change', function() {
     $cuentaSelect.val(null).trigger('change');
   });
 
-  // Si estás editando, cargar la cuenta guardada manualmente
-  if (cuentaContableGuardada) {
-    $.ajax({
-      url: 'obtener_cuentas.php',
-      data: { id: cuentaContableGuardada },
-      dataType: 'json'
-    }).then(function(data) {
-      const cuenta = data[0];
-      const option = new Option(cuenta.texto, cuenta.valor, true, true);
-      $cuentaSelect.append(option).trigger('change');
-    });
+  // Si hay una cuenta guardada desde PHP, agrégala manualmente
+  if (cuentaContableGuardada && cuentaContableGuardada.trim() !== "") {
+    const cuentaTexto = "<?php echo addslashes($cuentaContable); ?>"; // muestra código + nombre
+    const option = new Option(cuentaTexto, cuentaContableGuardada, true, true);
+    $cuentaSelect.append(option).trigger('change');
   }
-});
 
-    // Puedes añadir estilos CSS para la indentación en el <style> de tu HTML (opcional):
-    /*
-    .subcuenta-nivel2 { padding-left: 10px; }
-    .subcuenta-nivel3 { padding-left: 20px; }
-    */
+});
 </script>
   </div>
-</section><!-- End Services Section -->
+</section>
 
-<!-- ======= Footer ======= -->
 <footer id="footer" class="footer-minimalista">
   <p>Universidad de Santander - Ingeniería de Software</p>
   <p>Todos los derechos reservados © 2025</p>
   <p>Creado por iniciativa del programa de Contaduría Pública</p>
-</footer><!-- End Footer -->
+</footer>
 
-<div id="preloader"></div>
-<a href="#" class="back-to-top d-flex align-items-center justify-content-center">
-  <i class="bi bi-arrow-up-short"></i>
-</a>
-
-<!-- Vendor JS Files -->
 <script src="assets/vendor/aos/aos.js"></script>
 <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 <script src="assets/vendor/glightbox/js/glightbox.min.js"></script>
 <script src="assets/vendor/isotope-layout/isotope.pkgd.min.js"></script>
 <script src="assets/vendor/swiper/swiper-bundle.min.js"></script>
 <script src="assets/vendor/php-email-form/validate.js"></script>
-
-<!-- Template Main JS File -->
 <script src="assets/js/main.js"></script>
 
 </body>
