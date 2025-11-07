@@ -120,21 +120,23 @@ if (isset($_GET['cedula'])) {
       </div>
 
       <form action="generar_pdf.php" method="POST" target="_blank">
-        <div class="mb-3">
+      <div class="row g-3 mt-2">
+          <div class="col-md-4">
             <label for="cedula" class="form-label">Identificación proveedor</label>
             <input type="text" class="form-control" name="cedula" id="cedula" value="<?php echo htmlspecialchars($cedula); ?>" oninput="consultarNombre()">
         </div>
 
-        <div class="mb-3">
+         <div class="col-md-4">
             <label for="nombre" class="form-label">Nombre proveedor</label>
             <input type="text" class="form-control" name="nombre" id="nombre" readonly>
         </div>
 
-        <div class="mb-3">
+         <div class="col-md-4">
             <label for="fecha" class="form-label">Fecha de corte</label>
             <input type="date" class="form-control" name="fecha" id="fecha">
         </div>
-
+      </div>
+      <br>
         <div class="section-subtitle">
           <h6>INFORME</h6>
         </div>  

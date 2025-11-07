@@ -221,11 +221,30 @@ document.addEventListener("DOMContentLoaded", () => {
                       <label class="form-check-label" for="personaJuridica">Persona Jurídica</label>
                     </div>
                   </div>
-              <!-- Cédula o NIT -->
-              <div class="col-md-4">
-                <label for="cedula" class="form-label">Cédula o NIT*</label>
-                <input type="text" class="form-control" id="cedula" name="cedula" placeholder="Ej: 1234567890">
-              </div>
+
+                    <!-- Cédula o NIT -->
+                    <div class="col-md-4">
+                      <label for="cedula" class="form-label">Cédula o NIT*</label>
+                      <input 
+                        type="text" 
+                        class="form-control" 
+                        id="cedula" 
+                        name="cedula" 
+                        placeholder="Ej: 1234567890"
+                        maxlength="10"
+                        oninput="limitLength(this, 10)"
+                      >
+                    </div>
+
+                    <script>
+                      function limitLength(input, maxLength) {
+                        if (input.value.length > maxLength) {
+                          input.value = input.value.slice(0, maxLength);
+                        }
+                      }
+                    </script>
+
+
               <!-- Dígito de verificación -->
               <div class="col-md-4">
                 <label for="digito" class="form-label">Dígito de verificación</label>
