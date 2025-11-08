@@ -1,8 +1,10 @@
 <?php
 include("connection.php");
+include("LibroDiario.php");
 
 $conn = new connection();
 $pdo = $conn->connect();
+$libroDiario = new LibroDiario($pdo);
 
 // Obtener consecutivo automático
 if (isset($_GET['get_consecutivo'])) {
@@ -143,6 +145,9 @@ switch($accion) {
                 }
             }
             
+            // ✨ NUEVO: Registrar en Libro Diario
+            $libroDiario->registrarComprobanteEgreso($idComprobante);
+
             $pdo->commit();
             header("Location: " . $_SERVER['PHP_SELF'] . "?msg=agregado");
             exit();
@@ -183,7 +188,10 @@ switch($accion) {
             $sentencia->bindParam(':formaPago', $formaPago);
             $sentencia->bindParam(':observaciones', $observaciones);
             $sentencia->bindParam(':id', $txtId);
-            $sentencia->execute();
+            $sentencia->execute();        
+            
+            // ✨ NUEVO: Eliminar asientos contables antiguos
+            $libroDiario->eliminarMovimientos('comprobante_egreso', $txtId);
             
             // Eliminar detalles antiguos
             $stmtDelete = $pdo->prepare("DELETE FROM detalle_comprobante_egreso WHERE idComprobante = :idComprobante");
@@ -208,6 +216,9 @@ switch($accion) {
                 }
             }
             
+            // ✨ NUEVO: Registrar nuevos asientos contables
+            $libroDiario->registrarComprobanteEgreso($txtId);
+
             $pdo->commit();
             header("Location: " . $_SERVER['PHP_SELF'] . "?msg=modificado");
             exit();
@@ -220,28 +231,27 @@ switch($accion) {
         break;
 
     case "btnEliminar":
-        try {
-            $pdo->beginTransaction();
-            
-            // Eliminar comprobante (cascade eliminará los detalles)
-            $sentencia = $pdo->prepare("DELETE FROM doccomprobanteegreso WHERE id = :id");
-            $sentencia->bindParam(':id', $txtId);
-            $sentencia->execute();
-            
-            $pdo->commit();
-            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=eliminado");
-            exit();
-            
-        } catch (Exception $e) {
-            $pdo->rollBack();
-            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=error&detalle=" . urlencode($e->getMessage()));
-            exit();
-        }
-        break;
-
-    case "btnEditar":
-        // Los datos ya vienen en $_POST desde los campos hidden
-        break;
+      try {
+          $pdo->beginTransaction();
+          
+          // ✨ NUEVO: Eliminar asientos contables
+          $libroDiario->eliminarMovimientos('comprobante_egreso', $txtId);
+          
+          // Eliminar comprobante (cascade eliminará los detalles)
+          $sentencia = $pdo->prepare("DELETE FROM doccomprobanteegreso WHERE id = :id");
+          $sentencia->bindParam(':id', $txtId);
+          $sentencia->execute();
+          
+          $pdo->commit();
+          header("Location: " . $_SERVER['PHP_SELF'] . "?msg=eliminado");
+          exit();
+          
+      } catch (Exception $e) {
+          $pdo->rollBack();
+          header("Location: " . $_SERVER['PHP_SELF'] . "?msg=error&detalle=" . urlencode($e->getMessage()));
+          exit();
+      }
+  break;
 }
 
 // Consulta para mostrar la tabla con información de detalles
