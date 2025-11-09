@@ -479,7 +479,7 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
             <?php foreach ($lista_terceros as $t): ?>
               <option value="<?= htmlspecialchars($t['tercero_identificacion']) ?>" 
                       <?= $t['tercero_identificacion']==$tercero?'selected':'' ?>>
-                <?= htmlspecialchars($t['tercero_identificacion'] . ' - ' . $t['tercero_nombre']) ?>
+                <?= htmlspecialchars($t['tercero_identificacion'] . '  ' . $t['tercero_nombre']) ?>
               </option>
             <?php endforeach; ?>
           </select>
@@ -610,7 +610,7 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
       const tercero = document.querySelector('select[name="tercero"]').value;
       const mostrar_saldo = document.querySelector('#checkSaldoInicial').checked ? '1' : '0';
 
-      const url = `exportar_balance_excel.php?periodo_fiscal=${encodeURIComponent(periodo_fiscal)}&cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}&mostrar_saldo_inicial=${mostrar_saldo}`;
+      const url = `exportar_balance_prueba_excel.php?periodo_fiscal=${encodeURIComponent(periodo_fiscal)}&cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}&mostrar_saldo_inicial=${mostrar_saldo}`;
       window.location.href = url;
     }
 

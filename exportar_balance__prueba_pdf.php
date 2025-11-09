@@ -249,6 +249,11 @@ foreach ($cuentas_completas as $cuenta) {
 
 // ================== GENERAR PDF ==================
 class PDF extends FPDF {
+    // Agregar constructor para pasar parámetros correctamente
+    function __construct($orientation='P', $unit='mm', $size='A4') {
+        parent::__construct($orientation, $unit, $size);
+    }
+    
     function Header() {
         $this->SetFont('Arial','B',16);
         $this->Cell(0,10,convertir_texto('BALANCE DE PRUEBA GENERAL'),0,1,'C');
@@ -262,7 +267,7 @@ class PDF extends FPDF {
     }
 }
 
-$pdf = new PDF($fecha_desde, $fecha_hasta, $cuenta_codigo, $tercero); // ✅ CORRECTO
+$pdf = new PDF('L','mm','A4'); // Orientación horizontal
 $pdf->AddPage();
 $pdf->SetFont('Arial','',9);
 
