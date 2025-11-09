@@ -382,6 +382,9 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
         <button onclick="exportarExcel()" class="btn btn-success">
           <i class="fa-solid fa-file-excel"></i> Exportar a Excel
         </button>
+        <button onclick="exportarPDF()" class="btn btn-secondary">
+          <i class="fa-solid fa-file-pdf"></i> Exportar PDF
+        </button>
       </div>
       <?php endif; ?>
 
@@ -466,20 +469,30 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
   </section><!-- End Services Section -->
 
   <script>
-    function exportarExcel() {
-        // Tomar los filtros actuales del formulario
-        const cuenta = document.querySelector('select[name="cuenta"]').value;
-        const desde = document.querySelector('input[name="desde"]').value;
-        const hasta = document.querySelector('input[name="hasta"]').value;
-        const tercero = document.querySelector('select[name="tercero"]').value;
+  function exportarExcel() {
+      const cuenta = document.querySelector('select[name="cuenta"]').value;
+      const desde = document.querySelector('input[name="desde"]').value;
+      const hasta = document.querySelector('input[name="hasta"]').value;
+      const tercero = document.querySelector('select[name="tercero"]').value;
 
-        // Construir la URL con los parámetros
-        const url = `exportar_libro_auxiliar.php?cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}`;
+      // Cambia aquí el nombre del archivo
+      const url = `exportar_libro_auxiliar.php?cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}`;
+      
+      window.location.href = url;
+  }
 
-        // Redirigir para descargar el archivo
-        window.location.href = url;
-    }
-</script>
+  function exportarPDF() {
+      const cuenta = document.querySelector('select[name="cuenta"]').value;
+      const desde = document.querySelector('input[name="desde"]').value;
+      const hasta = document.querySelector('input[name="hasta"]').value;
+      const tercero = document.querySelector('select[name="tercero"]').value;
+
+      // ✅ Nombre del archivo PDF
+      const url = `exportar_libro_auxiliar_pdf.php?cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}`;
+      
+      window.location.href = url;
+  }
+  </script>
 
 
   <!-- ======= Footer ======= -->
