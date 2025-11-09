@@ -14,7 +14,7 @@ if (isset($_GET['get_consecutivo'])) {
     exit;
 }
 
-// Obtener facturas a crédito del proveedor
+// Obtener facturas a crédito del proveedor CON SALDO PENDIENTE
 if (isset($_GET['get_facturas']) && isset($_GET['identificacion'])) {
     $identificacion = $_GET['identificacion'];
     
@@ -23,10 +23,12 @@ if (isset($_GET['get_facturas']) && isset($_GET['identificacion'])) {
             id, 
             consecutivo, 
             fecha, 
-            CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(10,2)) as valorTotal
+            CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(10,2)) as valorTotal,
+            COALESCE(saldoReal, CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(10,2))) as saldoReal
         FROM facturac 
         WHERE identificacion = :identificacion 
         AND formaPago LIKE '%Credito%'
+        AND COALESCE(saldoReal, CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(10,2))) > 0
         ORDER BY fecha DESC
     ");
     $stmt->bindParam(':identificacion', $identificacion);
@@ -124,11 +126,12 @@ switch($accion) {
             
             $idComprobante = $pdo->lastInsertId();
             
-            // Insertar detalles de facturas
+            // Insertar detalles de facturas Y ACTUALIZAR SALDO REAL
             if (!empty($facturasData)) {
                 $dataArray = json_decode($facturasData, true);
                 
                 foreach ($dataArray as $facturaData) {
+                    // Insertar detalle
                     $stmtDetalle = $pdo->prepare("
                         INSERT INTO detalle_comprobante_egreso 
                         (idComprobante, consecutivoFactura, valorAplicado, fechaVencimiento)
@@ -139,6 +142,17 @@ switch($accion) {
                         ':consecutivo' => $facturaData['consecutivo'],
                         ':valor' => $facturaData['valor'],
                         ':fechaVenc' => $facturaData['fechaVencimiento'] ?: null
+                    ]);
+                    
+                    // Actualizar saldo real de la factura
+                    $stmtUpdateSaldo = $pdo->prepare("
+                        UPDATE facturac 
+                        SET saldoReal = COALESCE(saldoReal, CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(12,2))) - :valorAplicado
+                        WHERE consecutivo = :consecutivo
+                    ");
+                    $stmtUpdateSaldo->execute([
+                        ':valorAplicado' => $facturaData['valor'],
+                        ':consecutivo' => $facturaData['consecutivo']
                     ]);
                 }
             }
@@ -157,6 +171,27 @@ switch($accion) {
     case "btnModificar":
         try {
             $pdo->beginTransaction();
+            
+            // Primero, revertir los pagos del comprobante antiguo
+            $stmtOldDetails = $pdo->prepare("
+                SELECT consecutivoFactura, valorAplicado 
+                FROM detalle_comprobante_egreso 
+                WHERE idComprobante = :idComprobante
+            ");
+            $stmtOldDetails->execute([':idComprobante' => $txtId]);
+            $oldDetails = $stmtOldDetails->fetchAll(PDO::FETCH_ASSOC);
+            
+            foreach ($oldDetails as $oldDetail) {
+                $stmtRevert = $pdo->prepare("
+                    UPDATE facturac 
+                    SET saldoReal = COALESCE(saldoReal, CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(12,2))) + :valorAplicado
+                    WHERE consecutivo = :consecutivo
+                ");
+                $stmtRevert->execute([
+                    ':valorAplicado' => $oldDetail['valorAplicado'],
+                    ':consecutivo' => $oldDetail['consecutivoFactura']
+                ]);
+            }
             
             // Actualizar comprobante principal
             $sentencia = $pdo->prepare("UPDATE doccomprobanteegreso SET
@@ -189,11 +224,12 @@ switch($accion) {
             $stmtDelete = $pdo->prepare("DELETE FROM detalle_comprobante_egreso WHERE idComprobante = :idComprobante");
             $stmtDelete->execute([':idComprobante' => $txtId]);
             
-            // Insertar nuevos detalles
+            // Insertar nuevos detalles y actualizar saldos
             if (!empty($facturasData)) {
                 $dataArray = json_decode($facturasData, true);
                 
                 foreach ($dataArray as $facturaData) {
+                    // Insertar detalle
                     $stmtDetalle = $pdo->prepare("
                         INSERT INTO detalle_comprobante_egreso 
                         (idComprobante, consecutivoFactura, valorAplicado, fechaVencimiento)
@@ -204,6 +240,17 @@ switch($accion) {
                         ':consecutivo' => $facturaData['consecutivo'],
                         ':valor' => $facturaData['valor'],
                         ':fechaVenc' => $facturaData['fechaVencimiento'] ?: null
+                    ]);
+                    
+                    // Actualizar saldo real
+                    $stmtUpdateSaldo = $pdo->prepare("
+                        UPDATE facturac 
+                        SET saldoReal = COALESCE(saldoReal, CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(12,2))) - :valorAplicado
+                        WHERE consecutivo = :consecutivo
+                    ");
+                    $stmtUpdateSaldo->execute([
+                        ':valorAplicado' => $facturaData['valor'],
+                        ':consecutivo' => $facturaData['consecutivo']
                     ]);
                 }
             }
@@ -222,6 +269,27 @@ switch($accion) {
     case "btnEliminar":
         try {
             $pdo->beginTransaction();
+            
+            // Revertir los pagos antes de eliminar
+            $stmtDetails = $pdo->prepare("
+                SELECT consecutivoFactura, valorAplicado 
+                FROM detalle_comprobante_egreso 
+                WHERE idComprobante = :idComprobante
+            ");
+            $stmtDetails->execute([':idComprobante' => $txtId]);
+            $details = $stmtDetails->fetchAll(PDO::FETCH_ASSOC);
+            
+            foreach ($details as $detail) {
+                $stmtRevert = $pdo->prepare("
+                    UPDATE facturac 
+                    SET saldoReal = COALESCE(saldoReal, CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(12,2))) + :valorAplicado
+                    WHERE consecutivo = :consecutivo
+                ");
+                $stmtRevert->execute([
+                    ':valorAplicado' => $detail['valorAplicado'],
+                    ':consecutivo' => $detail['consecutivoFactura']
+                ]);
+            }
             
             // Eliminar comprobante (cascade eliminará los detalles)
             $sentencia = $pdo->prepare("DELETE FROM doccomprobanteegreso WHERE id = :id");
@@ -275,7 +343,7 @@ document.addEventListener("DOMContentLoaded", () => {
       Swal.fire({
         icon: 'success',
         title: 'Guardado exitosamente',
-        text: 'El comprobante de egreso se ha agregado correctamente',
+        text: 'El comprobante de egreso se ha agregado y los saldos fueron actualizados',
         confirmButtonColor: '#3085d6'
       });
       break;
@@ -284,7 +352,7 @@ document.addEventListener("DOMContentLoaded", () => {
       Swal.fire({
         icon: 'success',
         title: 'Modificado correctamente',
-        text: 'Los datos se actualizaron con éxito',
+        text: 'Los datos y saldos se actualizaron con éxito',
         confirmButtonColor: '#3085d6'
       });
       break;
@@ -293,7 +361,7 @@ document.addEventListener("DOMContentLoaded", () => {
       Swal.fire({
         icon: 'success',
         title: 'Eliminado correctamente',
-        text: 'El comprobante de egreso fue eliminado del registro',
+        text: 'El comprobante fue eliminado y los saldos fueron restaurados',
         confirmButtonColor: '#3085d6'
       });
       break;
@@ -437,6 +505,27 @@ document.addEventListener("DOMContentLoaded", () => {
       color: #000;
     }
     
+    .badge-success {
+      background: #198754;
+      color: white;
+    }
+    
+    .badge-warning {
+      background: #ffc107;
+      color: #000;
+    }
+    
+    .saldo-info {
+      font-size: 12px;
+      color: #6c757d;
+      margin-top: 3px;
+    }
+    
+    .saldo-pendiente {
+      color: #dc3545;
+      font-weight: bold;
+    }
+    
     .info-box {
       background: #e7f3ff;
       border-left: 4px solid #0d6efd;
@@ -490,6 +579,11 @@ document.addEventListener("DOMContentLoaded", () => {
         <p>Registre los pagos realizados a sus proveedores</p>
         <p>(Los campos marcados con * son obligatorios)</p>
       </div>
+
+      <div class="info-box">
+        <i class="fas fa-info-circle"></i>
+        <strong>Nota:</strong> Solo se mostrarán facturas a crédito con saldo pendiente. Los pagos se descuentan automáticamente del saldo de cada factura.
+      </div>
       
       <form id="formComprobanteEgreso" action="" method="post">
         <input type="hidden" value="<?php echo $txtId; ?>" id="txtId" name="txtId">
@@ -529,7 +623,7 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
 
         <button type="button" class="btn-cargar-facturas" id="btnCargarFacturas">
-          <i class="fas fa-file-invoice"></i> Cargar Facturas de Compra Pendientes
+          <i class="fas fa-file-invoice"></i> Cargar Facturas con Saldo Pendiente
         </button>
 
         <!-- Tabla de facturas -->
@@ -537,17 +631,18 @@ document.addEventListener("DOMContentLoaded", () => {
           <table id="tablaFacturas">
             <thead>
               <tr>
-                <th style="width: 15%;">Consecutivo</th>
-                <th style="width: 15%;">Fecha Factura</th>
-                <th style="width: 15%;">Valor Total Factura</th>
-                <th style="width: 15%;">Fecha Vencimiento*</th>
-                <th style="width: 20%;">Valor a Pagar*</th>
+                <th style="width: 12%;">Consecutivo</th>
+                <th style="width: 12%;">Fecha Factura</th>
+                <th style="width: 13%;">Valor Total</th>
+                <th style="width: 13%;">Saldo Pendiente</th>
+                <th style="width: 13%;">Fecha Vencimiento*</th>
+                <th style="width: 17%;">Valor a Pagar*</th>
                 <th style="width: 10%; text-align: center;">Seleccionar</th>
               </tr>
             </thead>
             <tbody id="facturasBody">
               <tr>
-                <td colspan="6" class="text-center" style="padding: 30px;">
+                <td colspan="7" class="text-center" style="padding: 30px;">
                   <i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>
                   Ingrese una identificación y cargue las facturas pendientes
                 </td>
@@ -721,7 +816,7 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         document.getElementById("nombre").value = "";
         if (!modoEdicion) {
-          document.getElementById("facturasBody").innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 30px;"><i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>Ingrese una identificación</td></tr>';
+          document.getElementById("facturasBody").innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 30px;"><i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>Ingrese una identificación</td></tr>';
         }
       }
     });
@@ -742,13 +837,13 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       
       const tbody = document.getElementById("facturasBody");
-      tbody.innerHTML = '<tr><td colspan="6" class="text-center"><i class="fas fa-spinner fa-spin"></i> Cargando facturas...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center"><i class="fas fa-spinner fa-spin"></i> Cargando facturas...</td></tr>';
       
       fetch(`?get_facturas=1&identificacion=${identificacion}`)
         .then(r => r.json())
         .then(facturas => {
           if (facturas.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 30px;"><i class="fas fa-inbox" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>No hay facturas de compra a crédito pendientes para este proveedor</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 30px;"><i class="fas fa-check-circle" style="font-size: 48px; color: #198754; display: block; margin-bottom: 10px;"></i>No hay facturas con saldo pendiente para este proveedor.<br><small class="text-muted">Todas las facturas a crédito han sido pagadas completamente.</small></td></tr>';
             return;
           }
           
@@ -771,7 +866,7 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .catch(err => {
           console.error(err);
-          tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error al cargar las facturas</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Error al cargar las facturas</td></tr>';
           Swal.fire({
             icon: 'error',
             title: 'Error',
@@ -791,14 +886,31 @@ document.addEventListener("DOMContentLoaded", () => {
         tr.className = "factura-row";
         tr.dataset.consecutivo = f.consecutivo;
         tr.dataset.valorTotal = f.valorTotal;
+        tr.dataset.saldoReal = f.saldoReal;
         
         // Buscar si esta factura estaba previamente seleccionada
         const detalleExistente = detalles.find(d => d.consecutivoFactura === f.consecutivo);
         
+        // Determinar el badge según el saldo
+        const porcentajePagado = ((parseFloat(f.valorTotal) - parseFloat(f.saldoReal)) / parseFloat(f.valorTotal)) * 100;
+        let badgeClass = 'badge-warning';
+        let badgeText = 'Pendiente';
+        
+        if (porcentajePagado > 0 && porcentajePagado < 100) {
+          badgeClass = 'badge-info';
+          badgeText = `${porcentajePagado.toFixed(0)}% Pagado`;
+        }
+        
         tr.innerHTML = `
           <td><strong>${f.consecutivo}</strong></td>
           <td>${formatDate(f.fecha)}</td>
-          <td><strong>${parseFloat(f.valorTotal).toFixed(2)}</strong></td>
+          <td>
+            <strong>${parseFloat(f.valorTotal).toFixed(2)}</strong>
+          </td>
+          <td>
+            <strong class="saldo-pendiente">${parseFloat(f.saldoReal).toFixed(2)}</strong>
+            <br><span class="badge ${badgeClass}">${badgeText}</span>
+          </td>
           <td>
             <input type="date" 
                    class="form-control fecha-venc" 
@@ -810,8 +922,10 @@ document.addEventListener("DOMContentLoaded", () => {
                    class="form-control valor-aplicar" 
                    step="0.01" 
                    min="0" 
+                   max="${f.saldoReal}"
                    value="${detalleExistente ? parseFloat(detalleExistente.valorAplicado).toFixed(2) : ''}"
                    placeholder="0.00">
+            <small class="saldo-info">Máximo: ${parseFloat(f.saldoReal).toFixed(2)}</small>
           </td>
           <td style="text-align: center;">
             <input type="checkbox" 
@@ -826,7 +940,25 @@ document.addEventListener("DOMContentLoaded", () => {
       
       // Agregar eventos
       document.querySelectorAll(".valor-aplicar").forEach(input => {
-        input.addEventListener("input", calcularTotal);
+        input.addEventListener("input", function() {
+          // Validar que no exceda el saldo real
+          const row = this.closest('.factura-row');
+          const saldoReal = parseFloat(row.dataset.saldoReal);
+          const valorIngresado = parseFloat(this.value) || 0;
+          
+          if (valorIngresado > saldoReal) {
+            this.value = saldoReal.toFixed(2);
+            Swal.fire({
+              icon: 'warning',
+              title: 'Valor excedido',
+              text: `El valor no puede ser mayor al saldo pendiente (${saldoReal.toFixed(2)})`,
+              confirmButtonColor: '#3085d6',
+              timer: 2000
+            });
+          }
+          
+          calcularTotal();
+        });
       });
       
       document.querySelectorAll(".factura-checkbox").forEach(checkbox => {
@@ -913,7 +1045,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         document.getElementById("txtId").value = "";
-        document.getElementById("facturasBody").innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 30px;"><i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>Seleccione un proveedor y cargue las facturas pendientes</td></tr>';
+        document.getElementById("facturasBody").innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 30px;"><i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>Seleccione un proveedor y cargue las facturas pendientes</td></tr>';
         modoEdicion = false;
       }
 
@@ -987,8 +1119,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
             let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar comprobante?";
             let texto = accion === "btnModificar"
-              ? "Se actualizarán los datos de este comprobante de egreso."
-              : "Esta acción eliminará el comprobante y sus detalles permanentemente.";
+              ? "Se actualizarán los datos y saldos de las facturas afectadas."
+              : "Esta acción eliminará el comprobante y restaurará los saldos de las facturas.";
 
             Swal.fire({
               title: titulo,
