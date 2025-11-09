@@ -511,11 +511,33 @@ document.addEventListener("DOMContentLoaded", () => {
               processResults: function (data) {
                 return {
                   results: data.map(function (cuenta) {
-                    return { id: cuenta.valor, text: cuenta.texto };
+                    return { 
+                      id: cuenta.valor, 
+                      text: cuenta.texto,
+                      descripcion: cuenta.descripcion // Asegúrate de que el PHP devuelva este campo
+                    };
                   })
                 };
               },
               cache: true
+            }
+          });
+          
+          // Evento cuando se selecciona una cuenta
+          $select.on('select2:select', function (e) {
+            const data = e.params.data;
+            const row = $(this).closest('tr');
+            
+            // Autocompletar el campo de descripción
+            if (data.descripcion) {
+              row.find('input[name="descripcionCuenta"]').val(data.descripcion);
+            } else {
+              // Si no viene descripcion, extraer del texto
+              const textoCompleto = data.text;
+              const partes = textoCompleto.split('-');
+              if (partes.length > 1) {
+                row.find('input[name="descripcionCuenta"]').val(partes.slice(1).join('-').trim());
+              }
             }
           });
         }

@@ -59,7 +59,7 @@ if (!empty($search)) {
 
     foreach ($resultados as $row) {
         $terceros[] = [
-            'valor' => $row['cedula'],
+            'valor' => $row['cedula'] . ' - ' . $row['nombreCompleto'],
             'texto' => $row['cedula'] . ' - ' . $row['nombreCompleto']
         ];
     }

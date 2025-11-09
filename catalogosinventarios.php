@@ -729,55 +729,64 @@ document.addEventListener("DOMContentLoaded", () => {
 
         <script>
         $(document).ready(function() {
-            
             // Función para inicializar Select2 y cargar las cuentas vía AJAX
             function inicializarSelectCuenta(selector, tipoCuenta, placeholderText) {
                 
                 // Inicializa Select2 en el elemento
                 $(selector).select2({
-                  placeholder: placeholderText,
-                  allowClear: true,
-                  width: '100%',
-                  ajax: {
-                    url: 'obtener_cuentas_inventarios.php',
-                    dataType: 'json',
-                    delay: 250,
-                    data: function(params) {
-                      return {
-                        tipo: tipoCuenta,
-                        search: params.term
-                      };
-                    },
-                    processResults: function(data) {
-                      return {
-                        results: data.map(function(cuenta) {
-                          return { id: cuenta.valor, text: cuenta.texto };
-                        })
-                      };
+                    placeholder: placeholderText,
+                    allowClear: true,
+                    width: '100%',
+                    escapeMarkup: function(markup) { return markup; }, // Permite HTML en las opciones
+                    ajax: {
+                        url: 'obtener_cuentas_inventarios.php',
+                        dataType: 'json',
+                        delay: 250,
+                        data: function(params) {
+                            return {
+                                tipo: tipoCuenta,
+                                search: params.term
+                            };
+                        },
+                        processResults: function(data) {
+                            return {
+                                results: data.map(function(cuenta) {
+                                    // Extraer código del valor (antes del guion)
+                                    var codigo = cuenta.valor.split('-')[0].trim();
+                                    
+                                    return { 
+                                        id: codigo, // SOLO CÓDIGO (sin nombre)
+                                        text: cuenta.texto, // Texto visual completo
+                                        nombrePuro: cuenta.nombre_puro // Nombre limpio para el input
+                                    };
+                                })
+                            };
+                        }
                     }
-                  }
                 });
 
-                // Cargar las opciones vía AJAX
+                // Cargar las opciones iniciales vía AJAX
                 $.ajax({
-                    url: 'obtener_cuentas_inventarios.php', // Nombre de tu archivo PHP
+                    url: 'obtener_cuentas_inventarios.php',
                     type: 'GET',
-                    data: { tipo: tipoCuenta }, // Envía el tipo de cuenta (ventas, inventarios, etc.)
+                    data: { tipo: tipoCuenta },
                     dataType: 'json',
                     success: function(data) {
                         const selectElement = $(selector);
-                        selectElement.empty(); // Limpia opciones existentes
+                        selectElement.empty();
 
                         // Agrega la opción por defecto (placeholder)
-                        selectElement.append(new Option(placeholderText, '', false, true));
+                        selectElement.append(new Option(placeholderText, '', false, false));
 
                         // Recorre el array de cuentas y crea las opciones
                         data.forEach(function(cuenta) {
-                            // El 'valor' es el código, el 'texto' es la descripción con jerarquía para Select2
-                            var newOption = new Option(cuenta.texto, cuenta.valor, false, false);
+                            // Extraer SOLO el código (antes del guion)
+                            var codigo = cuenta.valor.split('-')[0].trim();
                             
-                            // 🔑 CAMBIO 1: Adjuntar el nombre_puro al elemento OPTION
-                            // Esto permite recuperar el nombre limpio después
+                            // Crear la opción con código como valor y texto completo como visualización
+                            var newOption = new Option(cuenta.texto, codigo, false, false);
+                            
+                            // Adjuntar el nombre_puro al elemento OPTION
                             $(newOption).attr('data-nombre-puro', cuenta.nombre_puro);
                             
                             selectElement.append(newOption);
@@ -788,15 +797,12 @@ document.addEventListener("DOMContentLoaded", () => {
                     },
                     error: function(xhr, status, error) {
                         console.error("Error al cargar cuentas de " + tipoCuenta + ":", status, error);
-                        // Si falla, al menos deja la opción por defecto
-                        $(selector).append(new Option("Error al cargar cuentas", "", false, true));
+                        $(selector).append(new Option("Error al cargar cuentas", "", false, false));
                     }
                 });
             }
-            // ----------------------------------------------------
-            // 2. Ejecutar la función para cada SELECT
-            // ----------------------------------------------------
 
+            // Ejecutar la función para cada SELECT
             inicializarSelectCuenta(
                 '#codigoCuentaVentas', 
                 'ventas', 
@@ -821,20 +827,20 @@ document.addEventListener("DOMContentLoaded", () => {
                 'Selecciona una cuenta de devoluciones (Cta 4175)'
             );
             
-            // ----------------------------------------------------
-            // 3. Lógica para actualizar los campos de texto
-            // ----------------------------------------------------
-            
             // Función para manejar el cambio en el select y actualizar el input de texto
             function actualizarNombreCuenta(selectId, inputId) {
                 $(selectId).on('change', function() {
                     const selectedOption = $(this).find('option:selected');
                     
-                    // 🔑 CAMBIO 2: Leer el atributo data-nombre-puro para obtener el nombre limpio
+                    // Leer el atributo data-nombre-puro para obtener el nombre limpio
                     const nombrePuro = selectedOption.data('nombre-puro');
 
-                    // Establece el valor del input de texto (será vacío si no se selecciona nada)
-                    $(inputId).val(nombrePuro || ""); 
+                    // Si se seleccionó desde el AJAX de Select2, usar nombrePuro de los datos
+                    const select2Data = $(this).select2('data')[0];
+                    const nombreFinal = select2Data && select2Data.nombrePuro ? select2Data.nombrePuro : nombrePuro;
+
+                    // Establece el valor del input de texto (SOLO EL NOMBRE)
+                    $(inputId).val(nombreFinal || ""); 
                 });
             }
             
@@ -843,20 +849,7 @@ document.addEventListener("DOMContentLoaded", () => {
             actualizarNombreCuenta('#codigoCuentaCostos', '#cuentaCostos');
             actualizarNombreCuenta('#codigoCuentaDevoluciones', '#cuentaDevoluciones');
 
-        });
-
-        // Funciones de Edición de Categorías y Productos
-        $(document).ready(function() {
-            // PRIMERO: Inicializar Select2 para unidadMedida
-            $('#unidadMedida').select2({
-                placeholder: "Seleccione o busque una unidad",
-                allowClear: true,
-                width: '100%'
-            });
-
-            // DESPUÉS: Configurar las funciones de edición
-            
-            // ========== EDICIÓN DE CATEGORÍAS ==========
+            // ========== EDICIÓN DE CATEGORÍAS - CARGAR VALORES EN SELECT2 ==========
             const formCategorias = document.getElementById('formCategorias');
             const btnGuardarCategoria = document.getElementById('btnGuardarCategoria');
             const btnModificarCategoria = document.getElementById('btnModificarCategoria');
@@ -869,9 +862,41 @@ document.addEventListener("DOMContentLoaded", () => {
                     // Llenar el formulario principal con los datos ocultos de la fila
                     form.querySelectorAll('input[type="hidden"][data-campo]').forEach(input => {
                         const targetId = input.getAttribute('data-campo');
-                        const targetInput = formCategorias.querySelector(`#${targetId}`);
-                        if (targetInput) {
-                            targetInput.value = input.value;
+                        const value = input.value;
+                        
+                        // Para los selects de cuentas, usar Select2
+                        if (targetId === 'codigoCuentaVentas' || targetId === 'codigoCuentaInventarios' || 
+                            targetId === 'codigoCuentaCostos' || targetId === 'codigoCuentaDevoluciones') {
+                            
+                            const selectElement = $('#' + targetId);
+                            
+                            // El value ya debe ser solo el código (sin el nombre)
+                            // Verificar si la opción ya existe
+                            if (selectElement.find("option[value='" + value + "']").length) {
+                                selectElement.val(value).trigger('change');
+                            } else {
+                                // Si no existe, buscar en las opciones si el código coincide
+                                let encontrado = false;
+                                selectElement.find('option').each(function() {
+                                    if ($(this).val() === value) {
+                                        selectElement.val(value).trigger('change');
+                                        encontrado = true;
+                                        return false; // break
+                                    }
+                                });
+                                
+                                if (!encontrado) {
+                                    // Crear opción temporal si no existe
+                                    const newOption = new Option(value, value, true, true);
+                                    selectElement.append(newOption).trigger('change');
+                                }
+                            }
+                        } else {
+                            // Campos normales
+                            const targetInput = formCategorias.querySelector(`#${targetId}`);
+                            if (targetInput) {
+                                targetInput.value = value;
+                            }
                         }
                     });
 
@@ -885,6 +910,13 @@ document.addEventListener("DOMContentLoaded", () => {
             btnCancelarCategoria.addEventListener('click', function() {
                 // Limpiar formulario y restablecer botones
                 formCategorias.reset();
+                
+                // Limpiar Select2
+                $('#codigoCuentaVentas').val(null).trigger('change');
+                $('#codigoCuentaInventarios').val(null).trigger('change');
+                $('#codigoCuentaCostos').val(null).trigger('change');
+                $('#codigoCuentaDevoluciones').val(null).trigger('change');
+                
                 document.getElementById('idcategoria').value = "";
                 btnGuardarCategoria.classList.remove('d-none');
                 btnModificarCategoria.classList.add('d-none');
@@ -908,28 +940,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
                         // Manejar campos especiales
                         if (targetId === 'productoIva' || targetId === 'facturacionCero' || targetId === 'activo') {
-                            // Checkboxes
                             const targetInput = formProductos.querySelector(`#${targetId}`);
                             if (targetInput) {
                                 targetInput.checked = (value == 1);
                             }
                         } else if (targetId === 'tipoItem') {
-                            // Radio buttons
                             const radioButton = formProductos.querySelector(`input[name="${targetId}"][value="${value}"]`);
                             if (radioButton) {
                                 radioButton.checked = true;
                             }
                         } else if (targetId === 'unidadMedida') {
-                            // Select2 - Usar .val().trigger('change')
                             $('#unidadMedida').val(value).trigger('change');
                         } else if (targetId === 'categoriaInventarios') {
-                            // Select normal de categoría
                             const targetInput = formProductos.querySelector(`#${targetId}`);
                             if (targetInput) {
                                 targetInput.value = value;
                             }
                         } else {
-                            // Campos de texto normales
                             const targetInput = formProductos.querySelector(`#${targetId}`);
                             if (targetInput) {
                                 targetInput.value = value;
@@ -945,22 +972,16 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             btnCancelarProducto.addEventListener('click', function() {
-                // Limpiar formulario y restablecer botones
                 formProductos.reset();
-                
-                // Limpiar Select2
                 $('#unidadMedida').val(null).trigger('change');
-                
                 document.getElementById('idproducto').value = "";
                 btnGuardarProducto.classList.remove('d-none');
                 btnModificarProducto.classList.add('d-none');
                 btnCancelarProducto.classList.add('d-none');
-                
-                // Asegurar que el checkbox 'Activo' esté marcado por defecto al cancelar
-                document.getElementById('activo').checked = true; 
+                document.getElementById('activo').checked = true;
             });
 
-            // Asegurar que el checkbox 'Activo' esté marcado por defecto al cargar la página
+            // Asegurar que el checkbox 'Activo' esté marcado por defecto al cargar
             if (document.getElementById('activo')) {
                 document.getElementById('activo').checked = true;
             }

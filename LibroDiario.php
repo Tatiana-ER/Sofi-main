@@ -81,8 +81,8 @@ class LibroDiario {
         
         // Por defecto, caja general
         return [
-            'codigo' => '1105', 
-            'nombre' => 'Caja'
+            'codigo' => '110505', 
+            'nombre' => 'Caja General'
         ];
     }
     
@@ -284,6 +284,7 @@ class LibroDiario {
     
     /**
      * Registra asientos de Factura de Compra
+     * CORRECCIÓN: IVA Descontable debe usar cuenta 135515, no 240805
      */
     public function registrarFacturaCompra($idFactura) {
         // Obtener datos de la factura
@@ -339,7 +340,7 @@ class LibroDiario {
             ]);
         }
         
-        // 2. DEBITO: IVA Descontable
+        // 2. DEBITO: IVA por Pagar (se debita en compras para compensar)
         if ($factura['ivaTotal'] > 0) {
             $this->registrarMovimiento([
                 'fecha' => $factura['fecha'],
@@ -347,7 +348,7 @@ class LibroDiario {
                 'numero_documento' => $factura['consecutivo'],
                 'id_documento' => $idFactura,
                 'codigo_cuenta' => '240805',
-                'nombre_cuenta' => 'IVA Descontable',
+                'nombre_cuenta' => 'IVA por Pagar',
                 'tercero_identificacion' => $factura['identificacion'],
                 'tercero_nombre' => $factura['nombre'],
                 'concepto' => "IVA en compras factura {$factura['numeroFactura']}",
