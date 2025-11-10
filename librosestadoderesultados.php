@@ -37,6 +37,35 @@ function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
+// ================== OBTENER NOMBRES DE CUENTAS DESDE LA TABLA cuentas_contables ==================
+function obtenerNombresCuentas($pdo) {
+    $sql = "SELECT nivel1, nivel2, nivel3, nivel4, nivel5, nivel6 FROM cuentas_contables";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute();
+    $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    $nombres = [];
+    foreach ($resultados as $fila) {
+        // Procesar cada nivel
+        for ($i = 1; $i <= 6; $i++) {
+            $campo = 'nivel' . $i;
+            if (!empty($fila[$campo])) {
+                // Separar código y nombre por el guión
+                $partes = explode('-', $fila[$campo], 2);
+                if (count($partes) == 2) {
+                    $codigo = trim($partes[0]);
+                    $nombre = trim($partes[1]);
+                    $nombres[$codigo] = $nombre;
+                }
+            }
+        }
+    }
+    return $nombres;
+}
+
+// Obtener todos los nombres de cuentas
+$nombres_cuentas = obtenerNombresCuentas($pdo);
+
 // ================== OBTENER TODAS LAS CUENTAS DE INGRESOS (4), COSTOS (6) Y GASTOS (5) ==================
 $sql_cuentas = "SELECT DISTINCT 
                     codigo_cuenta, 
@@ -98,9 +127,12 @@ foreach ($todas_cuentas as $cuenta) {
     
     // Solo incluir cuentas con saldo diferente de cero
     if ($saldo != 0) {
+        // Usar el nombre de la tabla cuentas_contables si existe, sino usar el del libro_diario
+        $nombre_cuenta = isset($nombres_cuentas[$codigo]) ? $nombres_cuentas[$codigo] : $cuenta['nombre_cuenta'];
+        
         $item = [
             'codigo' => $codigo,
-            'nombre' => $cuenta['nombre_cuenta'],
+            'nombre' => $nombre_cuenta,
             'saldo' => $saldo,
             'nivel' => strlen($codigo)
         ];
@@ -122,40 +154,39 @@ foreach ($todas_cuentas as $cuenta) {
 }
 
 // ================== AGREGAR AGRUPACIONES SUPERIORES ==================
-function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas) {
+function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuentas) {
     $agrupaciones = [];
-    $nombres_grupo = [
-        '41' => 'Operacionales',
-        '42' => 'Otros ingresos',
-        '51' => 'Operacionales de administración',
-        '52' => 'Operacionales de ventas',
-        '53' => 'Otros gastos',
-        '61' => 'Costo de ventas y de prestación de servicios'
-    ];
+    
+    // Niveles válidos: 1, 2, 4, 6, 8, 10 dígitos
+    $niveles_validos = [1, 2, 4, 6, 8, 10];
     
     foreach ($array_cuentas as $cuenta) {
         $codigo = $cuenta['codigo'];
+        $longitud_actual = strlen($codigo);
         
-        // Generar códigos de agrupación
-        $niveles = [];
-        if (strlen($codigo) >= 2) $niveles[] = substr($codigo, 0, 2);
-        if (strlen($codigo) >= 4) $niveles[] = substr($codigo, 0, 4);
-        if (strlen($codigo) >= 6) $niveles[] = substr($codigo, 0, 6);
-        
-        foreach ($niveles as $grupo) {
-            if (!in_array($grupo, $cuentas_procesadas)) {
-                $nombre = isset($nombres_grupo[$grupo]) ? $nombres_grupo[$grupo] : 'Grupo ' . $grupo;
-                if (!isset($agrupaciones[$grupo])) {
-                    $agrupaciones[$grupo] = [
-                        'codigo' => $grupo,
-                        'nombre' => $nombre,
-                        'saldo' => 0,
-                        'nivel' => strlen($grupo),
-                        'es_grupo' => true
-                    ];
-                    $cuentas_procesadas[] = $grupo;
+        // Generar códigos de agrupación solo para los niveles válidos
+        foreach ($niveles_validos as $longitud) {
+            // Solo generar agrupaciones para niveles superiores al actual
+            if ($longitud < $longitud_actual) {
+                $grupo = substr($codigo, 0, $longitud);
+                
+                // Verificar que no sea la cuenta actual y que no esté ya procesada
+                if ($grupo != $codigo && !in_array($grupo, $cuentas_procesadas)) {
+                    // Usar el nombre de la tabla cuentas_contables si existe
+                    $nombre = isset($nombres_cuentas[$grupo]) ? $nombres_cuentas[$grupo] : 'Grupo ' . $grupo;
+                    
+                    if (!isset($agrupaciones[$grupo])) {
+                        $agrupaciones[$grupo] = [
+                            'codigo' => $grupo,
+                            'nombre' => $nombre,
+                            'saldo' => 0,
+                            'nivel' => strlen($grupo),
+                            'es_grupo' => true
+                        ];
+                        $cuentas_procesadas[] = $grupo;
+                    }
+                    $agrupaciones[$grupo]['saldo'] += $cuenta['saldo'];
                 }
-                $agrupaciones[$grupo]['saldo'] += $cuenta['saldo'];
             }
         }
     }
@@ -171,9 +202,9 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas) {
     return $resultado;
 }
 
-$ingresos = agregarAgrupaciones($ingresos, $cuentas_procesadas);
-$costos = agregarAgrupaciones($costos, $cuentas_procesadas);
-$gastos = agregarAgrupaciones($gastos, $cuentas_procesadas);
+$ingresos = agregarAgrupaciones($ingresos, $cuentas_procesadas, $nombres_cuentas);
+$costos = agregarAgrupaciones($costos, $cuentas_procesadas, $nombres_cuentas);
+$gastos = agregarAgrupaciones($gastos, $cuentas_procesadas, $nombres_cuentas);
 
 // ================== RESULTADO DEL EJERCICIO ==================
 $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
@@ -181,13 +212,21 @@ $utilidad_bruta = $totalIngresos - $totalCostos;
 $utilidad_operacional = $utilidad_bruta - $totalGastos;
 
 // ================== LISTA DE CUENTAS PARA EL SELECT ==================
-$sql_lista = "SELECT codigo_cuenta, MIN(nombre_cuenta) as nombre_cuenta 
-              FROM libro_diario 
-              WHERE SUBSTRING(codigo_cuenta, 1, 1) IN ('4', '5', '6')
-              GROUP BY codigo_cuenta 
-              ORDER BY codigo_cuenta";
-$stmt_lista = $pdo->query($sql_lista);
-$lista_cuentas = $stmt_lista->fetchAll(PDO::FETCH_ASSOC);
+// Primero obtener todos los códigos únicos del libro_diario
+$sql_codigos = "SELECT DISTINCT codigo_cuenta FROM libro_diario 
+                WHERE SUBSTRING(codigo_cuenta, 1, 1) IN ('4', '5', '6')
+                ORDER BY codigo_cuenta";
+$stmt_codigos = $pdo->query($sql_codigos);
+$codigos_unicos = $stmt_codigos->fetchAll(PDO::FETCH_COLUMN);
+
+$lista_cuentas = [];
+foreach ($codigos_unicos as $codigo) {
+    $nombre = isset($nombres_cuentas[$codigo]) ? $nombres_cuentas[$codigo] : 'Cuenta ' . $codigo;
+    $lista_cuentas[] = [
+        'codigo_cuenta' => $codigo,
+        'nombre_cuenta' => $nombre
+    ];
+}
 
 // ================== LISTA DE TERCEROS PARA EL SELECT ==================
 $sql_terceros = "SELECT DISTINCT 
@@ -294,8 +333,14 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
     }
     
     /* Estilos por nivel */
-    .nivel-2 {
+    .nivel-1 {
       background-color: #e3f2fd;
+      font-weight: bold;
+      font-size: 1.05rem;
+    }
+    
+    .nivel-2 {
+      background-color: #f3f9ff;
       font-weight: bold;
     }
     
@@ -308,8 +353,12 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
       padding-left: 40px !important;
     }
     
-    .nivel-8, .nivel-10 {
+    .nivel-8 {
       padding-left: 60px !important;
+    }
+    
+    .nivel-10 {
+      padding-left: 80px !important;
       color: #495057;
     }
     
