@@ -1,8 +1,10 @@
 <?php
 include("connection.php");
+include("LibroDiario.php");
 
 $conn = new connection();
 $pdo = $conn->connect();
+$libroDiario = new LibroDiario($pdo);
 
 // Obtener el siguiente consecutivo 
 if (isset($_GET['get_consecutivo'])) {
@@ -56,6 +58,9 @@ switch($accion){
           }
       }
 
+      // ✨ NUEVO: Registrar en Libro Diario
+      $libroDiario->registrarComprobanteContable($idComprobante);
+
       header("Location: ".$_SERVER['PHP_SELF']."?msg=agregado");
       exit;
   break;
@@ -72,6 +77,9 @@ switch($accion){
       $sentencia->bindParam(':observaciones', $observaciones);
       $sentencia->bindParam(':id', $txtId);
       $sentencia->execute();
+      
+      // ✨ NUEVO: Eliminar asientos contables antiguos
+      $libroDiario->eliminarMovimientos('comprobante_contable', $txtId);
 
       // Eliminar detalles antiguos
       $deleteDetalle = $pdo->prepare("DELETE FROM detallecomprobantecontable WHERE comprobante_id = :comprobante_id");
@@ -98,11 +106,17 @@ switch($accion){
           }
       }
 
+      // ✨ NUEVO: Registrar nuevos asientos contables
+      $libroDiario->registrarComprobanteContable($txtId);
+
       header("Location: ".$_SERVER['PHP_SELF']."?msg=modificado");
       exit;
   break;
 
   case "btnEliminar":
+      // ✨ NUEVO: Eliminar asientos contables
+      $libroDiario->eliminarMovimientos('comprobante_contable', $txtId);
+      
       // Primero eliminar los detalles asociados
       $sentenciaDetalle = $pdo->prepare("DELETE FROM detallecomprobantecontable WHERE comprobante_id = :id");
       $sentenciaDetalle->bindParam(':id', $txtId);
@@ -497,11 +511,33 @@ document.addEventListener("DOMContentLoaded", () => {
               processResults: function (data) {
                 return {
                   results: data.map(function (cuenta) {
-                    return { id: cuenta.valor, text: cuenta.texto };
+                    return { 
+                      id: cuenta.valor, 
+                      text: cuenta.texto,
+                      descripcion: cuenta.descripcion // Asegúrate de que el PHP devuelva este campo
+                    };
                   })
                 };
               },
               cache: true
+            }
+          });
+          
+          // Evento cuando se selecciona una cuenta
+          $select.on('select2:select', function (e) {
+            const data = e.params.data;
+            const row = $(this).closest('tr');
+            
+            // Autocompletar el campo de descripción
+            if (data.descripcion) {
+              row.find('input[name="descripcionCuenta"]').val(data.descripcion);
+            } else {
+              // Si no viene descripcion, extraer del texto
+              const textoCompleto = data.text;
+              const partes = textoCompleto.split('-');
+              if (partes.length > 1) {
+                row.find('input[name="descripcionCuenta"]').val(partes.slice(1).join('-').trim());
+              }
             }
           });
         }

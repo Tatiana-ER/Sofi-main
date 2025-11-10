@@ -1,8 +1,10 @@
 <?php
 include("connection.php");
+include("LibroDiario.php");
 
 $conn = new connection();
 $pdo = $conn->connect();
+$libroDiario = new LibroDiario($pdo);
 
 // Obtener consecutivo automático
 if (isset($_GET['get_consecutivo'])) {
@@ -14,7 +16,7 @@ if (isset($_GET['get_consecutivo'])) {
     exit;
 }
 
-// Obtener facturas a crédito del cliente
+// Obtener facturas a crédito del cliente con saldo pendiente
 if (isset($_GET['get_facturas']) && isset($_GET['identificacion'])) {
     $identificacion = $_GET['identificacion'];
     
@@ -23,11 +25,13 @@ if (isset($_GET['get_facturas']) && isset($_GET['identificacion'])) {
             id, 
             consecutivo, 
             fecha, 
-            CAST(valorTotal AS DECIMAL(10,2)) as valorTotal
+            CAST(valorTotal AS DECIMAL(10,2)) as valorTotal,
+            COALESCE(CAST(saldoReal AS DECIMAL(10,2)), CAST(valorTotal AS DECIMAL(10,2))) as saldoReal
         FROM facturav 
         WHERE identificacion = :identificacion 
         AND formaPago LIKE '%Credito%'
-        ORDER BY fecha DESC
+        AND COALESCE(CAST(saldoReal AS DECIMAL(10,2)), CAST(valorTotal AS DECIMAL(10,2))) > 0
+        ORDER BY fecha ASC
     ");
     $stmt->bindParam(':identificacion', $identificacion);
     $stmt->execute();
@@ -96,10 +100,91 @@ $accion = $_POST['accion'] ?? "";
 // Datos de facturas (JSON)
 $facturasData = $_POST['facturasData'] ?? "";
 
+// Función para actualizar saldos de facturas
+function actualizarSaldosFacturas($pdo, $facturasData) {
+    if (!empty($facturasData)) {
+        $dataArray = json_decode($facturasData, true);
+        
+        foreach ($dataArray as $facturaData) {
+            // Obtener información actual de la factura
+            $stmt = $pdo->prepare("
+                SELECT 
+                    CAST(valorTotal AS DECIMAL(10,2)) as valorTotal,
+                    COALESCE(CAST(saldoReal AS DECIMAL(10,2)), CAST(valorTotal AS DECIMAL(10,2))) as saldoReal
+                FROM facturav 
+                WHERE consecutivo = :consecutivo
+            ");
+            $stmt->execute([':consecutivo' => $facturaData['consecutivo']]);
+            $factura = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($factura) {
+                // Calcular nuevo saldo
+                $nuevoSaldo = $factura['saldoReal'] - floatval($facturaData['valor']);
+                
+                // Actualizar saldo en la factura
+                $stmtUpdate = $pdo->prepare("
+                    UPDATE facturav 
+                    SET saldoReal = :nuevoSaldo 
+                    WHERE consecutivo = :consecutivo
+                ");
+                $stmtUpdate->execute([
+                    ':nuevoSaldo' => $nuevoSaldo,
+                    ':consecutivo' => $facturaData['consecutivo']
+                ]);
+            }
+        }
+    }
+}
+
+// Función para restaurar saldos cuando se elimina o modifica un recibo
+function restaurarSaldosFacturas($pdo, $idRecibo) {
+    // Obtener los detalles del recibo que se va a eliminar/modificar
+    $stmt = $pdo->prepare("
+        SELECT consecutivoFactura, valorAplicado 
+        FROM detalle_recibo_caja 
+        WHERE idRecibo = :idRecibo
+    ");
+    $stmt->execute([':idRecibo' => $idRecibo]);
+    $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Restaurar saldos
+    foreach ($detalles as $detalle) {
+        $stmtUpdate = $pdo->prepare("
+            UPDATE facturav 
+            SET saldoReal = COALESCE(saldoReal, CAST(valorTotal AS DECIMAL(10,2))) + :valor 
+            WHERE consecutivo = :consecutivo
+        ");
+        $stmtUpdate->execute([
+            ':valor' => $detalle['valorAplicado'],
+            ':consecutivo' => $detalle['consecutivoFactura']
+        ]);
+    }
+}
+
 switch($accion) {
     case "btnAgregar":
         try {
             $pdo->beginTransaction();
+            
+            // Validar saldos disponibles antes de procesar
+            if (!empty($facturasData)) {
+                $dataArray = json_decode($facturasData, true);
+                
+                foreach ($dataArray as $facturaData) {
+                    $stmt = $pdo->prepare("
+                        SELECT 
+                            COALESCE(CAST(saldoReal AS DECIMAL(10,2)), CAST(valorTotal AS DECIMAL(10,2))) as saldoReal
+                        FROM facturav 
+                        WHERE consecutivo = :consecutivo
+                    ");
+                    $stmt->execute([':consecutivo' => $facturaData['consecutivo']]);
+                    $factura = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if (!$factura || floatval($facturaData['valor']) > $factura['saldoReal']) {
+                        throw new Exception("El valor aplicado a la factura {$facturaData['consecutivo']} excede el saldo disponible");
+                    }
+                }
+            }
             
             // Insertar recibo principal
             $sentencia = $pdo->prepare("INSERT INTO docrecibodecaja(
@@ -143,9 +228,15 @@ switch($accion) {
                 }
             }
             
+            // Actualizar saldos de las facturas
+            actualizarSaldosFacturas($pdo, $facturasData);
+
+            // ✨ NUEVO: Registrar en Libro Diario
+            $libroDiario->registrarReciboCaja($idRecibo);
+
             $pdo->commit();
             header("Location: " . $_SERVER['PHP_SELF'] . "?msg=agregado");
-            exit();
+            exit();       
             
         } catch (Exception $e) {
             $pdo->rollBack();
@@ -157,6 +248,29 @@ switch($accion) {
     case "btnModificar":
         try {
             $pdo->beginTransaction();
+            
+            // Restaurar saldos de las facturas del recibo original
+            restaurarSaldosFacturas($pdo, $txtId);
+            
+            // Validar nuevos saldos
+            if (!empty($facturasData)) {
+                $dataArray = json_decode($facturasData, true);
+                
+                foreach ($dataArray as $facturaData) {
+                    $stmt = $pdo->prepare("
+                        SELECT 
+                            COALESCE(CAST(saldoReal AS DECIMAL(10,2)), CAST(valorTotal AS DECIMAL(10,2))) as saldoReal
+                        FROM facturav 
+                        WHERE consecutivo = :consecutivo
+                    ");
+                    $stmt->execute([':consecutivo' => $facturaData['consecutivo']]);
+                    $factura = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if (!$factura || floatval($facturaData['valor']) > $factura['saldoReal']) {
+                        throw new Exception("El valor aplicado a la factura {$facturaData['consecutivo']} excede el saldo disponible");
+                    }
+                }
+            }
             
             // Actualizar recibo principal
             $sentencia = $pdo->prepare("UPDATE docrecibodecaja SET
@@ -188,6 +302,12 @@ switch($accion) {
             // Eliminar detalles antiguos
             $stmtDelete = $pdo->prepare("DELETE FROM detalle_recibo_caja WHERE idRecibo = :idRecibo");
             $stmtDelete->execute([':idRecibo' => $txtId]);
+
+            // ✨ NUEVO: Eliminar asientos contables antiguos
+            $libroDiario->eliminarMovimientos('recibo_caja', $txtId);
+
+            // Restaurar saldos de las facturas del recibo original
+            restaurarSaldosFacturas($pdo, $txtId);
             
             // Insertar nuevos detalles
             if (!empty($facturasData)) {
@@ -208,6 +328,12 @@ switch($accion) {
                 }
             }
             
+            // Actualizar nuevos saldos
+            actualizarSaldosFacturas($pdo, $facturasData);
+
+            // ✨ NUEVO: Registrar nuevos asientos contables
+            $libroDiario->registrarReciboCaja($txtId);
+
             $pdo->commit();
             header("Location: " . $_SERVER['PHP_SELF'] . "?msg=modificado");
             exit();
@@ -220,24 +346,30 @@ switch($accion) {
         break;
 
     case "btnEliminar":
-        try {
-            $pdo->beginTransaction();
-            
-            // Eliminar recibo (cascade eliminará los detalles)
-            $sentencia = $pdo->prepare("DELETE FROM docrecibodecaja WHERE id = :id");
-            $sentencia->bindParam(':id', $txtId);
-            $sentencia->execute();
-            
-            $pdo->commit();
-            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=eliminado");
-            exit();
-            
-        } catch (Exception $e) {
-            $pdo->rollBack();
-            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=error&detalle=" . urlencode($e->getMessage()));
-            exit();
-        }
-        break;
+      try {
+          $pdo->beginTransaction();
+          
+          // ✨ NUEVO: Eliminar asientos contables
+          $libroDiario->eliminarMovimientos('recibo_caja', $txtId);
+          
+          // Restaurar saldos antes de eliminar
+          restaurarSaldosFacturas($pdo, $txtId);
+          
+          // Eliminar recibo (cascade eliminará los detalles)
+          $sentencia = $pdo->prepare("DELETE FROM docrecibodecaja WHERE id = :id");
+          $sentencia->bindParam(':id', $txtId);
+          $sentencia->execute();
+          
+          $pdo->commit();
+          header("Location: " . $_SERVER['PHP_SELF'] . "?msg=eliminado");
+          exit();
+          
+      } catch (Exception $e) {
+          $pdo->rollBack();
+          header("Location: " . $_SERVER['PHP_SELF'] . "?msg=error&detalle=" . urlencode($e->getMessage()));
+          exit();
+      }
+  break;
 
     case "btnEditar":
         // Los datos ya vienen en $_POST desde los campos hidden
@@ -437,6 +569,16 @@ document.addEventListener("DOMContentLoaded", () => {
       color: #000;
     }
     
+    .badge-warning {
+      background: #ffc107;
+      color: #000;
+    }
+    
+    .badge-success {
+      background: #198754;
+      color: #fff;
+    }
+    
     .info-box {
       background: #e7f3ff;
       border-left: 4px solid #0d6efd;
@@ -453,6 +595,17 @@ document.addEventListener("DOMContentLoaded", () => {
     .form-control:focus {
       border-color: #0d6efd;
       box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+    }
+    
+    .saldo-pendiente {
+      font-weight: bold;
+      color: #dc3545;
+    }
+    
+    .saldo-info {
+      font-size: 12px;
+      color: #6c757d;
+      font-style: italic;
     }
   </style>
 </head>
@@ -537,17 +690,18 @@ document.addEventListener("DOMContentLoaded", () => {
           <table id="tablaFacturas">
             <thead>
               <tr>
-                <th style="width: 15%;">Consecutivo</th>
-                <th style="width: 15%;">Fecha Factura</th>
-                <th style="width: 15%;">Valor Total Factura</th>
-                <th style="width: 15%;">Fecha Vencimiento*</th>
-                <th style="width: 20%;">Valor a Aplicar*</th>
+                <th style="width: 12%;">Consecutivo</th>
+                <th style="width: 12%;">Fecha Factura</th>
+                <th style="width: 13%;">Valor Total</th>
+                <th style="width: 13%;">Saldo Pendiente</th>
+                <th style="width: 13%;">Fecha Vencimiento*</th>
+                <th style="width: 17%;">Valor a Aplicar*</th>
                 <th style="width: 10%; text-align: center;">Seleccionar</th>
               </tr>
             </thead>
             <tbody id="facturasBody">
               <tr>
-                <td colspan="6" class="text-center" style="padding: 30px;">
+                <td colspan="7" class="text-center" style="padding: 30px;">
                   <i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>
                   Ingrese una identificación y cargue las facturas pendientes
                 </td>
@@ -721,7 +875,7 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         document.getElementById("nombre").value = "";
         if (!modoEdicion) {
-          document.getElementById("facturasBody").innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 30px;"><i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>Ingrese una identificación</td></tr>';
+          document.getElementById("facturasBody").innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 30px;"><i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>Ingrese una identificación</td></tr>';
         }
       }
     });
@@ -742,13 +896,13 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       
       const tbody = document.getElementById("facturasBody");
-      tbody.innerHTML = '<tr><td colspan="6" class="text-center"><i class="fas fa-spinner fa-spin"></i> Cargando facturas...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="text-center"><i class="fas fa-spinner fa-spin"></i> Cargando facturas...</td></tr>';
       
       fetch(`?get_facturas=1&identificacion=${identificacion}`)
         .then(r => r.json())
         .then(facturas => {
           if (facturas.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 30px;"><i class="fas fa-inbox" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>No hay facturas a crédito pendientes para este cliente</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 30px;"><i class="fas fa-check-circle" style="font-size: 48px; color: #28a745; display: block; margin-bottom: 10px;"></i><strong>¡Excelente!</strong><br>Este cliente no tiene facturas pendientes por pagar</td></tr>';
             return;
           }
           
@@ -771,7 +925,7 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .catch(err => {
           console.error(err);
-          tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error al cargar las facturas</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger">Error al cargar las facturas</td></tr>';
           Swal.fire({
             icon: 'error',
             title: 'Error',
@@ -791,14 +945,26 @@ document.addEventListener("DOMContentLoaded", () => {
         tr.className = "factura-row";
         tr.dataset.consecutivo = f.consecutivo;
         tr.dataset.valorTotal = f.valorTotal;
+        tr.dataset.saldoReal = f.saldoReal;
         
         // Buscar si esta factura estaba previamente seleccionada
         const detalleExistente = detalles.find(d => d.consecutivoFactura === f.consecutivo);
+        
+        // Calcular porcentaje de saldo
+        const porcentajeSaldo = (parseFloat(f.saldoReal) / parseFloat(f.valorTotal)) * 100;
+        let badgeClass = 'badge-success';
+        if (porcentajeSaldo > 75) badgeClass = 'badge-warning';
+        if (porcentajeSaldo === 100) badgeClass = 'badge-info';
         
         tr.innerHTML = `
           <td><strong>${f.consecutivo}</strong></td>
           <td>${formatDate(f.fecha)}</td>
           <td><strong>${parseFloat(f.valorTotal).toFixed(2)}</strong></td>
+          <td>
+            <span class="saldo-pendiente">${parseFloat(f.saldoReal).toFixed(2)}</span>
+            <br>
+            <span class="badge ${badgeClass}">${porcentajeSaldo.toFixed(0)}% pendiente</span>
+          </td>
           <td>
             <input type="date" 
                    class="form-control fecha-venc" 
@@ -810,8 +976,10 @@ document.addEventListener("DOMContentLoaded", () => {
                    class="form-control valor-aplicar" 
                    step="0.01" 
                    min="0" 
+                   max="${parseFloat(f.saldoReal).toFixed(2)}"
                    value="${detalleExistente ? parseFloat(detalleExistente.valorAplicado).toFixed(2) : ''}"
-                   placeholder="0.00">
+                   placeholder="Máx: ${parseFloat(f.saldoReal).toFixed(2)}">
+            <small class="saldo-info">Máximo: ${parseFloat(f.saldoReal).toFixed(2)}</small>
           </td>
           <td style="text-align: center;">
             <input type="checkbox" 
@@ -826,7 +994,23 @@ document.addEventListener("DOMContentLoaded", () => {
       
       // Agregar eventos
       document.querySelectorAll(".valor-aplicar").forEach(input => {
-        input.addEventListener("input", calcularTotal);
+        input.addEventListener("input", function() {
+          const row = this.closest('.factura-row');
+          const saldoReal = parseFloat(row.dataset.saldoReal);
+          const valor = parseFloat(this.value) || 0;
+          
+          if (valor > saldoReal) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Valor excedido',
+              text: `El valor no puede ser mayor al saldo pendiente (${saldoReal.toFixed(2)})`,
+              confirmButtonColor: '#3085d6'
+            });
+            this.value = saldoReal.toFixed(2);
+          }
+          
+          calcularTotal();
+        });
       });
       
       document.querySelectorAll(".factura-checkbox").forEach(checkbox => {
@@ -913,7 +1097,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         document.getElementById("txtId").value = "";
-        document.getElementById("facturasBody").innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 30px;"><i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>Seleccione un cliente y cargue las facturas pendientes</td></tr>';
+        document.getElementById("facturasBody").innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 30px;"><i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>Seleccione un cliente y cargue las facturas pendientes</td></tr>';
         modoEdicion = false;
       }
 
@@ -927,7 +1111,6 @@ document.addEventListener("DOMContentLoaded", () => {
         // Auto-cargar facturas si hay identificación
         const identificacion = document.getElementById("identificacion").value;
         if (identificacion) {
-          // Simular clic en el botón de cargar facturas
           setTimeout(() => {
             document.getElementById("btnCargarFacturas").click();
           }, 500);
@@ -988,8 +1171,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
             let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar recibo?";
             let texto = accion === "btnModificar"
-              ? "Se actualizarán los datos de este recibo de caja."
-              : "Esta acción eliminará el recibo y sus detalles permanentemente.";
+              ? "Se actualizarán los datos de este recibo de caja y los saldos de las facturas."
+              : "Esta acción eliminará el recibo y restaurará los saldos de las facturas afectadas.";
 
             Swal.fire({
               title: titulo,

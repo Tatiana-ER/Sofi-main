@@ -1,8 +1,10 @@
 <?php
 include("connection.php");
+include("LibroDiario.php");
 
 $conn = new connection();
 $pdo = $conn->connect();
+$libroDiario = new LibroDiario($pdo);
 
 $txtId = (isset($_POST['txtId'])) ? $_POST['txtId'] : "";
 $identificacion = (isset($_POST['identificacion'])) ? $_POST['identificacion'] : "";
@@ -99,6 +101,9 @@ switch ($accion) {
                 }
             }
 
+            // ✨ NUEVO: Registrar en Libro Diario
+            $libroDiario->registrarFacturaCompra($idFactura);
+
             $pdo->commit();
             header("Location: " . $_SERVER['PHP_SELF'] . "?msg=agregado");
             exit;
@@ -113,6 +118,9 @@ switch ($accion) {
     case "btnModificar":
         try {
             $pdo->beginTransaction();
+
+            // ✨ NUEVO: Eliminar asientos contables antiguos
+            $libroDiario->eliminarMovimientos('factura_compra', $txtId);
 
             // Obtener detalles antiguos para revertir inventario (solo productos)
             $stmtOldDetails = $pdo->prepare("
@@ -208,6 +216,9 @@ switch ($accion) {
                 }
             }
 
+            // ✨ NUEVO: Registrar nuevos asientos contables
+            $libroDiario->registrarFacturaCompra($txtId);
+
             $pdo->commit();
             header("Location: " . $_SERVER['PHP_SELF'] . "?msg=modificado");
             exit;
@@ -222,6 +233,9 @@ switch ($accion) {
     case "btnEliminar":
         try {
             $pdo->beginTransaction();
+
+             // ✨ NUEVO: Eliminar asientos contables
+            $libroDiario->eliminarMovimientos('factura_compra', $txtId);
 
             // Obtener detalles para revertir inventario (solo productos)
             $stmtDetails = $pdo->prepare("
@@ -384,7 +398,7 @@ document.addEventListener("DOMContentLoaded", () => {
       Swal.fire({
         icon: 'success',
         title: 'Guardado exitosamente',
-        text: 'El parametro factura de venta se ha agregado correctamente',
+        text: 'La factura de venta se ha agregado y el inventario se ha actualizado',
         confirmButtonColor: '#3085d6'
       });
       break;
@@ -393,7 +407,7 @@ document.addEventListener("DOMContentLoaded", () => {
       Swal.fire({
         icon: 'success',
         title: 'Modificado correctamente',
-        text: 'Los datos se actualizaron con éxito',
+        text: 'Los datos se actualizaron y el inventario se ajustó correctamente',
         confirmButtonColor: '#3085d6'
       });
       break;
@@ -402,8 +416,18 @@ document.addEventListener("DOMContentLoaded", () => {
       Swal.fire({
         icon: 'success',
         title: 'Eliminado correctamente',
-        text: 'El parametro factura de venta fue eliminado del registro',
+        text: 'La factura fue eliminada y el inventario se restauró',
         confirmButtonColor: '#3085d6'
+      });
+      break;
+    
+    case "error":
+      const detalle = new URLSearchParams(window.location.search).get('detalle');
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: detalle || 'Ocurrió un error al procesar la operación',
+        confirmButtonColor: '#d33'
       });
       break;
   }
