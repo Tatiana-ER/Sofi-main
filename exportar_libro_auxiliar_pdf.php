@@ -122,6 +122,11 @@ class PDF extends FPDF {
     }
     
     function Header() {
+        // Logo (si existe)
+        if (file_exists('assets/img/logo.png')) {
+            $this->Image('assets/img/logo.png', 10, 8, 33);
+        }
+        
         $this->SetFont('Arial','B',14);
         $this->Cell(0,8,convertir_texto('LIBRO AUXILIAR'),0,1,'C');
         
@@ -159,11 +164,12 @@ class PDF extends FPDF {
     function Footer() {
         $this->SetY(-15);
         $this->SetFont('Arial','I',8);
-        $this->Cell(0,10,convertir_texto('Página ').$this->PageNo(),0,0,'C');
+        $this->Cell(0,10,convertir_texto('Página ').$this->PageNo().'/{nb}',0,0,'C');
     }
 }
 
 $pdf = new PDF($fecha_desde, $fecha_hasta, $cuenta_codigo, $tercero);
+$pdf->AliasNbPages(); // Agregar esta línea para el número total de páginas
 $pdf->AddPage();
 $pdf->SetFont('Arial','',6);
 
@@ -232,5 +238,14 @@ if (count($cuentas) == 0) {
     $pdf->Cell(25,6,'',1,1,'R',true);
 }
 
-$pdf->Output('D', 'Libro_Auxiliar_' . date('Ymd_His') . '.pdf');
+// INFORMACIÓN ADICIONAL
+$pdf->Ln(5);
+$pdf->SetFont('Arial','I',8);
+$pdf->SetFillColor(240,240,240);
+$pdf->Cell(0,5,convertir_texto('Información del Reporte:'),0,1,'L',true);
+$pdf->Cell(0,4,convertir_texto('Generado el: ').date('Y-m-d H:i:s'),0,1,'L');
+$pdf->Cell(0,4,convertir_texto('Total de movimientos: ').$total_debito,0,1,'L');
+
+// Cambiar 'D' por 'I' para abrir en el navegador en lugar de descargar
+$pdf->Output('I', 'Libro_Auxiliar_' . date('Ymd_His') . '.pdf');
 ?>

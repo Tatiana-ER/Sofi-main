@@ -4,12 +4,15 @@ include("connection.php");
 $conn = new connection();
 $pdo = $conn->connect();
 
-// ================== FILTRO DE FECHAS ==================
+// ================== FILTROS ==================
+$periodo_fiscal = isset($_GET['periodo_fiscal']) ? $_GET['periodo_fiscal'] : date('Y');
 $fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-01-01');
 $fecha_hasta = isset($_GET['hasta']) ? $_GET['hasta'] : date('Y-m-t');
+$cuenta_codigo = isset($_GET['cuenta']) ? $_GET['cuenta'] : '';
+$tercero = isset($_GET['tercero']) ? $_GET['tercero'] : '';
 
 // ================== FUNCIÓN PARA CALCULAR SALDOS POR CUENTA ==================
-function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta) {
+function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $tercero = '') {
     $sql = "SELECT 
                 COALESCE(SUM(debito), 0) as total_debito,
                 COALESCE(SUM(credito), 0) as total_credito
@@ -17,12 +20,19 @@ function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta) {
             WHERE codigo_cuenta = :cuenta 
               AND fecha BETWEEN :desde AND :hasta";
     
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
+    $params = [
         ':cuenta' => $codigo_cuenta, 
         ':desde' => $fecha_desde, 
         ':hasta' => $fecha_hasta
-    ]);
+    ];
+    
+    if ($tercero != '') {
+        $sql .= " AND tercero_identificacion = :tercero";
+        $params[':tercero'] = $tercero;
+    }
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
     
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
@@ -34,11 +44,26 @@ $sql_cuentas = "SELECT DISTINCT
                     SUBSTRING(codigo_cuenta, 1, 1) as clase
                 FROM libro_diario 
                 WHERE fecha BETWEEN :desde AND :hasta
-                  AND SUBSTRING(codigo_cuenta, 1, 1) IN ('4', '5', '6')
-                ORDER BY clase, codigo_cuenta";
+                  AND SUBSTRING(codigo_cuenta, 1, 1) IN ('4', '5', '6')";
+
+$params_cuentas = [':desde' => $fecha_desde, ':hasta' => $fecha_hasta];
+
+// Aplicar filtro de cuenta si está seleccionado
+if ($cuenta_codigo != '') {
+    $sql_cuentas .= " AND codigo_cuenta = :cuenta";
+    $params_cuentas[':cuenta'] = $cuenta_codigo;
+}
+
+// Aplicar filtro de tercero si está seleccionado
+if ($tercero != '') {
+    $sql_cuentas .= " AND tercero_identificacion = :tercero";
+    $params_cuentas[':tercero'] = $tercero;
+}
+
+$sql_cuentas .= " ORDER BY clase, codigo_cuenta";
 
 $stmt = $pdo->prepare($sql_cuentas);
-$stmt->execute([':desde' => $fecha_desde, ':hasta' => $fecha_hasta]);
+$stmt->execute($params_cuentas);
 $todas_cuentas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // ================== SEPARAR Y CALCULAR POR TIPO ==================
@@ -56,8 +81,8 @@ foreach ($todas_cuentas as $cuenta) {
     $codigo = $cuenta['codigo_cuenta'];
     $clase = $cuenta['clase'];
     
-    // Calcular movimientos
-    $movimientos = calcularSaldoCuenta($pdo, $codigo, $fecha_desde, $fecha_hasta);
+    // Calcular movimientos con filtro de tercero
+    $movimientos = calcularSaldoCuenta($pdo, $codigo, $fecha_desde, $fecha_hasta, $tercero);
     $debito = floatval($movimientos['total_debito']);
     $credito = floatval($movimientos['total_credito']);
     
@@ -154,6 +179,27 @@ $gastos = agregarAgrupaciones($gastos, $cuentas_procesadas);
 $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
 $utilidad_bruta = $totalIngresos - $totalCostos;
 $utilidad_operacional = $utilidad_bruta - $totalGastos;
+
+// ================== LISTA DE CUENTAS PARA EL SELECT ==================
+$sql_lista = "SELECT codigo_cuenta, MIN(nombre_cuenta) as nombre_cuenta 
+              FROM libro_diario 
+              WHERE SUBSTRING(codigo_cuenta, 1, 1) IN ('4', '5', '6')
+              GROUP BY codigo_cuenta 
+              ORDER BY codigo_cuenta";
+$stmt_lista = $pdo->query($sql_lista);
+$lista_cuentas = $stmt_lista->fetchAll(PDO::FETCH_ASSOC);
+
+// ================== LISTA DE TERCEROS PARA EL SELECT ==================
+$sql_terceros = "SELECT DISTINCT 
+                    tercero_identificacion,
+                    tercero_nombre
+                 FROM libro_diario
+                 WHERE tercero_identificacion IS NOT NULL 
+                   AND tercero_identificacion != ''
+                   AND SUBSTRING(codigo_cuenta, 1, 1) IN ('4', '5', '6')
+                 ORDER BY tercero_nombre ASC";
+$stmt_terceros = $pdo->query($sql_terceros);
+$lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -183,6 +229,10 @@ $utilidad_operacional = $utilidad_bruta - $totalGastos;
   <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
   <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  <!-- Select2 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
 
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
@@ -330,26 +380,60 @@ $utilidad_operacional = $utilidad_bruta - $totalGastos;
       </div>
 
       <!-- Formulario de filtros -->
-      <form class="row g-3 mb-4" method="get">
-        <div class="col-md-4">
-          <label class="form-label">Desde:</label>
-          <input type="date" name="desde" class="form-control" value="<?= htmlspecialchars($fecha_desde) ?>" required>
+      <form method="get" class="row g-3 mb-4">
+        <div class="col-md-2">
+          <label>Período Fiscal:</label>
+          <input type="number" name="periodo_fiscal" class="form-control" placeholder="Año" value="<?= htmlspecialchars($periodo_fiscal) ?>" min="2000" max="2099">
         </div>
-        <div class="col-md-4">
-          <label class="form-label">Hasta:</label>
-          <input type="date" name="hasta" class="form-control" value="<?= htmlspecialchars($fecha_hasta) ?>" required>
+        <div class="col-md-2">
+          <label>Desde:</label>
+          <input type="date" name="desde" class="form-control" value="<?= htmlspecialchars($fecha_desde) ?>">
+        </div>
+        <div class="col-md-2">
+          <label>Hasta:</label>
+          <input type="date" name="hasta" class="form-control" value="<?= htmlspecialchars($fecha_hasta) ?>">
+        </div>
+        <div class="col-md-2">
+          <label>Cuenta:</label>
+          <select name="cuenta" id="selectCuenta" class="form-select">
+            <option value="">-- Todas --</option>
+            <?php foreach ($lista_cuentas as $c): ?>
+              <option value="<?= htmlspecialchars($c['codigo_cuenta']) ?>" <?= $c['codigo_cuenta']==$cuenta_codigo?'selected':'' ?>>
+                <?= htmlspecialchars($c['codigo_cuenta'] . ' - ' . $c['nombre_cuenta']) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label>Tercero:</label>
+          <select name="tercero" id="selectTercero" class="form-select">
+            <option value="">-- Todos --</option>
+            <?php foreach ($lista_terceros as $t): ?>
+              <option value="<?= htmlspecialchars($t['tercero_identificacion']) ?>" 
+                      <?= $t['tercero_identificacion']==$tercero?'selected':'' ?>>
+                <?= htmlspecialchars($t['tercero_identificacion'] . '  ' . $t['tercero_nombre']) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
         </div>
         <div class="col-md-2 d-flex align-items-end">
           <button type="submit" class="btn btn-primary w-100">
-            <i class="fa-solid fa-search"></i> Filtrar
-          </button>
-        </div>
-        <div class="col-md-2 d-flex align-items-end">
-          <button type="button" onclick="window.print()" class="btn btn-secondary w-100">
-            <i class="fa-solid fa-print"></i> Imprimir
+            <i class="fa-solid fa-search"></i> Buscar
           </button>
         </div>
       </form>
+
+      <!-- Botones de exportación -->
+      <?php if (count($ingresos) > 0 || count($costos) > 0 || count($gastos) > 0): ?>
+      <div class="mb-3 text-end">
+        <button onclick="exportarPDF()" class="btn btn-secondary">
+          <i class="fa-solid fa-file-pdf"></i> Exportar PDF
+        </button>
+        <button onclick="exportarExcel()" class="btn btn-success">
+          <i class="fa-solid fa-file-excel"></i> Exportar Excel
+        </button>
+      </div>
+      <?php endif; ?>
 
       <!-- INGRESOS -->
       <h3 class="mt-4 mb-3" style="color: #054a85;">
@@ -482,22 +566,6 @@ $utilidad_operacional = $utilidad_bruta - $totalGastos;
           </tbody>
         </table>
       </div>
-
-      <!-- Firmas -->
-      <div class="row mt-5 text-center">
-        <div class="col-md-6">
-          <p style="margin-top: 60px; border-top: 2px solid #333; display: inline-block; padding-top: 5px; min-width: 250px;">
-            CONTADOR PÚBLICO<br>
-            <small>T.P. __________</small>
-          </p>
-        </div>
-        <div class="col-md-6">
-          <p style="margin-top: 60px; border-top: 2px solid #333; display: inline-block; padding-top: 5px; min-width: 250px;">
-            REPRESENTANTE LEGAL<br>
-            <small>C.C. __________</small>
-          </p>
-        </div>
-      </div>
     </div>
   </section>
 
@@ -513,6 +581,10 @@ $utilidad_operacional = $utilidad_bruta - $totalGastos;
     <i class="bi bi-arrow-up-short"></i>
   </a>
 
+  <!-- jQuery y Select2 -->
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
   <!-- Vendor JS Files -->
   <script src="assets/vendor/aos/aos.js"></script>
   <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
@@ -521,5 +593,45 @@ $utilidad_operacional = $utilidad_bruta - $totalGastos;
   <script src="assets/vendor/swiper/swiper-bundle.min.js"></script>
 
   <script src="assets/js/main.js"></script>
+
+  <script>
+    $(document).ready(function() {
+      $('#selectCuenta').select2({
+        theme: 'bootstrap-5',
+        placeholder: '-- Todas --',
+        allowClear: true,
+        width: '100%'
+      });
+
+      $('#selectTercero').select2({
+        theme: 'bootstrap-5',
+        placeholder: '-- Todos --',
+        allowClear: true,
+        width: '100%'
+      });
+    });
+
+    function exportarExcel() {
+      const periodo_fiscal = document.querySelector('input[name="periodo_fiscal"]').value;
+      const cuenta = document.querySelector('select[name="cuenta"]').value;
+      const desde = document.querySelector('input[name="desde"]').value;
+      const hasta = document.querySelector('input[name="hasta"]').value;
+      const tercero = document.querySelector('select[name="tercero"]').value;
+
+      const url = `exportar_estado_resultados_excel.php?periodo_fiscal=${encodeURIComponent(periodo_fiscal)}&cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}`;
+      window.location.href = url;
+    }
+
+    function exportarPDF() {
+      const periodo_fiscal = document.querySelector('input[name="periodo_fiscal"]').value;
+      const cuenta = document.querySelector('select[name="cuenta"]').value;
+      const desde = document.querySelector('input[name="desde"]').value;
+      const hasta = document.querySelector('input[name="hasta"]').value;
+      const tercero = document.querySelector('select[name="tercero"]').value;
+
+      const url = `exportar_estado_resultados_pdf.php?periodo_fiscal=${encodeURIComponent(periodo_fiscal)}&cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}`;
+      window.open(url, '_blank');
+    }
+  </script>
 </body>
 </html>
