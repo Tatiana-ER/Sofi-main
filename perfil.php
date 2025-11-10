@@ -48,7 +48,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $mostrarMensaje = "cedulaInvalida";
     } else {
         $sql = "INSERT INTO perfil 
-        (persona, cedula, digito, nombres, apellidos, razon, departamento, ciudad, direccion, email, regimen, actividad, tarifa, aiu, telefono, responsabilidades)
+        (persona, cedula, digito, nombres, apellidos, razon, departamento, ciudad, direccion, email, regimen, actividad, tarifa, aiu, telefono, responsabilidad)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         $stmt = $conexion->prepare($sql);
