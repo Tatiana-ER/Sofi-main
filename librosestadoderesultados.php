@@ -1,34 +1,47 @@
 <?php
 // ================== CONEXIÓN ==================
-include("connection_demo.php");
+include("connection.php");
 $conn = new connection();
 $pdo = $conn->connect();
 
 // ================== FILTRO DE FECHAS ==================
-$fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-m-01');
+$fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-01-01');
 $fecha_hasta = isset($_GET['hasta']) ? $_GET['hasta'] : date('Y-m-t');
 
-// ================== CONSULTA ==================
-$sql = "SELECT 
-            c.tipo,
-            c.codigo,
-            c.nombre AS cuenta,
-            CASE 
-                WHEN c.tipo = 'INGRESO' THEN SUM(m.haber)
-                WHEN c.tipo IN ('COSTO','GASTO') THEN SUM(m.debe)
-                ELSE 0
-            END AS saldo
-        FROM movimientos_contables m
-        INNER JOIN cuentas_contables c ON m.cuenta_id = c.id
-        WHERE m.fecha BETWEEN :desde AND :hasta
-        GROUP BY c.tipo, c.codigo, c.nombre
-        ORDER BY FIELD(c.tipo,'INGRESO','COSTO','GASTO'), c.codigo";
+// ================== FUNCIÓN PARA CALCULAR SALDOS POR CUENTA ==================
+function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta) {
+    $sql = "SELECT 
+                COALESCE(SUM(debito), 0) as total_debito,
+                COALESCE(SUM(credito), 0) as total_credito
+            FROM libro_diario 
+            WHERE codigo_cuenta = :cuenta 
+              AND fecha BETWEEN :desde AND :hasta";
+    
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([
+        ':cuenta' => $codigo_cuenta, 
+        ':desde' => $fecha_desde, 
+        ':hasta' => $fecha_hasta
+    ]);
+    
+    return $stmt->fetch(PDO::FETCH_ASSOC);
+}
 
-$stmt = $pdo->prepare($sql);
-$stmt->execute([':desde'=>$fecha_desde, ':hasta'=>$fecha_hasta]);
-$datos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// ================== OBTENER TODAS LAS CUENTAS DE INGRESOS (4), COSTOS (6) Y GASTOS (5) ==================
+$sql_cuentas = "SELECT DISTINCT 
+                    codigo_cuenta, 
+                    nombre_cuenta,
+                    SUBSTRING(codigo_cuenta, 1, 1) as clase
+                FROM libro_diario 
+                WHERE fecha BETWEEN :desde AND :hasta
+                  AND SUBSTRING(codigo_cuenta, 1, 1) IN ('4', '5', '6')
+                ORDER BY clase, codigo_cuenta";
 
-// ================== SEPARAR POR TIPO ==================
+$stmt = $pdo->prepare($sql_cuentas);
+$stmt->execute([':desde' => $fecha_desde, ':hasta' => $fecha_hasta]);
+$todas_cuentas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// ================== SEPARAR Y CALCULAR POR TIPO ==================
 $ingresos = [];
 $costos = [];
 $gastos = [];
@@ -36,36 +49,120 @@ $totalIngresos = 0;
 $totalCostos = 0;
 $totalGastos = 0;
 
-foreach ($datos as $fila) {
-    switch ($fila['tipo']) {
-        case 'INGRESO':
-            $ingresos[] = $fila;
-            $totalIngresos += $fila['saldo'];
-            break;
-        case 'COSTO':
-            $costos[] = $fila;
-            $totalCostos += $fila['saldo'];
-            break;
-        case 'GASTO':
-            $gastos[] = $fila;
-            $totalGastos += $fila['saldo'];
-            break;
+// Crear estructura jerárquica y calcular saldos
+$cuentas_procesadas = [];
+
+foreach ($todas_cuentas as $cuenta) {
+    $codigo = $cuenta['codigo_cuenta'];
+    $clase = $cuenta['clase'];
+    
+    // Calcular movimientos
+    $movimientos = calcularSaldoCuenta($pdo, $codigo, $fecha_desde, $fecha_hasta);
+    $debito = floatval($movimientos['total_debito']);
+    $credito = floatval($movimientos['total_credito']);
+    
+    // Calcular saldo según la naturaleza de la cuenta
+    $saldo = 0;
+    if ($clase == '4') {
+        // INGRESOS: naturaleza crédito (crédito - débito)
+        $saldo = $credito - $debito;
+    } else {
+        // COSTOS Y GASTOS: naturaleza débito (débito - crédito)
+        $saldo = $debito - $credito;
+    }
+    
+    // Solo incluir cuentas con saldo diferente de cero
+    if ($saldo != 0) {
+        $item = [
+            'codigo' => $codigo,
+            'nombre' => $cuenta['nombre_cuenta'],
+            'saldo' => $saldo,
+            'nivel' => strlen($codigo)
+        ];
+        
+        // Clasificar por tipo
+        if ($clase == '4') {
+            $ingresos[] = $item;
+            $totalIngresos += $saldo;
+        } elseif ($clase == '6') {
+            $costos[] = $item;
+            $totalCostos += $saldo;
+        } elseif ($clase == '5') {
+            $gastos[] = $item;
+            $totalGastos += $saldo;
+        }
+        
+        $cuentas_procesadas[] = $codigo;
     }
 }
 
+// ================== AGREGAR AGRUPACIONES SUPERIORES ==================
+function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas) {
+    $agrupaciones = [];
+    $nombres_grupo = [
+        '41' => 'Operacionales',
+        '42' => 'Otros ingresos',
+        '51' => 'Operacionales de administración',
+        '52' => 'Operacionales de ventas',
+        '53' => 'Otros gastos',
+        '61' => 'Costo de ventas y de prestación de servicios'
+    ];
+    
+    foreach ($array_cuentas as $cuenta) {
+        $codigo = $cuenta['codigo'];
+        
+        // Generar códigos de agrupación
+        $niveles = [];
+        if (strlen($codigo) >= 2) $niveles[] = substr($codigo, 0, 2);
+        if (strlen($codigo) >= 4) $niveles[] = substr($codigo, 0, 4);
+        if (strlen($codigo) >= 6) $niveles[] = substr($codigo, 0, 6);
+        
+        foreach ($niveles as $grupo) {
+            if (!in_array($grupo, $cuentas_procesadas)) {
+                $nombre = isset($nombres_grupo[$grupo]) ? $nombres_grupo[$grupo] : 'Grupo ' . $grupo;
+                if (!isset($agrupaciones[$grupo])) {
+                    $agrupaciones[$grupo] = [
+                        'codigo' => $grupo,
+                        'nombre' => $nombre,
+                        'saldo' => 0,
+                        'nivel' => strlen($grupo),
+                        'es_grupo' => true
+                    ];
+                    $cuentas_procesadas[] = $grupo;
+                }
+                $agrupaciones[$grupo]['saldo'] += $cuenta['saldo'];
+            }
+        }
+    }
+    
+    // Fusionar agrupaciones con cuentas detalle
+    $resultado = array_merge(array_values($agrupaciones), $array_cuentas);
+    
+    // Ordenar por código
+    usort($resultado, function($a, $b) {
+        return strcmp($a['codigo'], $b['codigo']);
+    });
+    
+    return $resultado;
+}
+
+$ingresos = agregarAgrupaciones($ingresos, $cuentas_procesadas);
+$costos = agregarAgrupaciones($costos, $cuentas_procesadas);
+$gastos = agregarAgrupaciones($gastos, $cuentas_procesadas);
+
 // ================== RESULTADO DEL EJERCICIO ==================
 $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
+$utilidad_bruta = $totalIngresos - $totalCostos;
+$utilidad_operacional = $utilidad_bruta - $totalGastos;
 ?>
 
-
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="es">
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
 
-  <title>SOFI - UDES</title>
+  <title>Estado de Resultados - SOFI</title>
   <meta content="" name="description">
   <meta content="" name="keywords">
 
@@ -101,22 +198,107 @@ $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
       transition: 0.3s;
       margin-left: 50px;
     }
-    .btn-ir::before {
-      margin-right: 8px;
-      font-size: 18px;
-    }
-
     .btn-ir:hover {
       background-color: #4c82b0ff;
     }
+    
+    .table-container {
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 30px;
+    }
+    
+    .table-container table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    .table-container thead {
+      background-color: #054a85;
+      color: white;
+    }
+    
+    .table-container th {
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+    }
+    
+    .table-container td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #dee2e6;
+    }
+    
+    .table-container tbody tr:hover {
+      background-color: #f8f9fa;
+    }
+    
+    .text-end {
+      text-align: right !important;
+    }
+    
+    .fw-bold {
+      font-weight: bold !important;
+    }
+    
+    /* Estilos por nivel */
+    .nivel-2 {
+      background-color: #e3f2fd;
+      font-weight: bold;
+    }
+    
+    .nivel-4 {
+      padding-left: 20px !important;
+      font-weight: 600;
+    }
+    
+    .nivel-6 {
+      padding-left: 40px !important;
+    }
+    
+    .nivel-8, .nivel-10 {
+      padding-left: 60px !important;
+      color: #495057;
+    }
+    
+    .total-seccion {
+      background-color: #f8f9fa;
+      font-weight: bold;
+      font-size: 1.05rem;
+      border-top: 2px solid #054a85 !important;
+    }
+    
+    .resultado-final {
+      background-color: #054a85;
+      color: white !important;
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+    
+    .resultado-final td {
+      color: white !important;
+      padding: 15px 12px !important;
+    }
+    
+    .utilidad-intermedia {
+      background-color: #e8f4f8;
+      font-weight: bold;
+      font-style: italic;
+      border-top: 1px solid #054a85 !important;
+    }
+    
+    @media print {
+      .btn-ir, form, .btn-primary, .btn-secondary, .btn-success { display: none; }
+    }
   </style>
-
 </head>
 
 <body>
 
   <!-- ======= Header ======= -->
-  <header id="header" class="fixed-top d-flex align-items-center ">
+  <header id="header" class="fixed-top d-flex align-items-center">
     <div class="container d-flex align-items-center justify-content-between">
       <h1 class="logo">
         <a href="dashboard.php">
@@ -126,157 +308,210 @@ $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
       </h1>
       <nav id="navbar" class="navbar">
         <ul>
-          <li>
-            <a class="nav-link scrollto active" href="dashboard.php" style="color: darkblue;">Inicio</a>
-          </li>
-          <li>
-            <a class="nav-link scrollto active" href="perfil.php" style="color: darkblue;">Mi Negocio</a>
-          </li>
-          <li>
-            <a class="nav-link scrollto active" href="index.php" style="color: darkblue;">Cerrar Sesión</a>
-          </li>
+          <li><a class="nav-link scrollto active" href="dashboard.php" style="color: darkblue;">Inicio</a></li>
+          <li><a class="nav-link scrollto active" href="perfil.php" style="color: darkblue;">Mi Negocio</a></li>
+          <li><a class="nav-link scrollto active" href="index.php" style="color: darkblue;">Cerrar Sesión</a></li>
         </ul>
-      </nav><!-- .navbar -->
+        <i class="bi bi-list mobile-nav-toggle"></i>
+      </nav>
     </div>
-  </header><!-- End Header -->
+  </header>
 
-    <!-- ======= Services Section ======= -->
-     <section id="services" class="services">
-      <button class="btn-ir" onclick="window.location.href='menulibros.php'">
-        <i class="fa-solid fa-arrow-left"></i> Regresar
-      </button>
-     <div class="container my-5">
-        <h2 class="section-title" style="color: #054a85;">ESTADO DE RESULTADOS</h2>
+  <!-- ======= Estado de Resultados Section ======= -->
+  <section id="services" class="services">
+    <button class="btn-ir" onclick="window.location.href='menulibros.php'">
+      <i class="fa-solid fa-arrow-left"></i> Regresar
+    </button>
+    
+    <div class="container" data-aos="fade-up">
+      <div class="section-title">
+        <h2><i class="fa-solid fa-file-invoice-dollar"></i> Estado de Resultados</h2>
+        <p>Reporte de ingresos, costos y gastos del período</p>
+      </div>
 
-        <!-- Formulario de filtros -->
-        <form class="row g-3 mb-4 justify-content-center" method="get">
-            <div class="col-md-4">
-                <label class="form-label visually-hidden">Desde:</label>
-                <div class="input-group">
-                    <span class="input-group-text">Desde:</span>
-                    <input type="date" name="desde" class="form-control" value="<?= $fecha_desde ?>">
-                </div>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label visually-hidden">Hasta:</label>
-                <div class="input-group">
-                    <span class="input-group-text">Hasta:</span>
-                    <input type="date" name="hasta" class="form-control" value="<?= $fecha_hasta ?>">
-                </div>
-            </div>
-            <div class="col-md-2 d-grid align-items-end">
-                <button type="submit" class="btn btn-primary">Filtrar</button>
-            </div>
-        </form>
+      <!-- Formulario de filtros -->
+      <form class="row g-3 mb-4" method="get">
+        <div class="col-md-4">
+          <label class="form-label">Desde:</label>
+          <input type="date" name="desde" class="form-control" value="<?= htmlspecialchars($fecha_desde) ?>" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Hasta:</label>
+          <input type="date" name="hasta" class="form-control" value="<?= htmlspecialchars($fecha_hasta) ?>" required>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="fa-solid fa-search"></i> Filtrar
+          </button>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button type="button" onclick="window.print()" class="btn btn-secondary w-100">
+            <i class="fa-solid fa-print"></i> Imprimir
+          </button>
+        </div>
+      </form>
 
-        <!-- INGRESOS -->
-        <h2 class="mt-4">Ingresos</h2>
-        <table class="table-container">
-          <thead style="background-color:#f8f9fa;">
+      <!-- INGRESOS -->
+      <h3 class="mt-4 mb-3" style="color: #054a85;">
+        <i class="fa-solid fa-arrow-trend-up"></i> Ingresos
+      </h3>
+      <div class="table-container">
+        <table>
+          <thead>
             <tr>
-              <th>Código</th>
-              <th>Nombre de la cuenta</th>
-              <th class="text-end">Saldo</th>
+              <th style="width: 15%">Código</th>
+              <th style="width: 60%">Nombre de la cuenta</th>
+              <th style="width: 25%" class="text-end">Saldo</th>
             </tr>
           </thead>
           <tbody>
-          <?php foreach($ingresos as $fila): ?>
-            <tr>
-              <td><?= $fila['codigo'] ?></td>
-              <td><?= $fila['cuenta'] ?></td>
-              <td class="text-end"><?= number_format($fila['saldo'],2) ?></td>
-            </tr>
-          <?php endforeach; ?>
-            <tr class="fw-bold">
-              <td colspan="2">Total Ingresos</td>
-              <td class="text-end"><?= number_format($totalIngresos,2) ?></td>
-            </tr>
+            <?php if (count($ingresos) > 0): ?>
+              <?php foreach($ingresos as $fila): ?>
+                <tr class="nivel-<?= $fila['nivel'] ?>">
+                  <td><?= htmlspecialchars($fila['codigo']) ?></td>
+                  <td><?= htmlspecialchars($fila['nombre']) ?></td>
+                  <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
+                </tr>
+              <?php endforeach; ?>
+              <tr class="total-seccion">
+                <td colspan="2">Total Ingresos</td>
+                <td class="text-end"><?= number_format($totalIngresos, 2, ',', '.') ?></td>
+              </tr>
+            <?php else: ?>
+              <tr>
+                <td colspan="3" class="text-center text-muted">No hay ingresos en el período seleccionado</td>
+              </tr>
+            <?php endif; ?>
           </tbody>
         </table>
+      </div>
 
-        <!-- COSTOS -->
-        <h2 class="mt-4">Costos</h2>
-        <table class="table-container">
-          <thead style="background-color:#f8f9fa;">
+      <!-- COSTOS DE VENTAS -->
+      <h3 class="mt-4 mb-3" style="color: #054a85;">
+        <i class="fa-solid fa-box"></i> Costos de Ventas
+      </h3>
+      <div class="table-container">
+        <table>
+          <thead>
             <tr>
-              <th>Código</th>
-              <th>Nombre de la cuenta</th>
-              <th class="text-end">Saldo</th>
+              <th style="width: 15%">Código</th>
+              <th style="width: 60%">Nombre de la cuenta</th>
+              <th style="width: 25%" class="text-end">Saldo</th>
             </tr>
           </thead>
           <tbody>
-          <?php foreach($costos as $fila): ?>
-            <tr>
-              <td><?= $fila['codigo'] ?></td>
-              <td><?= $fila['cuenta'] ?></td>
-              <td class="text-end"><?= number_format($fila['saldo'],2) ?></td>
-            </tr>
-          <?php endforeach; ?>
-            <tr class="fw-bold">
-              <td colspan="2">Total Costos</td>
-              <td class="text-end"><?= number_format($totalCostos,2) ?></td>
-            </tr>
+            <?php if (count($costos) > 0): ?>
+              <?php foreach($costos as $fila): ?>
+                <tr class="nivel-<?= $fila['nivel'] ?>">
+                  <td><?= htmlspecialchars($fila['codigo']) ?></td>
+                  <td><?= htmlspecialchars($fila['nombre']) ?></td>
+                  <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
+                </tr>
+              <?php endforeach; ?>
+              <tr class="total-seccion">
+                <td colspan="2">Total Costos</td>
+                <td class="text-end"><?= number_format($totalCostos, 2, ',', '.') ?></td>
+              </tr>
+              <tr class="utilidad-intermedia">
+                <td colspan="2">Utilidad Bruta (Ingresos - Costos)</td>
+                <td class="text-end"><?= number_format($utilidad_bruta, 2, ',', '.') ?></td>
+              </tr>
+            <?php else: ?>
+              <tr>
+                <td colspan="3" class="text-center text-muted">No hay costos en el período seleccionado</td>
+              </tr>
+            <?php endif; ?>
           </tbody>
         </table>
+      </div>
 
-        <!-- GASTOS -->
-        <h2 class="mt-4">Gastos</h2>
-        <table class="table-container">
-          <thead style="background-color:#f8f9fa;">
+      <!-- GASTOS -->
+      <h3 class="mt-4 mb-3" style="color: #054a85;">
+        <i class="fa-solid fa-receipt"></i> Gastos
+      </h3>
+      <div class="table-container">
+        <table>
+          <thead>
             <tr>
-              <th>Código</th>
-              <th>Nombre de la cuenta</th>
-              <th class="text-end">Saldo</th>
+              <th style="width: 15%">Código</th>
+              <th style="width: 60%">Nombre de la cuenta</th>
+              <th style="width: 25%" class="text-end">Saldo</th>
             </tr>
           </thead>
           <tbody>
-          <?php foreach($gastos as $fila): ?>
-            <tr>
-              <td><?= $fila['codigo'] ?></td>
-              <td><?= $fila['cuenta'] ?></td>
-              <td class="text-end"><?= number_format($fila['saldo'],2) ?></td>
-            </tr>
-          <?php endforeach; ?>
-            <tr class="fw-bold">
-              <td colspan="2">Total Gastos</td>
-              <td class="text-end"><?= number_format($totalGastos,2) ?></td>
+            <?php if (count($gastos) > 0): ?>
+              <?php foreach($gastos as $fila): ?>
+                <tr class="nivel-<?= $fila['nivel'] ?>">
+                  <td><?= htmlspecialchars($fila['codigo']) ?></td>
+                  <td><?= htmlspecialchars($fila['nombre']) ?></td>
+                  <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
+                </tr>
+              <?php endforeach; ?>
+              <tr class="total-seccion">
+                <td colspan="2">Total Gastos</td>
+                <td class="text-end"><?= number_format($totalGastos, 2, ',', '.') ?></td>
+              </tr>
+              <tr class="utilidad-intermedia">
+                <td colspan="2">Utilidad Operacional (Utilidad Bruta - Gastos)</td>
+                <td class="text-end"><?= number_format($utilidad_operacional, 2, ',', '.') ?></td>
+              </tr>
+            <?php else: ?>
+              <tr>
+                <td colspan="3" class="text-center text-muted">No hay gastos en el período seleccionado</td>
+              </tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- RESULTADO DEL EJERCICIO -->
+      <h3 class="mt-4 mb-3" style="color: #054a85;">
+        <i class="fa-solid fa-calculator"></i> Resultado del Ejercicio
+      </h3>
+      <div class="table-container">
+        <table>
+          <tbody>
+            <tr class="resultado-final">
+              <td style="width: 75%">
+                <?= $resultado_ejercicio >= 0 ? 'UTILIDAD DEL EJERCICIO' : 'PÉRDIDA DEL EJERCICIO' ?>
+              </td>
+              <td class="text-end" style="width: 25%">
+                <?= number_format(abs($resultado_ejercicio), 2, ',', '.') ?>
+              </td>
             </tr>
           </tbody>
         </table>
+      </div>
 
-        <!-- RESULTADO -->
-        <h2 class="mt-4">Resultado del Ejercicio</h2>
-        <table class="table-container">
-          <tr class="fw-bold">
-            <td>Utilidad / (Pérdida)</td>
-            <td class="text-end"><?= number_format($resultado_ejercicio,2) ?></td>
-          </tr>
-        </table>
-
-        <!-- Firmas -->
-        <div class="text-center mt-5 d-flex justify-content-around">
-          <br>
-            <div class="col-6">
-                <p>______________________________ <br> CONTADOR PÚBLICO</p>
-            </div>
-            <div class="col-6">
-                <p>______________________________ <br> REPRESENTANTE LEGAL</p>
-            </div>
+      <!-- Firmas -->
+      <div class="row mt-5 text-center">
+        <div class="col-md-6">
+          <p style="margin-top: 60px; border-top: 2px solid #333; display: inline-block; padding-top: 5px; min-width: 250px;">
+            CONTADOR PÚBLICO<br>
+            <small>T.P. __________</small>
+          </p>
+        </div>
+        <div class="col-md-6">
+          <p style="margin-top: 60px; border-top: 2px solid #333; display: inline-block; padding-top: 5px; min-width: 250px;">
+            REPRESENTANTE LEGAL<br>
+            <small>C.C. __________</small>
+          </p>
         </div>
       </div>
-    </section>
-    <!-- End Services Section -->
+    </div>
+  </section>
 
-    <!-- ======= Footer ======= -->
-    <footer id="footer" class="footer-minimalista">
-      <p>Universidad de Santander - Ingeniería de Software</p>
-      <p>Todos los derechos reservados © 2025</p>
-      <p>Creado por iniciativa del programa de Contaduría Pública</p>
-    </footer><!-- End Footer -->
-
+  <!-- ======= Footer ======= -->
+  <footer id="footer" class="footer-minimalista">
+    <p>Universidad de Santander - Ingeniería de Software</p>
+    <p>Todos los derechos reservados © 2025</p>
+    <p>Creado por iniciativa del programa de Contaduría Pública</p>
+  </footer>
 
   <div id="preloader"></div>
-  <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
+  <a href="#" class="back-to-top d-flex align-items-center justify-content-center">
+    <i class="bi bi-arrow-up-short"></i>
+  </a>
 
   <!-- Vendor JS Files -->
   <script src="assets/vendor/aos/aos.js"></script>
@@ -284,11 +519,7 @@ $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
   <script src="assets/vendor/glightbox/js/glightbox.min.js"></script>
   <script src="assets/vendor/isotope-layout/isotope.pkgd.min.js"></script>
   <script src="assets/vendor/swiper/swiper-bundle.min.js"></script>
-  <script src="assets/vendor/php-email-form/validate.js"></script>
 
-  <!-- Template Main JS File -->
   <script src="assets/js/main.js"></script>
-
 </body>
-
 </html>
