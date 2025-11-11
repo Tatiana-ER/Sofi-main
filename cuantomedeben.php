@@ -12,55 +12,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         $response = [
             'nombre' => '',
-            'totalCartera' => 0,
+            'totalFacturado' => 0,
             'valorAnticipos' => 0,
             'saldoCobrar' => 0
         ];
 
         if ($cedula !== '') {
-            // 1. TOTAL CARTERA: Suma de facturas de venta a crédito
+            // 1. Obtener nombre y TOTAL FACTURADO (valorTotal de facturas a crédito)
             $stmtCartera = $pdo->prepare("
                 SELECT 
                     nombre,
-                    SUM(CASE WHEN formaPago LIKE '%Credito%' THEN valorTotal ELSE 0 END) AS totalCartera
+                    SUM(CASE 
+                        WHEN formaPago LIKE '%Credito%' 
+                        THEN CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(10,2))
+                        ELSE 0 
+                    END) AS totalFacturado
                 FROM facturav 
                 WHERE identificacion = ?
-                GROUP BY identificacion
+                GROUP BY nombre
             ");
             $stmtCartera->execute([$cedula]);
             $rowCartera = $stmtCartera->fetch(PDO::FETCH_ASSOC);
 
             if ($rowCartera) {
                 $response['nombre'] = $rowCartera['nombre'];
-                $response['totalCartera'] = floatval($rowCartera['totalCartera']);
+                $response['totalFacturado'] = floatval($rowCartera['totalFacturado']);
             }
 
-            // 2. VALOR ANTICIPOS: Suma de recibos de caja con concepto "Anticipo"
+            // 2. VALOR ANTICIPOS: Suma de pagos aplicados (de detalle_recibo_caja)
             $stmtAnticipos = $pdo->prepare("
-                SELECT SUM(valor) AS valorTotal
-                FROM recibodecaja
-                WHERE identificacion = ? AND concepto LIKE '%Anticipo%'
+                SELECT COALESCE(SUM(det.valorAplicado), 0) AS valorAnticipos
+                FROM detalle_recibo_caja det
+                INNER JOIN docrecibodecaja drc ON det.idRecibo = drc.id
+                WHERE drc.identificacion = ?
             ");
             $stmtAnticipos->execute([$cedula]);
             $rowAnticipos = $stmtAnticipos->fetch(PDO::FETCH_ASSOC);
 
-            if ($rowAnticipos && $rowAnticipos['totalAnticipos'] !== null) {
-                $response['valorAnticipos'] = floatval($rowAnticipos['totalAnticipos']);
+            if ($rowAnticipos) {
+                $response['valorAnticipos'] = floatval($rowAnticipos['valorAnticipos']);
             }
 
-            // 3. PAGOS REALIZADOS: Suma de recibos de caja (excepto anticipos)
-            $stmtPagos = $pdo->prepare("
-                SELECT SUM(valor) AS totalPagos
-                FROM recibodecaja
-                WHERE identificacion = ? AND (concepto NOT LIKE '%Anticipo%' OR concepto IS NULL)
-            ");
-            $stmtPagos->execute([$cedula]);
-            $rowPagos = $stmtPagos->fetch(PDO::FETCH_ASSOC);
-
-            $totalPagos = ($rowPagos && $rowPagos['totalPagos'] !== null) ? floatval($rowPagos['totalPagos']) : 0;
-
-            // 4. SALDO POR COBRAR: Cartera - Anticipos - Pagos
-            $response['saldoCobrar'] = $response['totalCartera'] - $response['valorAnticipos'] - $totalPagos;
+            // 3. SALDO POR COBRAR = Total Facturado - Valor Anticipos (Pagos)
+            $response['saldoCobrar'] = $response['totalFacturado'] - $response['valorAnticipos'];
         }
 
         echo json_encode($response);
@@ -165,6 +159,30 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
       background-color: #f8f9fa;
       font-weight: bold;
     }
+    .btn-eliminar {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .btn-eliminar:hover {
+      background-color: #c82333;
+    }
+    .btn-limpiar {
+      background-color: #6c757d;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    .btn-limpiar:hover {
+      background-color: #5a6268;
+    }
   </style>
 </head>
 
@@ -201,27 +219,28 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
         <h2>CUÁNTO ME DEBEN</h2>
         <p>Consulte el estado de cartera de un cliente específico</p>
       </div>
-
-      <form action="generarPdfCliente.php" method="POST" target="_blank">
-        
-        <div class="row g-3">
-          <div class="col-md-4">
-            <label for="cedula" class="form-label fw-bold">Identificación del Cliente (NIT o CC)*</label>
-            <input type="text" class="form-control" id="cedula" name="cedula" placeholder="Ej: 123456789" required>
-          </div>
-
-          <div class="col-md-8">
-            <label for="nombre" class="form-label fw-bold">Nombre del Cliente</label>
-            <input type="text" class="form-control" id="nombre" name="nombre" placeholder="Nombre del cliente" readonly>
-          </div>
+      <div class="row g-3 mt-2">
+        <div class="col-md-4">
+            <label for="cedula" class="form-label fw-bold">Identificación del Cliente (NIT o CC)</label>
+            <input type="text" class="form-control" id="cedula" name="cedula" placeholder="Ej: 123456789">
         </div>
 
-        <div class="row g-3 mt-2">
-          <div class="col-md-4">
-            <label for="fecha" class="form-label fw-bold">Fecha de Corte</label>
-            <input type="date" class="form-control" id="fecha" name="fecha" value="<?php echo date('Y-m-d'); ?>">
-          </div>
+        <div class="col-md-8">
+          <label for="nombre" class="form-label fw-bold">Nombre del Cliente</label>
+          <input type="text" class="form-control" id="nombre" name="nombre" placeholder="Nombre del cliente" readonly>
         </div>
+      </div>
+
+      <div class="row g-3 mt-2">
+        <div class="col-md-4">
+          <label for="fecha" class="form-label fw-bold">Fecha de Corte</label>
+          <input type="date" class="form-control" id="fecha" name="fecha" value="<?php echo date('Y-m-d'); ?>">
+        </div>
+      </div>
+
+      <form id="formPdf" action="generar_pdf.php" method="POST" target="_blank" style="display: none;">
+          <!-- Este se llenará dinámicamente con JavaScript -->
+      </form>
 
         <div class="section-title mt-5">
           <h4>ESTADO DE CUENTA</h4>
@@ -234,33 +253,34 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
                 <tr>
                   <th>Identificación</th>
                   <th>Nombre del Cliente</th>
-                  <th>Total Cartera</th>
+                  <th>Total Facturado</th>
                   <th>Valor Anticipos</th>
                   <th>Saldo por Cobrar</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr>
-                  <td><input type="text" id="identificacion" name="identificacion" readonly></td>
-                  <td><input type="text" id="nombreCliente" name="nombreCliente" readonly></td>
-                  <td><input type="text" id="totalCartera" name="totalCartera" readonly></td>
-                  <td><input type="text" id="valorAnticipos" name="valorAnticipos" readonly></td>
-                  <td><input type="text" id="saldoCobrar" name="saldoCobrar" readonly></td>
-                </tr>
+              <tbody id="tablaClientes">
+                <!-- Las filas se agregarán dinámicamente aquí -->
+              </tbody>
+              <tfoot>
                 <tr class="total-row">
                   <th colspan="2">TOTAL</th>
-                  <td><input type="text" id="totalCarteraSum" name="totalCarteraSum" readonly></td>
-                  <td><input type="text" id="totalAnticiposSum" name="totalAnticiposSum" readonly></td>
-                  <td><input type="text" id="totalSaldoSum" name="totalSaldoSum" readonly></td>
+                  <th id="totalFacturadoSum">0.00</th>
+                  <th id="totalAnticiposSum">0.00</th>
+                  <th id="totalSaldoSum">0.00</th>
+                  <th></th>
                 </tr>
-              </tbody>
+              </tfoot>
             </table>
           </div>
         </div>
 
         <div class="mt-4">
-          <button type="submit" class="btn btn-primary">
-            <i class="fas fa-file-pdf"></i> Descargar PDF
+          <button type="button" class="btn-limpiar" onclick="limpiarTabla()">
+            <i class="fas fa-eraser"></i> Limpiar Tabla
+          </button>
+          <button type="button" class="btn btn-success" onclick="generarPDF()">
+            <i class="fas fa-file-pdf"></i> Generar PDF
           </button>
         </div>
 
@@ -291,7 +311,10 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
   <script src="assets/js/main.js"></script>
 
   <script>
-    // Búsqueda bidireccional de cliente (similar a factura de compra)
+    // Array para almacenar los clientes agregados
+    let clientesAgregados = [];
+
+    // Búsqueda bidireccional de cliente
     const inputCedula = document.getElementById("cedula");
     const inputNombre = document.getElementById("nombre");
 
@@ -300,7 +323,7 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
       const valor = this.value.trim();
       
       if (valor.length === 0) {
-        limpiarCampos();
+        inputNombre.value = '';
         return;
       }
 
@@ -342,8 +365,20 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
       }
     });
 
-    // Función para obtener datos de cartera
+    // Función para obtener datos de cartera y agregar a la tabla
     function obtenerDatosCartera(cedula) {
+      // Verificar si el cliente ya está en la tabla
+      if (clientesAgregados.includes(cedula)) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Cliente duplicado',
+          text: 'Este cliente ya está en la tabla',
+          timer: 2000,
+          showConfirmButton: false
+        });
+        return;
+      }
+
       fetch(window.location.href, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -351,6 +386,8 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
       })
       .then(response => response.json())
       .then(data => {
+        console.log('Datos recibidos:', data);
+        
         if (data.error) {
           console.error('Error del servidor:', data.error);
           Swal.fire({
@@ -361,17 +398,41 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
           return;
         }
 
-        // Llenar campos de la tabla
-        document.getElementById('identificacion').value = cedula;
-        document.getElementById('nombreCliente').value = data.nombre;
-        document.getElementById('totalCartera').value = formatearMoneda(data.totalCartera);
-        document.getElementById('valorAnticipos').value = formatearMoneda(data.valorAnticipos);
-        document.getElementById('saldoCobrar').value = formatearMoneda(data.saldoCobrar);
+        if (!data.nombre) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Cliente no encontrado',
+            text: 'No se encontraron datos para este cliente'
+          });
+          return;
+        }
 
-        // Llenar totales
-        document.getElementById('totalCarteraSum').value = formatearMoneda(data.totalCartera);
-        document.getElementById('totalAnticiposSum').value = formatearMoneda(data.valorAnticipos);
-        document.getElementById('totalSaldoSum').value = formatearMoneda(data.saldoCobrar);
+        // Validar que los datos sean números válidos
+        const totalFacturado = parseFloat(data.totalFacturado) || 0;
+        const valorAnticipos = parseFloat(data.valorAnticipos) || 0;
+        const saldoCobrar = parseFloat(data.saldoCobrar) || 0;
+
+        // Agregar cliente al array
+        clientesAgregados.push(cedula);
+
+        // Agregar fila a la tabla
+        agregarFilaCliente(cedula, data.nombre, totalFacturado, valorAnticipos, saldoCobrar);
+
+        // Actualizar totales
+        actualizarTotales();
+
+        // Limpiar campos de búsqueda
+        inputCedula.value = '';
+        inputNombre.value = '';
+
+        // Mostrar mensaje de éxito
+        Swal.fire({
+          icon: 'success',
+          title: 'Cliente agregado',
+          text: 'Cliente agregado correctamente a la tabla',
+          timer: 1500,
+          showConfirmButton: false
+        });
       })
       .catch(error => {
         console.error('Error en fetch:', error);
@@ -383,23 +444,254 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
       });
     }
 
-    // Función para formatear valores monetarios
-    function formatearMoneda(valor) {
-      return parseFloat(valor).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
+    // Función para agregar una fila a la tabla
+    function agregarFilaCliente(cedula, nombre, totalFacturado, valorAnticipos, saldoCobrar) {
+      const tbody = document.getElementById('tablaClientes');
+      const fila = document.createElement('tr');
+      fila.setAttribute('data-cedula', cedula);
+      
+      fila.innerHTML = `
+        <td>${cedula}</td>
+        <td>${nombre}</td>
+        <td class="total-facturado">${formatearMoneda(totalFacturado)}</td>
+        <td class="valor-anticipos">${formatearMoneda(valorAnticipos)}</td>
+        <td class="saldo-cobrar">${formatearMoneda(saldoCobrar)}</td>
+        <td>
+          <button type="button" class="btn-eliminar" onclick="eliminarFila('${cedula}')">
+            <i class="fas fa-trash"></i> Eliminar
+          </button>
+        </td>
+      `;
+      
+      tbody.appendChild(fila);
     }
 
-    // Función para limpiar campos
-    function limpiarCampos() {
-      document.getElementById('nombre').value = '';
-      document.getElementById('nombreCliente').value = '';
-      document.getElementById('totalCartera').value = '';
-      document.getElementById('valorAnticipos').value = '';
-      document.getElementById('saldoCobrar').value = '';
-      document.getElementById('identificacion').value = '';
-      document.getElementById('totalCarteraSum').value = '';
-      document.getElementById('totalAnticiposSum').value = '';
-      document.getElementById('totalSaldoSum').value = '';
+    // Función para eliminar una fila
+    function eliminarFila(cedula) {
+      Swal.fire({
+        title: '¿Está seguro?',
+        text: "¿Desea eliminar este cliente de la tabla?",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          // Eliminar del array
+          const index = clientesAgregados.indexOf(cedula);
+          if (index > -1) {
+            clientesAgregados.splice(index, 1);
+          }
+
+          // Eliminar fila del DOM
+          const fila = document.querySelector(`tr[data-cedula="${cedula}"]`);
+          if (fila) {
+            fila.remove();
+          }
+
+          // Actualizar totales
+          actualizarTotales();
+
+          Swal.fire(
+            'Eliminado',
+            'El cliente ha sido eliminado de la tabla',
+            'success'
+          );
+        }
+      });
     }
+
+    // Función para limpiar toda la tabla
+    function limpiarTabla() {
+      if (clientesAgregados.length === 0) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Tabla vacía',
+          text: 'No hay clientes en la tabla para limpiar'
+        });
+        return;
+      }
+
+      Swal.fire({
+        title: '¿Está seguro?',
+        text: "Se eliminarán todos los clientes de la tabla",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Sí, limpiar',
+        cancelButtonText: 'Cancelar'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          clientesAgregados = [];
+          document.getElementById('tablaClientes').innerHTML = '';
+          actualizarTotales();
+          
+          Swal.fire(
+            'Limpiado',
+            'La tabla ha sido limpiada',
+            'success'
+          );
+        }
+      });
+    }
+
+    // Función para actualizar totales
+    function actualizarTotales() {
+      let totalFacturado = 0;
+      let totalAnticipos = 0;
+      let totalSaldo = 0;
+
+      const filas = document.querySelectorAll('#tablaClientes tr');
+      filas.forEach(fila => {
+        const facturado = parseFloat(fila.querySelector('.total-facturado').textContent.replace(/,/g, '')) || 0;
+        const anticipos = parseFloat(fila.querySelector('.valor-anticipos').textContent.replace(/,/g, '')) || 0;
+        const saldo = parseFloat(fila.querySelector('.saldo-cobrar').textContent.replace(/,/g, '')) || 0;
+
+        totalFacturado += facturado;
+        totalAnticipos += anticipos;
+        totalSaldo += saldo;
+      });
+
+      document.getElementById('totalFacturadoSum').textContent = formatearMoneda(totalFacturado);
+      document.getElementById('totalAnticiposSum').textContent = formatearMoneda(totalAnticipos);
+      document.getElementById('totalSaldoSum').textContent = formatearMoneda(totalSaldo);
+    }
+
+    // Función para formatear valores monetarios
+    function formatearMoneda(valor) {
+      if (isNaN(valor) || valor === null || valor === undefined) {
+        return '0.00';
+      }
+      return parseFloat(valor).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+  // Función para generar PDF
+  function generarPDF() {
+      // Verificar que haya clientes en la tabla
+      if (clientesAgregados.length === 0) {
+          Swal.fire({
+              icon: 'warning',
+              title: 'Tabla vacía',
+              text: 'No hay clientes en la tabla para generar el PDF'
+          });
+          return;
+      }
+
+      // Obtener fecha de corte
+      const fechaCorte = document.getElementById('fecha').value;
+      
+      // Preparar arrays para enviar
+      const identificaciones = [];
+      const nombres = [];
+      const totalesFacturado = [];
+      const valoresAnticipos = [];
+      const saldosCobrar = [];
+      
+      let totalFacturado = 0;
+      let totalAnticipos = 0;
+      let totalSaldo = 0;
+
+      // Recorrer todas las filas de la tabla
+      const filas = document.querySelectorAll('#tablaClientes tr');
+      filas.forEach(fila => {
+          const cedula = fila.querySelector('td:nth-child(1)').textContent;
+          const nombre = fila.querySelector('td:nth-child(2)').textContent;
+          const facturado = fila.querySelector('.total-facturado').textContent;
+          const anticipos = fila.querySelector('.valor-anticipos').textContent;
+          const saldo = fila.querySelector('.saldo-cobrar').textContent;
+
+          identificaciones.push(cedula);
+          nombres.push(nombre);
+          totalesFacturado.push(facturado);
+          valoresAnticipos.push(anticipos);
+          saldosCobrar.push(saldo);
+
+          // Acumular totales (removiendo formato)
+          totalFacturado += parseFloat(facturado.replace(/,/g, '')) || 0;
+          totalAnticipos += parseFloat(anticipos.replace(/,/g, '')) || 0;
+          totalSaldo += parseFloat(saldo.replace(/,/g, '')) || 0;
+      });
+
+      // Crear el formulario dinámicamente
+      const form = document.getElementById('formPdf');
+      form.innerHTML = ''; // Limpiar contenido previo
+
+      // Agregar campos para cada cliente
+      identificaciones.forEach((id, index) => {
+          const inputId = document.createElement('input');
+          inputId.type = 'hidden';
+          inputId.name = 'identificaciones[]';
+          inputId.value = identificaciones[index];
+          form.appendChild(inputId);
+
+          const inputNombre = document.createElement('input');
+          inputNombre.type = 'hidden';
+          inputNombre.name = 'nombres[]';
+          inputNombre.value = nombres[index];
+          form.appendChild(inputNombre);
+
+          const inputFacturado = document.createElement('input');
+          inputFacturado.type = 'hidden';
+          inputFacturado.name = 'totalFacturado[]';
+          inputFacturado.value = totalesFacturado[index];
+          form.appendChild(inputFacturado);
+
+          const inputAnticipos = document.createElement('input');
+          inputAnticipos.type = 'hidden';
+          inputAnticipos.name = 'abonosAnticipos[]';
+          inputAnticipos.value = valoresAnticipos[index];
+          form.appendChild(inputAnticipos);
+
+          const inputSaldo = document.createElement('input');
+          inputSaldo.type = 'hidden';
+          inputSaldo.name = 'saldoCobrar[]';
+          inputSaldo.value = saldosCobrar[index];
+          form.appendChild(inputSaldo);
+      });
+
+      // Agregar totales
+      const inputTotalFacturado = document.createElement('input');
+      inputTotalFacturado.type = 'hidden';
+      inputTotalFacturado.name = 'totalGeneralFacturado';
+      inputTotalFacturado.value = formatearMoneda(totalFacturado);
+      form.appendChild(inputTotalFacturado);
+
+      const inputTotalAnticipos = document.createElement('input');
+      inputTotalAnticipos.type = 'hidden';
+      inputTotalAnticipos.name = 'totalGeneralAbonos';
+      inputTotalAnticipos.value = formatearMoneda(totalAnticipos);
+      form.appendChild(inputTotalAnticipos);
+
+      const inputTotalSaldo = document.createElement('input');
+      inputTotalSaldo.type = 'hidden';
+      inputTotalSaldo.name = 'totalGeneralSaldo';
+      inputTotalSaldo.value = formatearMoneda(totalSaldo);
+      form.appendChild(inputTotalSaldo);
+
+      // Agregar fecha
+      const inputFecha = document.createElement('input');
+      inputFecha.type = 'hidden';
+      inputFecha.name = 'fechaCorte';
+      inputFecha.value = fechaCorte;
+      form.appendChild(inputFecha);
+
+      // Enviar formulario
+      form.submit();
+
+      // Mostrar mensaje de éxito
+      Swal.fire({
+          icon: 'success',
+          title: 'PDF generado',
+          text: 'El PDF se está generando...',
+          timer: 2000,
+          showConfirmButton: false
+      });
+  }
+
+
   </script>
 
 </body>
