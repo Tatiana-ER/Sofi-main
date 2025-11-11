@@ -14,7 +14,6 @@ $mostrar_saldo_inicial = isset($_GET['mostrar_saldo_inicial']) ? true : false;
 
 // ================== FUNCIÓN PARA CALCULAR SALDOS POR CUENTA ==================
 function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $tercero = '', $calcular_saldo_inicial = false) {
-    // Si estamos calculando saldo inicial, usamos desde inicio del año hasta el día anterior a fecha_desde
     if ($calcular_saldo_inicial) {
         $ano_fiscal = date('Y', strtotime($fecha_desde));
         $fecha_inicio_saldo_inicial = $ano_fiscal . '-01-01';
@@ -33,7 +32,6 @@ function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $
             ':hasta' => $fecha_fin_saldo_inicial
         ];
     } else {
-        // Saldo normal del período
         $sql = "SELECT 
                     COALESCE(SUM(debito), 0) as total_debito,
                     COALESCE(SUM(credito), 0) as total_credito
@@ -68,11 +66,9 @@ function obtenerNombresCuentas($pdo) {
     
     $nombres = [];
     foreach ($resultados as $fila) {
-        // Procesar cada nivel
         for ($i = 1; $i <= 6; $i++) {
             $campo = 'nivel' . $i;
             if (!empty($fila[$campo])) {
-                // Separar código y nombre por el guión
                 $partes = explode('-', $fila[$campo], 2);
                 if (count($partes) == 2) {
                     $codigo = trim($partes[0]);
@@ -85,7 +81,6 @@ function obtenerNombresCuentas($pdo) {
     return $nombres;
 }
 
-// Obtener todos los nombres de cuentas
 $nombres_cuentas = obtenerNombresCuentas($pdo);
 
 // ================== OBTENER RESULTADO DEL EJERCICIO ==================
@@ -155,13 +150,11 @@ $sql_cuentas = "SELECT DISTINCT
 
 $params_cuentas = [':desde' => $fecha_desde, ':hasta' => $fecha_hasta];
 
-// Aplicar filtro de cuenta si está seleccionado
 if ($cuenta_codigo != '') {
     $sql_cuentas .= " AND codigo_cuenta = :cuenta";
     $params_cuentas[':cuenta'] = $cuenta_codigo;
 }
 
-// Aplicar filtro de tercero si está seleccionado
 if ($tercero != '') {
     $sql_cuentas .= " AND tercero_identificacion = :tercero";
     $params_cuentas[':tercero'] = $tercero;
@@ -184,48 +177,37 @@ $totalSaldoInicialActivos = 0;
 $totalSaldoInicialPasivos = 0;
 $totalSaldoInicialPatrimonios = 0;
 
-// Crear estructura jerárquica y calcular saldos
 $cuentas_procesadas = [];
 
 foreach ($todas_cuentas as $cuenta) {
     $codigo = $cuenta['codigo_cuenta'];
     $clase = $cuenta['clase'];
     
-    // Calcular movimientos con filtro de tercero
     $movimientos = calcularSaldoCuenta($pdo, $codigo, $fecha_desde, $fecha_hasta, $tercero);
     $debito = floatval($movimientos['total_debito']);
     $credito = floatval($movimientos['total_credito']);
     
-    // Calcular saldo inicial si está activado el filtro
     $saldo_inicial = 0;
     if ($mostrar_saldo_inicial) {
         $movimientos_inicial = calcularSaldoCuenta($pdo, $codigo, $fecha_desde, $fecha_hasta, $tercero, true);
         $debito_inicial = floatval($movimientos_inicial['total_debito']);
         $credito_inicial = floatval($movimientos_inicial['total_credito']);
         
-        // Para activos: naturaleza débito (débito - crédito)
         if ($clase == '1') {
             $saldo_inicial = $debito_inicial - $credito_inicial;
-        } 
-        // Para pasivos y patrimonio: naturaleza crédito (crédito - débito)
-        else {
+        } else {
             $saldo_inicial = $credito_inicial - $debito_inicial;
         }
     }
     
-    // Calcular saldo según la naturaleza de la cuenta
     $saldo = 0;
     if ($clase == '1') {
-        // ACTIVOS: naturaleza débito (débito - crédito)
         $saldo = $debito - $credito;
     } else {
-        // PASIVOS Y PATRIMONIO: naturaleza crédito (crédito - débito)
         $saldo = $credito - $debito;
     }
     
-    // Solo incluir cuentas con saldo diferente de cero o con saldo inicial diferente de cero
     if ($saldo != 0 || $saldo_inicial != 0) {
-        // Usar el nombre de la tabla cuentas_contables si existe, sino usar el del libro_diario
         $nombre_cuenta = isset($nombres_cuentas[$codigo]) ? $nombres_cuentas[$codigo] : $cuenta['nombre_cuenta'];
         
         $item = [
@@ -236,7 +218,6 @@ foreach ($todas_cuentas as $cuenta) {
             'nivel' => strlen($codigo)
         ];
         
-        // Clasificar por tipo
         if ($clase == '1') {
             $activos[] = $item;
             $totalActivos += $saldo;
@@ -258,23 +239,22 @@ foreach ($todas_cuentas as $cuenta) {
 // ================== AGREGAR AGRUPACIONES SUPERIORES ==================
 function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial = false) {
     $agrupaciones = [];
-    
-    // Niveles válidos: 1, 2, 4, 6, 8, 10 dígitos
     $niveles_validos = [1, 2, 4, 6, 8, 10];
+    
+    $cuentas_con_saldo = [];
+    foreach ($array_cuentas as $cuenta) {
+        $cuentas_con_saldo[$cuenta['codigo']] = $cuenta;
+    }
     
     foreach ($array_cuentas as $cuenta) {
         $codigo = $cuenta['codigo'];
         $longitud_actual = strlen($codigo);
         
-        // Generar códigos de agrupación solo para los niveles válidos
         foreach ($niveles_validos as $longitud) {
-            // Solo generar agrupaciones para niveles superiores al actual
             if ($longitud < $longitud_actual) {
                 $grupo = substr($codigo, 0, $longitud);
                 
-                // Verificar que no sea la cuenta actual y que no esté ya procesada
-                if ($grupo != $codigo && !in_array($grupo, $cuentas_procesadas)) {
-                    // Usar el nombre de la tabla cuentas_contables si existe
+                if (!isset($cuentas_con_saldo[$grupo]) && !in_array($grupo, $cuentas_procesadas)) {
                     $nombre = isset($nombres_cuentas[$grupo]) ? $nombres_cuentas[$grupo] : 'Grupo ' . $grupo;
                     
                     if (!isset($agrupaciones[$grupo])) {
@@ -286,21 +266,38 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuen
                             'nivel' => strlen($grupo),
                             'es_grupo' => true
                         ];
-                        $cuentas_procesadas[] = $grupo;
-                    }
-                    $agrupaciones[$grupo]['saldo'] += $cuenta['saldo'];
-                    if ($mostrar_saldo_inicial) {
-                        $agrupaciones[$grupo]['saldo_inicial'] += $cuenta['saldo_inicial'];
                     }
                 }
             }
         }
     }
     
-    // Fusionar agrupaciones con cuentas detalle
+    foreach ($niveles_validos as $nivel) {
+        foreach (array_reverse($niveles_validos) as $nivel_hijo) {
+            if ($nivel_hijo > $nivel) {
+                foreach (array_merge($array_cuentas, array_values($agrupaciones)) as $item) {
+                    if (strlen($item['codigo']) == $nivel_hijo) {
+                        $codigo_padre = substr($item['codigo'], 0, $nivel);
+                        
+                        if (isset($agrupaciones[$codigo_padre])) {
+                            // Siempre suma algebraicamente (respeta signos positivos y negativos)
+                            $agrupaciones[$codigo_padre]['saldo'] += $item['saldo'];
+                            if ($mostrar_saldo_inicial) {
+                                $agrupaciones[$codigo_padre]['saldo_inicial'] += $item['saldo_inicial'];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    foreach ($agrupaciones as $codigo => $grupo) {
+        $cuentas_procesadas[] = $codigo;
+    }
+    
     $resultado = array_merge(array_values($agrupaciones), $array_cuentas);
     
-    // Ordenar por código
     usort($resultado, function($a, $b) {
         return strcmp($a['codigo'], $b['codigo']);
     });
@@ -308,31 +305,31 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuen
     return $resultado;
 }
 
-// Llamar a la función con el parámetro de saldo inicial
 $activos = agregarAgrupaciones($activos, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
 $pasivos = agregarAgrupaciones($pasivos, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
-$patrimonios = agregarAgrupaciones($patrimonios, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
 
-// ================== AGREGAR RESULTADO DEL EJERCICIO AL PATRIMONIO ==================
+// ================== AGREGAR RESULTADO DEL EJERCICIO AL PATRIMONIO (ANTES DE AGREGAR AGRUPACIONES) ==================
 $resultado_ejercicio = obtenerResultadoEjercicio($pdo, $fecha_desde, $fecha_hasta, $tercero);
 
-// Agregar cuenta de resultado del ejercicio al patrimonio
 if ($resultado_ejercicio != 0) {
     $cuenta_resultado = [
         'codigo' => ($resultado_ejercicio >= 0) ? '360501' : '361001',
         'nombre' => ($resultado_ejercicio >= 0) ? 'Utilidad del ejercicio' : 'Pérdida del ejercicio',
-        'saldo_inicial' => 0, // El resultado del ejercicio no tiene saldo inicial
-        'saldo' => abs($resultado_ejercicio),
+        'saldo_inicial' => 0,
+        'saldo' => $resultado_ejercicio, // Valor con su signo (negativo si es pérdida)
         'nivel' => 6,
         'es_resultado' => true
     ];
     
     $patrimonios[] = $cuenta_resultado;
     $totalPatrimonios += $resultado_ejercicio;
+    $cuentas_procesadas[] = $cuenta_resultado['codigo'];
 }
 
+// Ahora sí agregamos las agrupaciones del patrimonio (que ya incluye el resultado)
+$patrimonios = agregarAgrupaciones($patrimonios, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
+
 // ================== LISTA DE CUENTAS PARA EL SELECT ==================
-// Primero obtener todos los códigos únicos del libro_diario
 $sql_codigos = "SELECT DISTINCT codigo_cuenta FROM libro_diario 
                 WHERE SUBSTRING(codigo_cuenta, 1, 1) IN ('1', '2', '3')
                 ORDER BY codigo_cuenta";
@@ -349,8 +346,6 @@ foreach ($codigos_unicos as $codigo) {
 }
 
 // ================== LISTA DE TERCEROS PARA EL SELECT ==================
-// CORREGIDO: Solo traer terceros que estén en cuentas de activo, pasivo o patrimonio (clases 1,2,3)
-// y que tengan movimientos en el período seleccionado
 $sql_terceros = "SELECT DISTINCT 
                     ld.tercero_identificacion,
                     ld.tercero_nombre
@@ -368,7 +363,7 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
 // ================== VERIFICAR EQUILIBRIO CONTABLE ==================
 $total_pasivo_patrimonio = $totalPasivos + $totalPatrimonios;
 $diferencia = $totalActivos - $total_pasivo_patrimonio;
-$esta_equilibrado = abs($diferencia) < 0.01; // Tolerancia de 0.01 para errores de redondeo
+$esta_equilibrado = abs($diferencia) < 0.01;
 ?>
 
 <!DOCTYPE html>
