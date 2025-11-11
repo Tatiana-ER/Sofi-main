@@ -10,21 +10,43 @@ $fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-01-01');
 $fecha_hasta = isset($_GET['hasta']) ? $_GET['hasta'] : date('Y-m-t');
 $cuenta_codigo = isset($_GET['cuenta']) ? $_GET['cuenta'] : '';
 $tercero = isset($_GET['tercero']) ? $_GET['tercero'] : '';
+$mostrar_saldo_inicial = isset($_GET['mostrar_saldo_inicial']) ? true : false;
 
 // ================== FUNCIÓN PARA CALCULAR SALDOS POR CUENTA ==================
-function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $tercero = '') {
-    $sql = "SELECT 
-                COALESCE(SUM(debito), 0) as total_debito,
-                COALESCE(SUM(credito), 0) as total_credito
-            FROM libro_diario 
-            WHERE codigo_cuenta = :cuenta 
-              AND fecha BETWEEN :desde AND :hasta";
-    
-    $params = [
-        ':cuenta' => $codigo_cuenta, 
-        ':desde' => $fecha_desde, 
-        ':hasta' => $fecha_hasta
-    ];
+function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $tercero = '', $calcular_saldo_inicial = false) {
+    // Si estamos calculando saldo inicial, usamos desde inicio del año hasta el día anterior a fecha_desde
+    if ($calcular_saldo_inicial) {
+        $ano_fiscal = date('Y', strtotime($fecha_desde));
+        $fecha_inicio_saldo_inicial = $ano_fiscal . '-01-01';
+        $fecha_fin_saldo_inicial = date('Y-m-d', strtotime($fecha_desde . ' -1 day'));
+        
+        $sql = "SELECT 
+                    COALESCE(SUM(debito), 0) as total_debito,
+                    COALESCE(SUM(credito), 0) as total_credito
+                FROM libro_diario 
+                WHERE codigo_cuenta = :cuenta 
+                  AND fecha BETWEEN :desde AND :hasta";
+        
+        $params = [
+            ':cuenta' => $codigo_cuenta, 
+            ':desde' => $fecha_inicio_saldo_inicial, 
+            ':hasta' => $fecha_fin_saldo_inicial
+        ];
+    } else {
+        // Saldo normal del período
+        $sql = "SELECT 
+                    COALESCE(SUM(debito), 0) as total_debito,
+                    COALESCE(SUM(credito), 0) as total_credito
+                FROM libro_diario 
+                WHERE codigo_cuenta = :cuenta 
+                  AND fecha BETWEEN :desde AND :hasta";
+        
+        $params = [
+            ':cuenta' => $codigo_cuenta, 
+            ':desde' => $fecha_desde, 
+            ':hasta' => $fecha_hasta
+        ];
+    }
     
     if ($tercero != '') {
         $sql .= " AND tercero_identificacion = :tercero";
@@ -102,6 +124,9 @@ $gastos = [];
 $totalIngresos = 0;
 $totalCostos = 0;
 $totalGastos = 0;
+$totalSaldoInicialIngresos = 0;
+$totalSaldoInicialCostos = 0;
+$totalSaldoInicialGastos = 0;
 
 // Crear estructura jerárquica y calcular saldos
 $cuentas_procesadas = [];
@@ -115,6 +140,22 @@ foreach ($todas_cuentas as $cuenta) {
     $debito = floatval($movimientos['total_debito']);
     $credito = floatval($movimientos['total_credito']);
     
+    // Calcular saldo inicial si está activado el filtro
+    $saldo_inicial = 0;
+    if ($mostrar_saldo_inicial) {
+        $movimientos_inicial = calcularSaldoCuenta($pdo, $codigo, $fecha_desde, $fecha_hasta, $tercero, true);
+        $debito_inicial = floatval($movimientos_inicial['total_debito']);
+        $credito_inicial = floatval($movimientos_inicial['total_credito']);
+        
+        if ($clase == '4') {
+            // INGRESOS: naturaleza crédito (crédito - débito)
+            $saldo_inicial = $credito_inicial - $debito_inicial;
+        } else {
+            // COSTOS Y GASTOS: naturaleza débito (débito - crédito)
+            $saldo_inicial = $debito_inicial - $credito_inicial;
+        }
+    }
+    
     // Calcular saldo según la naturaleza de la cuenta
     $saldo = 0;
     if ($clase == '4') {
@@ -125,14 +166,15 @@ foreach ($todas_cuentas as $cuenta) {
         $saldo = $debito - $credito;
     }
     
-    // Solo incluir cuentas con saldo diferente de cero
-    if ($saldo != 0) {
+    // Solo incluir cuentas con saldo diferente de cero o con saldo inicial diferente de cero
+    if ($saldo != 0 || $saldo_inicial != 0) {
         // Usar el nombre de la tabla cuentas_contables si existe, sino usar el del libro_diario
         $nombre_cuenta = isset($nombres_cuentas[$codigo]) ? $nombres_cuentas[$codigo] : $cuenta['nombre_cuenta'];
         
         $item = [
             'codigo' => $codigo,
             'nombre' => $nombre_cuenta,
+            'saldo_inicial' => $saldo_inicial,
             'saldo' => $saldo,
             'nivel' => strlen($codigo)
         ];
@@ -141,12 +183,15 @@ foreach ($todas_cuentas as $cuenta) {
         if ($clase == '4') {
             $ingresos[] = $item;
             $totalIngresos += $saldo;
+            $totalSaldoInicialIngresos += $saldo_inicial;
         } elseif ($clase == '6') {
             $costos[] = $item;
             $totalCostos += $saldo;
+            $totalSaldoInicialCostos += $saldo_inicial;
         } elseif ($clase == '5') {
             $gastos[] = $item;
             $totalGastos += $saldo;
+            $totalSaldoInicialGastos += $saldo_inicial;
         }
         
         $cuentas_procesadas[] = $codigo;
@@ -154,7 +199,7 @@ foreach ($todas_cuentas as $cuenta) {
 }
 
 // ================== AGREGAR AGRUPACIONES SUPERIORES ==================
-function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuentas) {
+function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial = false) {
     $agrupaciones = [];
     
     // Niveles válidos: 1, 2, 4, 6, 8, 10 dígitos
@@ -179,6 +224,7 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuen
                         $agrupaciones[$grupo] = [
                             'codigo' => $grupo,
                             'nombre' => $nombre,
+                            'saldo_inicial' => 0,
                             'saldo' => 0,
                             'nivel' => strlen($grupo),
                             'es_grupo' => true
@@ -186,6 +232,9 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuen
                         $cuentas_procesadas[] = $grupo;
                     }
                     $agrupaciones[$grupo]['saldo'] += $cuenta['saldo'];
+                    if ($mostrar_saldo_inicial) {
+                        $agrupaciones[$grupo]['saldo_inicial'] += $cuenta['saldo_inicial'];
+                    }
                 }
             }
         }
@@ -202,14 +251,20 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuen
     return $resultado;
 }
 
-$ingresos = agregarAgrupaciones($ingresos, $cuentas_procesadas, $nombres_cuentas);
-$costos = agregarAgrupaciones($costos, $cuentas_procesadas, $nombres_cuentas);
-$gastos = agregarAgrupaciones($gastos, $cuentas_procesadas, $nombres_cuentas);
+// Llamar a la función con el parámetro de saldo inicial
+$ingresos = agregarAgrupaciones($ingresos, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
+$costos = agregarAgrupaciones($costos, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
+$gastos = agregarAgrupaciones($gastos, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
 
 // ================== RESULTADO DEL EJERCICIO ==================
 $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
 $utilidad_bruta = $totalIngresos - $totalCostos;
 $utilidad_operacional = $utilidad_bruta - $totalGastos;
+
+// Calcular también los saldos iniciales acumulados para las utilidades
+$utilidad_bruta_inicial = $totalSaldoInicialIngresos - $totalSaldoInicialCostos;
+$utilidad_operacional_inicial = $utilidad_bruta_inicial - $totalSaldoInicialGastos;
+$resultado_ejercicio_inicial = $utilidad_operacional_inicial;
 
 // ================== LISTA DE CUENTAS PARA EL SELECT ==================
 // Primero obtener todos los códigos únicos del libro_diario
@@ -424,52 +479,62 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
     
     <div class="container" data-aos="fade-up">
       <div class="section-title">
-        <h2><i class="fa-solid fa-file-invoice-dollar"></i> Estado de Resultados</h2>
+        <h2><i class="fa-solid fa-file-invoice-dollar"></i> ESTADO DE RESULTADOS</h2>
         <p>Reporte de ingresos, costos y gastos del período</p>
       </div>
 
       <!-- Formulario de filtros -->
       <form method="get" class="row g-3 mb-4">
-        <div class="col-md-2">
-          <label>Período Fiscal:</label>
-          <input type="number" name="periodo_fiscal" class="form-control" placeholder="Año" value="<?= htmlspecialchars($periodo_fiscal) ?>" min="2000" max="2099">
-        </div>
-        <div class="col-md-2">
-          <label>Desde:</label>
-          <input type="date" name="desde" class="form-control" value="<?= htmlspecialchars($fecha_desde) ?>">
-        </div>
-        <div class="col-md-2">
-          <label>Hasta:</label>
-          <input type="date" name="hasta" class="form-control" value="<?= htmlspecialchars($fecha_hasta) ?>">
-        </div>
-        <div class="col-md-2">
-          <label>Cuenta:</label>
-          <select name="cuenta" id="selectCuenta" class="form-select">
-            <option value="">-- Todas --</option>
-            <?php foreach ($lista_cuentas as $c): ?>
-              <option value="<?= htmlspecialchars($c['codigo_cuenta']) ?>" <?= $c['codigo_cuenta']==$cuenta_codigo?'selected':'' ?>>
-                <?= htmlspecialchars($c['codigo_cuenta'] . ' - ' . $c['nombre_cuenta']) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="col-md-2">
-          <label>Tercero:</label>
-          <select name="tercero" id="selectTercero" class="form-select">
-            <option value="">-- Todos --</option>
-            <?php foreach ($lista_terceros as $t): ?>
-              <option value="<?= htmlspecialchars($t['tercero_identificacion']) ?>" 
-                      <?= $t['tercero_identificacion']==$tercero?'selected':'' ?>>
-                <?= htmlspecialchars($t['tercero_identificacion'] . '  ' . $t['tercero_nombre']) ?>
-              </option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="col-md-2 d-flex align-items-end">
-          <button type="submit" class="btn btn-primary w-100">
-            <i class="fa-solid fa-search"></i> Buscar
-          </button>
-        </div>
+          <div class="col-md-2">
+              <label>Período Fiscal:</label>
+              <input type="number" name="periodo_fiscal" class="form-control" placeholder="Año" value="<?= htmlspecialchars($periodo_fiscal) ?>" min="2000" max="2099">
+          </div>
+          <div class="col-md-2">
+              <label>Desde:</label>
+              <input type="date" name="desde" class="form-control" value="<?= htmlspecialchars($fecha_desde) ?>">
+          </div>
+          <div class="col-md-2">
+              <label>Hasta:</label>
+              <input type="date" name="hasta" class="form-control" value="<?= htmlspecialchars($fecha_hasta) ?>">
+          </div>
+          <div class="col-md-2">
+              <label>Cuenta:</label>
+              <select name="cuenta" id="selectCuenta" class="form-select">
+                  <option value="">-- Todas --</option>
+                  <?php foreach ($lista_cuentas as $c): ?>
+                      <option value="<?= htmlspecialchars($c['codigo_cuenta']) ?>" <?= $c['codigo_cuenta']==$cuenta_codigo?'selected':'' ?>>
+                          <?= htmlspecialchars($c['codigo_cuenta'] . ' - ' . $c['nombre_cuenta']) ?>
+                      </option>
+                  <?php endforeach; ?>
+              </select>
+          </div>
+          <div class="col-md-2">
+              <label>Tercero:</label>
+              <select name="tercero" id="selectTercero" class="form-select">
+                  <option value="">-- Todos --</option>
+                  <?php foreach ($lista_terceros as $t): ?>
+                      <option value="<?= htmlspecialchars($t['tercero_identificacion']) ?>" 
+                              <?= $t['tercero_identificacion']==$tercero?'selected':'' ?>>
+                          <?= htmlspecialchars($t['tercero_identificacion'] . '  ' . $t['tercero_nombre']) ?>
+                      </option>
+                  <?php endforeach; ?>
+              </select>
+          </div>
+          <div class="col-md-2 d-flex align-items-end">
+              <button type="submit" class="btn btn-primary w-100">
+                  <i class="fa-solid fa-search"></i> Buscar
+              </button>
+          </div>
+          <!-- Checkbox para mostrar saldo inicial -->
+          <div class="col-md-12 mt-2">
+              <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="mostrar_saldo_inicial" id="mostrar_saldo_inicial" 
+                        <?= $mostrar_saldo_inicial ? 'checked' : '' ?>>
+                  <label class="form-check-label" for="mostrar_saldo_inicial">
+                      Mostrar saldo inicial
+                  </label>
+              </div>
+          </div>
       </form>
 
       <!-- Botones de exportación -->
@@ -486,134 +551,209 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
 
       <!-- INGRESOS -->
       <h3 class="mt-4 mb-3" style="color: #054a85;">
-        <i class="fa-solid fa-arrow-trend-up"></i> Ingresos
+          INGRESOS
       </h3>
       <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 15%">Código</th>
-              <th style="width: 60%">Nombre de la cuenta</th>
-              <th style="width: 25%" class="text-end">Saldo</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php if (count($ingresos) > 0): ?>
-              <?php foreach($ingresos as $fila): ?>
-                <tr class="nivel-<?= $fila['nivel'] ?>">
-                  <td><?= htmlspecialchars($fila['codigo']) ?></td>
-                  <td><?= htmlspecialchars($fila['nombre']) ?></td>
-                  <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
-                </tr>
-              <?php endforeach; ?>
-              <tr class="total-seccion">
-                <td colspan="2">Total Ingresos</td>
-                <td class="text-end"><?= number_format($totalIngresos, 2, ',', '.') ?></td>
-              </tr>
-            <?php else: ?>
-              <tr>
-                <td colspan="3" class="text-center text-muted">No hay ingresos en el período seleccionado</td>
-              </tr>
-            <?php endif; ?>
-          </tbody>
-        </table>
+          <table>
+              <thead>
+                  <tr>
+                      <th style="width: 15%">Código</th>
+                      <th style="width: 45%">Nombre de la cuenta</th>
+                      <?php if ($mostrar_saldo_inicial): ?>
+                      <th style="width: 20%" class="text-end">Saldo Inicial</th>
+                      <th style="width: 20%" class="text-end">Movimientos</th>
+                      <?php else: ?>
+                      <th style="width: 40%" class="text-end">Saldo</th>
+                      <?php endif; ?>
+                  </tr>
+              </thead>
+              <tbody>
+                  <?php if (count($ingresos) > 0): ?>
+                      <?php foreach($ingresos as $fila): ?>
+                          <tr class="nivel-<?= $fila['nivel'] ?>">
+                              <td><?= htmlspecialchars($fila['codigo']) ?></td>
+                              <td><?= htmlspecialchars($fila['nombre']) ?></td>
+                              <?php if ($mostrar_saldo_inicial): ?>
+                              <td class="text-end"><?= number_format($fila['saldo_inicial'], 2, ',', '.') ?></td>
+                              <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
+                              <?php else: ?>
+                              <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
+                              <?php endif; ?>
+                          </tr>
+                      <?php endforeach; ?>
+                      <tr class="total-seccion">
+                          <td colspan="<?= $mostrar_saldo_inicial ? '2' : '2' ?>">Total Ingresos</td>
+                          <?php if ($mostrar_saldo_inicial): ?>
+                          <td class="text-end"><?= number_format($totalSaldoInicialIngresos, 2, ',', '.') ?></td>
+                          <td class="text-end"><?= number_format($totalIngresos, 2, ',', '.') ?></td>
+                          <?php else: ?>
+                          <td class="text-end"><?= number_format($totalIngresos, 2, ',', '.') ?></td>
+                          <?php endif; ?>
+                      </tr>
+                  <?php else: ?>
+                      <tr>
+                          <td colspan="<?= $mostrar_saldo_inicial ? '4' : '3' ?>" class="text-center text-muted">No hay ingresos en el período seleccionado</td>
+                      </tr>
+                  <?php endif; ?>
+              </tbody>
+          </table>
       </div>
 
       <!-- COSTOS DE VENTAS -->
       <h3 class="mt-4 mb-3" style="color: #054a85;">
-        <i class="fa-solid fa-box"></i> Costos de Ventas
+          COSTOS DE VENTAS
       </h3>
       <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 15%">Código</th>
-              <th style="width: 60%">Nombre de la cuenta</th>
-              <th style="width: 25%" class="text-end">Saldo</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php if (count($costos) > 0): ?>
-              <?php foreach($costos as $fila): ?>
-                <tr class="nivel-<?= $fila['nivel'] ?>">
-                  <td><?= htmlspecialchars($fila['codigo']) ?></td>
-                  <td><?= htmlspecialchars($fila['nombre']) ?></td>
-                  <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
-                </tr>
-              <?php endforeach; ?>
-              <tr class="total-seccion">
-                <td colspan="2">Total Costos</td>
-                <td class="text-end"><?= number_format($totalCostos, 2, ',', '.') ?></td>
-              </tr>
-              <tr class="utilidad-intermedia">
-                <td colspan="2">Utilidad Bruta (Ingresos - Costos)</td>
-                <td class="text-end"><?= number_format($utilidad_bruta, 2, ',', '.') ?></td>
-              </tr>
-            <?php else: ?>
-              <tr>
-                <td colspan="3" class="text-center text-muted">No hay costos en el período seleccionado</td>
-              </tr>
-            <?php endif; ?>
-          </tbody>
-        </table>
+          <table>
+              <thead>
+                  <tr>
+                      <th style="width: 15%">Código</th>
+                      <th style="width: 45%">Nombre de la cuenta</th>
+                      <?php if ($mostrar_saldo_inicial): ?>
+                      <th style="width: 20%" class="text-end">Saldo Inicial</th>
+                      <th style="width: 20%" class="text-end">Movimientos</th>
+                      <?php else: ?>
+                      <th style="width: 40%" class="text-end">Saldo</th>
+                      <?php endif; ?>
+                  </tr>
+              </thead>
+              <tbody>
+                  <?php if (count($costos) > 0): ?>
+                      <?php foreach($costos as $fila): ?>
+                          <tr class="nivel-<?= $fila['nivel'] ?>">
+                              <td><?= htmlspecialchars($fila['codigo']) ?></td>
+                              <td><?= htmlspecialchars($fila['nombre']) ?></td>
+                              <?php if ($mostrar_saldo_inicial): ?>
+                              <td class="text-end"><?= number_format($fila['saldo_inicial'], 2, ',', '.') ?></td>
+                              <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
+                              <?php else: ?>
+                              <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
+                              <?php endif; ?>
+                          </tr>
+                      <?php endforeach; ?>
+                      <tr class="total-seccion">
+                          <td colspan="<?= $mostrar_saldo_inicial ? '2' : '2' ?>">Total Costos</td>
+                          <?php if ($mostrar_saldo_inicial): ?>
+                          <td class="text-end"><?= number_format($totalSaldoInicialCostos, 2, ',', '.') ?></td>
+                          <td class="text-end"><?= number_format($totalCostos, 2, ',', '.') ?></td>
+                          <?php else: ?>
+                          <td class="text-end"><?= number_format($totalCostos, 2, ',', '.') ?></td>
+                          <?php endif; ?>
+                      </tr>
+                      <tr class="utilidad-intermedia">
+                          <td colspan="<?= $mostrar_saldo_inicial ? '2' : '2' ?>">Utilidad Bruta (Ingresos - Costos)</td>
+                          <?php if ($mostrar_saldo_inicial): ?>
+                          <td class="text-end"><?= number_format($totalSaldoInicialIngresos - $totalSaldoInicialCostos, 2, ',', '.') ?></td>
+                          <td class="text-end"><?= number_format($utilidad_bruta, 2, ',', '.') ?></td>
+                          <?php else: ?>
+                          <td class="text-end"><?= number_format($utilidad_bruta, 2, ',', '.') ?></td>
+                          <?php endif; ?>
+                      </tr>
+                  <?php else: ?>
+                      <tr>
+                          <td colspan="<?= $mostrar_saldo_inicial ? '4' : '3' ?>" class="text-center text-muted">No hay costos en el período seleccionado</td>
+                      </tr>
+                  <?php endif; ?>
+              </tbody>
+          </table>
       </div>
 
       <!-- GASTOS -->
       <h3 class="mt-4 mb-3" style="color: #054a85;">
-        <i class="fa-solid fa-receipt"></i> Gastos
+        GASTOS
       </h3>
       <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 15%">Código</th>
-              <th style="width: 60%">Nombre de la cuenta</th>
-              <th style="width: 25%" class="text-end">Saldo</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php if (count($gastos) > 0): ?>
-              <?php foreach($gastos as $fila): ?>
-                <tr class="nivel-<?= $fila['nivel'] ?>">
-                  <td><?= htmlspecialchars($fila['codigo']) ?></td>
-                  <td><?= htmlspecialchars($fila['nombre']) ?></td>
-                  <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
-                </tr>
-              <?php endforeach; ?>
-              <tr class="total-seccion">
-                <td colspan="2">Total Gastos</td>
-                <td class="text-end"><?= number_format($totalGastos, 2, ',', '.') ?></td>
-              </tr>
-              <tr class="utilidad-intermedia">
-                <td colspan="2">Utilidad Operacional (Utilidad Bruta - Gastos)</td>
-                <td class="text-end"><?= number_format($utilidad_operacional, 2, ',', '.') ?></td>
-              </tr>
-            <?php else: ?>
-              <tr>
-                <td colspan="3" class="text-center text-muted">No hay gastos en el período seleccionado</td>
-              </tr>
-            <?php endif; ?>
-          </tbody>
-        </table>
+          <table>
+              <thead>
+                  <tr>
+                      <th style="width: 15%">Código</th>
+                      <th style="width: 45%">Nombre de la cuenta</th>
+                      <?php if ($mostrar_saldo_inicial): ?>
+                      <th style="width: 20%" class="text-end">Saldo Inicial</th>
+                      <th style="width: 20%" class="text-end">Movimientos</th>
+                      <?php else: ?>
+                      <th style="width: 40%" class="text-end">Saldo</th>
+                      <?php endif; ?>
+                  </tr>
+              </thead>
+              <tbody>
+                  <?php if (count($gastos) > 0): ?>
+                      <?php foreach($gastos as $fila): ?>
+                          <tr class="nivel-<?= $fila['nivel'] ?>">
+                              <td><?= htmlspecialchars($fila['codigo']) ?></td>
+                              <td><?= htmlspecialchars($fila['nombre']) ?></td>
+                              <?php if ($mostrar_saldo_inicial): ?>
+                              <td class="text-end"><?= number_format($fila['saldo_inicial'], 2, ',', '.') ?></td>
+                              <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
+                              <?php else: ?>
+                              <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
+                              <?php endif; ?>
+                          </tr>
+                      <?php endforeach; ?>
+                      <tr class="total-seccion">
+                          <td colspan="<?= $mostrar_saldo_inicial ? '2' : '2' ?>">Total Gastos</td>
+                          <?php if ($mostrar_saldo_inicial): ?>
+                          <td class="text-end"><?= number_format($totalSaldoInicialGastos, 2, ',', '.') ?></td>
+                          <td class="text-end"><?= number_format($totalGastos, 2, ',', '.') ?></td>
+                          <?php else: ?>
+                          <td class="text-end"><?= number_format($totalGastos, 2, ',', '.') ?></td>
+                          <?php endif; ?>
+                      </tr>
+                      <tr class="utilidad-intermedia">
+                          <td colspan="<?= $mostrar_saldo_inicial ? '2' : '2' ?>">Utilidad Operacional (Utilidad Bruta - Gastos)</td>
+                          <?php if ($mostrar_saldo_inicial): ?>
+                          <td class="text-end"><?= number_format(($totalSaldoInicialIngresos - $totalSaldoInicialCostos) - $totalSaldoInicialGastos, 2, ',', '.') ?></td>
+                          <td class="text-end"><?= number_format($utilidad_operacional, 2, ',', '.') ?></td>
+                          <?php else: ?>
+                          <td class="text-end"><?= number_format($utilidad_operacional, 2, ',', '.') ?></td>
+                          <?php endif; ?>
+                      </tr>
+                  <?php else: ?>
+                      <tr>
+                          <td colspan="<?= $mostrar_saldo_inicial ? '4' : '3' ?>" class="text-center text-muted">No hay gastos en el período seleccionado</td>
+                      </tr>
+                  <?php endif; ?>
+              </tbody>
+          </table>
       </div>
 
       <!-- RESULTADO DEL EJERCICIO -->
       <h3 class="mt-4 mb-3" style="color: #054a85;">
-        <i class="fa-solid fa-calculator"></i> Resultado del Ejercicio
+        RESULTADO DEL EJERCICIO
       </h3>
       <div class="table-container">
-        <table>
-          <tbody>
-            <tr class="resultado-final">
-              <td style="width: 75%">
-                <?= $resultado_ejercicio >= 0 ? 'UTILIDAD DEL EJERCICIO' : 'PÉRDIDA DEL EJERCICIO' ?>
-              </td>
-              <td class="text-end" style="width: 25%">
-                <?= number_format(abs($resultado_ejercicio), 2, ',', '.') ?>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+          <table>
+              <thead>
+                  <tr>
+                      <th style="width: 75%">Concepto</th>
+                      <?php if ($mostrar_saldo_inicial): ?>
+                      <th style="width: 12.5%" class="text-end">Saldo Inicial</th>
+                      <th style="width: 12.5%" class="text-end">Movimientos</th>
+                      <?php else: ?>
+                      <th style="width: 25%" class="text-end">Total</th>
+                      <?php endif; ?>
+                  </tr>
+              </thead>
+              <tbody>
+                  <tr class="resultado-final">
+                      <td>
+                          <?= $resultado_ejercicio >= 0 ? 'UTILIDAD DEL EJERCICIO' : 'PÉRDIDA DEL EJERCICIO' ?>
+                      </td>
+                      <?php if ($mostrar_saldo_inicial): ?>
+                      <td class="text-end">
+                          <?= number_format(abs($totalSaldoInicialIngresos - $totalSaldoInicialCostos - $totalSaldoInicialGastos), 2, ',', '.') ?>
+                      </td>
+                      <td class="text-end">
+                          <?= number_format(abs($resultado_ejercicio), 2, ',', '.') ?>
+                      </td>
+                      <?php else: ?>
+                      <td class="text-end">
+                          <?= number_format(abs($resultado_ejercicio), 2, ',', '.') ?>
+                      </td>
+                      <?php endif; ?>
+                  </tr>
+              </tbody>
+          </table>
       </div>
     </div>
   </section>
@@ -661,25 +801,27 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
     });
 
     function exportarExcel() {
-      const periodo_fiscal = document.querySelector('input[name="periodo_fiscal"]').value;
-      const cuenta = document.querySelector('select[name="cuenta"]').value;
-      const desde = document.querySelector('input[name="desde"]').value;
-      const hasta = document.querySelector('input[name="hasta"]').value;
-      const tercero = document.querySelector('select[name="tercero"]').value;
+        const periodo_fiscal = document.querySelector('input[name="periodo_fiscal"]').value;
+        const cuenta = document.querySelector('select[name="cuenta"]').value;
+        const desde = document.querySelector('input[name="desde"]').value;
+        const hasta = document.querySelector('input[name="hasta"]').value;
+        const tercero = document.querySelector('select[name="tercero"]').value;
+        const mostrar_saldo_inicial = document.querySelector('input[name="mostrar_saldo_inicial"]').checked ? '1' : '0';
 
-      const url = `exportar_estado_resultados_excel.php?periodo_fiscal=${encodeURIComponent(periodo_fiscal)}&cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}`;
-      window.location.href = url;
+        const url = `exportar_estado_resultados_excel.php?periodo_fiscal=${encodeURIComponent(periodo_fiscal)}&cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}&mostrar_saldo_inicial=${mostrar_saldo_inicial}`;
+        window.location.href = url;
     }
 
     function exportarPDF() {
-      const periodo_fiscal = document.querySelector('input[name="periodo_fiscal"]').value;
-      const cuenta = document.querySelector('select[name="cuenta"]').value;
-      const desde = document.querySelector('input[name="desde"]').value;
-      const hasta = document.querySelector('input[name="hasta"]').value;
-      const tercero = document.querySelector('select[name="tercero"]').value;
+        const periodo_fiscal = document.querySelector('input[name="periodo_fiscal"]').value;
+        const cuenta = document.querySelector('select[name="cuenta"]').value;
+        const desde = document.querySelector('input[name="desde"]').value;
+        const hasta = document.querySelector('input[name="hasta"]').value;
+        const tercero = document.querySelector('select[name="tercero"]').value;
+        const mostrar_saldo_inicial = document.querySelector('input[name="mostrar_saldo_inicial"]').checked ? '1' : '0';
 
-      const url = `exportar_estado_resultados_pdf.php?periodo_fiscal=${encodeURIComponent(periodo_fiscal)}&cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}`;
-      window.open(url, '_blank');
+        const url = `exportar_estado_resultados_pdf.php?periodo_fiscal=${encodeURIComponent(periodo_fiscal)}&cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}&mostrar_saldo_inicial=${mostrar_saldo_inicial}`;
+        window.open(url, '_blank');
     }
   </script>
 </body>
