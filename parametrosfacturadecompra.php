@@ -12,31 +12,67 @@ $documentoSoporte = isset($_POST['documentoSoporte']) ? 1 : 0;
 $prefijo = $_POST['prefijo'] ?? "";
 $consecutivoInicial = $_POST['consecutivoInicial'] ?? "";
 $consecutivoFinal = $_POST['consecutivoFinal'] ?? "";
+$numeroFactura = $_POST['numeroFactura'] ?? "";
 $retenciones = $_POST['retenciones'] ?? "";
 $activo = isset($_POST['activo']) ? 1 : 0;
 $accion = $_POST['accion'] ?? "";
 
+
 switch ($accion) {
     case "btnAgregar":
+        // Validación 1: evitar prefijos duplicados
+        if (!empty($prefijo)) {
+            $validarPrefijo = $pdo->prepare("
+                SELECT COUNT(*) 
+                FROM facturadecompra 
+                WHERE prefijo = :prefijo
+            ");
+            $validarPrefijo->bindParam(':prefijo', $prefijo);
+            $validarPrefijo->execute();
+
+            if ($validarPrefijo->fetchColumn() > 0) {
+                header("Location: " . $_SERVER['PHP_SELF'] . "?msg=prefijo_duplicado");
+                exit();
+            }
+        }
+
+        // Validación 2: evitar números de factura duplicados con el mismo prefijo
+        $validar = $pdo->prepare("
+            SELECT COUNT(*) 
+            FROM facturadecompra 
+            WHERE prefijo = :prefijo 
+            AND numeroFactura = :numeroFactura
+        ");
+        $validar->bindParam(':prefijo', $prefijo);
+        $validar->bindParam(':numeroFactura', $numeroFactura);
+        $validar->execute();
+
+        if ($validar->fetchColumn() > 0) {
+            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=factura_duplicada");
+            exit();
+        }
+
         $sentencia = $pdo->prepare("INSERT INTO facturadecompra (
-            codigoDocumento,
-            descripcionDocumento,
-            documentoSoporte,
-            prefijo,
-            consecutivoInicial,
-            consecutivoFinal,
-            retenciones,
-            activo
-        ) VALUES (
-            :codigoDocumento,
-            :descripcionDocumento,
-            :documentoSoporte,
-            :prefijo,
-            :consecutivoInicial,
-            :consecutivoFinal,
-            :retenciones,
-            :activo
-        )");
+          codigoDocumento,
+          descripcionDocumento,
+          documentoSoporte,
+          prefijo,
+          numeroFactura,
+          consecutivoInicial,
+          consecutivoFinal,
+          retenciones,
+          activo
+      ) VALUES (
+          :codigoDocumento,
+          :descripcionDocumento,
+          :documentoSoporte,
+          :prefijo,
+          :numeroFactura,
+          :consecutivoInicial,
+          :consecutivoFinal,
+          :retenciones,
+          :activo
+      )");
 
         $sentencia->bindParam(':codigoDocumento', $codigoDocumento);
         $sentencia->bindParam(':descripcionDocumento', $descripcionDocumento);
@@ -44,6 +80,7 @@ switch ($accion) {
         $sentencia->bindParam(':prefijo', $prefijo);
         $sentencia->bindParam(':consecutivoInicial', $consecutivoInicial);
         $sentencia->bindParam(':consecutivoFinal', $consecutivoFinal);
+        $sentencia->bindParam(':numeroFactura', $numeroFactura);
         $sentencia->bindParam(':retenciones', $retenciones);
         $sentencia->bindParam(':activo', $activo);
         $sentencia->execute();
@@ -53,11 +90,48 @@ switch ($accion) {
         break;
 
     case "btnModificar":
+        // Validación 1: evitar prefijos duplicados (excluyendo el registro actual)
+        if (!empty($prefijo)) {
+            $validarPrefijo = $pdo->prepare("
+                SELECT COUNT(*) 
+                FROM facturadecompra 
+                WHERE prefijo = :prefijo
+                AND id != :id
+            ");
+            $validarPrefijo->bindParam(':prefijo', $prefijo);
+            $validarPrefijo->bindParam(':id', $txtId);
+            $validarPrefijo->execute();
+
+            if ($validarPrefijo->fetchColumn() > 0) {
+                header("Location: " . $_SERVER['PHP_SELF'] . "?msg=prefijo_duplicado");
+                exit();
+            }
+        }
+
+        // Validación 2: evitar números de factura duplicados con el mismo prefijo (excluyendo el registro actual)
+        $validar = $pdo->prepare("
+            SELECT COUNT(*) 
+            FROM facturadecompra 
+            WHERE prefijo = :prefijo 
+            AND numeroFactura = :numeroFactura
+            AND id != :id
+        ");
+        $validar->bindParam(':prefijo', $prefijo);
+        $validar->bindParam(':numeroFactura', $numeroFactura);
+        $validar->bindParam(':id', $txtId);
+        $validar->execute();
+
+        if ($validar->fetchColumn() > 0) {
+            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=factura_duplicada");
+            exit();
+        }
+
         $sentencia = $pdo->prepare("UPDATE facturadecompra 
             SET codigoDocumento = :codigoDocumento,
                 descripcionDocumento = :descripcionDocumento,
                 documentoSoporte = :documentoSoporte,
                 prefijo = :prefijo,
+                numeroFactura = :numeroFactura,
                 consecutivoInicial = :consecutivoInicial,
                 consecutivoFinal = :consecutivoFinal,
                 retenciones = :retenciones,
@@ -68,6 +142,7 @@ switch ($accion) {
         $sentencia->bindParam(':descripcionDocumento', $descripcionDocumento);
         $sentencia->bindParam(':documentoSoporte', $documentoSoporte);
         $sentencia->bindParam(':prefijo', $prefijo);
+        $sentencia->bindParam(':numeroFactura', $numeroFactura);
         $sentencia->bindParam(':consecutivoInicial', $consecutivoInicial);
         $sentencia->bindParam(':consecutivoFinal', $consecutivoFinal);
         $sentencia->bindParam(':retenciones', $retenciones);
@@ -89,8 +164,7 @@ switch ($accion) {
         break;
 
     case "btnEditar":
-        // NO hacemos nada aquí, los datos ya vienen en $_POST desde los campos hidden
-        // Las variables ya están cargadas al inicio del script
+        // NO hacemos validación aquí, solo cargamos los datos
         break;
 }
 
@@ -131,6 +205,25 @@ document.addEventListener("DOMContentLoaded", () => {
         confirmButtonColor: '#3085d6'
       });
       break;
+
+    case "factura_duplicada":
+        Swal.fire({
+          icon: 'error',
+          title: 'Factura duplicada',
+          text: 'Ya existe una factura con este prefijo y número',
+          confirmButtonColor: '#d33'
+        });
+    break;
+
+    case "prefijo_duplicado":
+        Swal.fire({
+          icon: 'error',
+          title: 'Prefijo duplicado',
+          text: 'Ya existe un documento con este prefijo. Por favor, utiliza uno diferente.',
+          confirmButtonColor: '#d33'
+        });
+    break;
+
   }
 
   // Quita el parámetro ?msg=... de la URL sin recargar
@@ -142,6 +235,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 </script>
 <?php endif; ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -273,24 +367,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
         <!-- Prefijo, Consecutivo inicial y final -->
         <div class="row g-3 mt-2">
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label for="prefijo" class="form-label fw-bold">Prefijo</label>
             <input type="text" class="form-control" value="<?php echo htmlspecialchars($prefijo);?>" 
                    id="prefijo" name="prefijo" placeholder="">
           </div>
+          
+          <div class="col-md-3">
+            <label for="numeroFactura" class="form-label fw-bold">Nro. Factura</label>
+            <input type="number" class="form-control"
+                  id="numeroFactura"
+                  name="numeroFactura"
+                  value="<?php echo htmlspecialchars($numeroFactura); ?>"
+                  required>
+          </div>
 
-          <div class="col-md-4">
+
+          <div class="col-md-3">
             <label for="consecutivoInicial" class="form-label fw-bold">Consecutivo Inicial</label>
             <input type="text" class="form-control" value="<?php echo htmlspecialchars($consecutivoInicial);?>" 
                    id="consecutivoInicial" name="consecutivoInicial" placeholder="">
           </div>
 
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label for="consecutivoFinal" class="form-label fw-bold">Consecutivo Final</label>
             <input type="text" class="form-control" value="<?php echo htmlspecialchars($consecutivoFinal);?>" 
                    id="consecutivoFinal" name="consecutivoFinal" placeholder="">
           </div>
         </div>
+
 
         <!-- Retenciones -->
         <div class="row g-3 mt-3">
@@ -343,6 +448,7 @@ document.addEventListener("DOMContentLoaded", () => {
               <th>Descripción Documento</th>
               <th>Documento Soporte</th>
               <th>Prefijo</th>
+              <th>Número Factura</th>
               <th>Consecutivo Inicial</th>
               <th>Consecutivo Final</th>
               <th>Retenciones</th> 
@@ -358,6 +464,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td><?php echo htmlspecialchars($usuario['descripcionDocumento']); ?></td>
                 <td><?php echo $usuario['documentoSoporte'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
                 <td><?php echo htmlspecialchars($usuario['prefijo']); ?></td>
+                <td><?php echo htmlspecialchars($usuario['numeroFactura']); ?></td>
                 <td><?php echo htmlspecialchars($usuario['consecutivoInicial']); ?></td>
                 <td><?php echo htmlspecialchars($usuario['consecutivoFinal']); ?></td>
                 <td><?php echo htmlspecialchars($usuario['retenciones']); ?></td>
@@ -370,6 +477,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <input type="hidden" name="descripcionDocumento" value="<?php echo $usuario['descripcionDocumento']; ?>">
                     <input type="hidden" name="documentoSoporte" value="<?php echo $usuario['documentoSoporte']; ?>">
                     <input type="hidden" name="prefijo" value="<?php echo $usuario['prefijo']; ?>">
+                    <input type="hidden" name="numeroFactura" value="<?php echo $usuario['numeroFactura']; ?>">
                     <input type="hidden" name="consecutivoInicial" value="<?php echo $usuario['consecutivoInicial']; ?>">
                     <input type="hidden" name="consecutivoFinal" value="<?php echo $usuario['consecutivoFinal']; ?>">
                     <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>">

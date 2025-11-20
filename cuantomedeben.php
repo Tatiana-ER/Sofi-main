@@ -254,7 +254,7 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
                   <th>Identificación</th>
                   <th>Nombre del Cliente</th>
                   <th>Total Facturado</th>
-                  <th>Valor Anticipos</th>
+                  <th>Abonos Realizados</th>
                   <th>Saldo por Cobrar</th>
                   <th>Acciones</th>
                 </tr>
@@ -366,84 +366,111 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
     });
 
     // Función para obtener datos de cartera y agregar a la tabla
-    function obtenerDatosCartera(cedula) {
-      // Verificar si el cliente ya está en la tabla
-      if (clientesAgregados.includes(cedula)) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'Cliente duplicado',
-          text: 'Este cliente ya está en la tabla',
-          timer: 2000,
-          showConfirmButton: false
-        });
-        return;
-      }
+// Reemplaza la función obtenerDatosCartera() existente con esta versión mejorada:
 
-      fetch(window.location.href, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'action=fetchCliente&cedula=' + encodeURIComponent(cedula)
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log('Datos recibidos:', data);
-        
-        if (data.error) {
-          console.error('Error del servidor:', data.error);
-          Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'Error al consultar los datos: ' + data.error
-          });
-          return;
-        }
+// Reemplaza la función obtenerDatosCartera() existente con esta versión mejorada:
 
-        if (!data.nombre) {
-          Swal.fire({
-            icon: 'warning',
-            title: 'Cliente no encontrado',
-            text: 'No se encontraron datos para este cliente'
-          });
-          return;
-        }
+function obtenerDatosCartera(cedula) {
+  // Verificar si el cliente ya está en la tabla
+  if (clientesAgregados.includes(cedula)) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Cliente duplicado',
+      text: 'Este cliente ya está en la tabla',
+      timer: 2000,
+      showConfirmButton: false
+    });
+    return;
+  }
 
-        // Validar que los datos sean números válidos
-        const totalFacturado = parseFloat(data.totalFacturado) || 0;
-        const valorAnticipos = parseFloat(data.valorAnticipos) || 0;
-        const saldoCobrar = parseFloat(data.saldoCobrar) || 0;
-
-        // Agregar cliente al array
-        clientesAgregados.push(cedula);
-
-        // Agregar fila a la tabla
-        agregarFilaCliente(cedula, data.nombre, totalFacturado, valorAnticipos, saldoCobrar);
-
-        // Actualizar totales
-        actualizarTotales();
-
-        // Limpiar campos de búsqueda
-        inputCedula.value = '';
-        inputNombre.value = '';
-
-        // Mostrar mensaje de éxito
-        Swal.fire({
-          icon: 'success',
-          title: 'Cliente agregado',
-          text: 'Cliente agregado correctamente a la tabla',
-          timer: 1500,
-          showConfirmButton: false
-        });
-      })
-      .catch(error => {
-        console.error('Error en fetch:', error);
-        Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: 'Error al realizar la consulta'
-        });
+  fetch(window.location.href, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'action=fetchCliente&cedula=' + encodeURIComponent(cedula)
+  })
+  .then(response => response.json())
+  .then(data => {
+    console.log('Datos recibidos:', data);
+    
+    if (data.error) {
+      console.error('Error del servidor:', data.error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'Error al consultar los datos: ' + data.error
       });
+      return;
     }
 
+    // Validar que los datos sean números válidos
+    const totalFacturado = parseFloat(data.totalFacturado) || 0;
+    const valorAnticipos = parseFloat(data.valorAnticipos) || 0;
+    const saldoCobrar = parseFloat(data.saldoCobrar) || 0;
+
+    // *** VALIDACIÓN 1: Cliente no encontrado en la base de datos ***
+    if (!data.nombre || data.nombre === '') {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Cliente no encontrado',
+        text: 'No se encontraron datos para este cliente en el sistema'
+      });
+      // Limpiar campos
+      inputCedula.value = '';
+      inputNombre.value = '';
+      return;
+    }
+
+    // *** VALIDACIÓN 2: Cliente existe pero no tiene facturas de venta ***
+    if (totalFacturado === 0 && valorAnticipos === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Sin facturas registradas',
+        html: `
+          <p>El cliente <strong>${data.nombre}</strong> no tiene facturas de venta registradas.</p>
+          <p>Por favor, registre una factura de venta para este cliente antes de continuar.</p>
+        `,
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#3085d6',
+        width: '500px'
+      });
+      
+      // Limpiar campos de búsqueda
+      inputCedula.value = '';
+      inputNombre.value = '';
+      return;
+    }
+
+    // Agregar cliente al array
+    clientesAgregados.push(cedula);
+
+    // Agregar fila a la tabla
+    agregarFilaCliente(cedula, data.nombre, totalFacturado, valorAnticipos, saldoCobrar);
+
+    // Actualizar totales
+    actualizarTotales();
+
+    // Limpiar campos de búsqueda
+    inputCedula.value = '';
+    inputNombre.value = '';
+
+    // Mostrar mensaje de éxito
+    Swal.fire({
+      icon: 'success',
+      title: 'Cliente agregado',
+      text: 'Cliente agregado correctamente a la tabla',
+      timer: 1500,
+      showConfirmButton: false
+    });
+  })
+  .catch(error => {
+    console.error('Error en fetch:', error);
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: 'Error al realizar la consulta'
+    });
+  });
+}
     // Función para agregar una fila a la tabla
     function agregarFilaCliente(cedula, nombre, totalFacturado, valorAnticipos, saldoCobrar) {
       const tbody = document.getElementById('tablaClientes');

@@ -41,8 +41,8 @@ switch($accion){
 
       if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
           $sqlDetalle = "INSERT INTO detallecomprobantecontable 
-                        (comprobante_id, cuentaContable, descripcionCuenta, tercero, detalle, valorDebito, valorCredito)
-                        VALUES (:comprobante_id, :cuentaContable, :descripcionCuenta, :tercero, :detalle, :valorDebito, :valorCredito)";
+                        (comprobante_id, cuentaContable, descripcionCuenta, terceroCedula, terceroNombre, detalle, valorDebito, valorCredito)
+                        VALUES (:comprobante_id, :cuentaContable, :descripcionCuenta, :terceroCedula, :terceroNombre, :detalle, :valorDebito, :valorCredito)";
           $stmtDetalle = $pdo->prepare($sqlDetalle);
 
           foreach ($_POST['detalles'] as $detalle) {
@@ -50,7 +50,8 @@ switch($accion){
                   ':comprobante_id' => $idComprobante,
                   ':cuentaContable' => $detalle['cuentaContable'],
                   ':descripcionCuenta' => $detalle['descripcionCuenta'],
-                  ':tercero' => $detalle['tercero'],
+                  ':terceroCedula' => $detalle['terceroCedula'],
+                  ':terceroNombre' => $detalle['terceroNombre'],
                   ':detalle' => $detalle['detalle'],
                   ':valorDebito' => $detalle['valorDebito'],
                   ':valorCredito' => $detalle['valorCredito']
@@ -58,7 +59,6 @@ switch($accion){
           }
       }
 
-      // ✨ NUEVO: Registrar en Libro Diario
       $libroDiario->registrarComprobanteContable($idComprobante);
 
       header("Location: ".$_SERVER['PHP_SELF']."?msg=agregado");
@@ -78,19 +78,16 @@ switch($accion){
       $sentencia->bindParam(':id', $txtId);
       $sentencia->execute();
       
-      // ✨ NUEVO: Eliminar asientos contables antiguos
       $libroDiario->eliminarMovimientos('comprobante_contable', $txtId);
 
-      // Eliminar detalles antiguos
       $deleteDetalle = $pdo->prepare("DELETE FROM detallecomprobantecontable WHERE comprobante_id = :comprobante_id");
       $deleteDetalle->bindParam(':comprobante_id', $txtId);
       $deleteDetalle->execute();
 
-      // Insertar nuevos detalles
       if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
           $sqlDetalle = "INSERT INTO detallecomprobantecontable 
-                        (comprobante_id, cuentaContable, descripcionCuenta, tercero, detalle, valorDebito, valorCredito)
-                        VALUES (:comprobante_id, :cuentaContable, :descripcionCuenta, :tercero, :detalle, :valorDebito, :valorCredito)";
+                        (comprobante_id, cuentaContable, descripcionCuenta, terceroCedula, terceroNombre, detalle, valorDebito, valorCredito)
+                        VALUES (:comprobante_id, :cuentaContable, :descripcionCuenta, :terceroCedula, :terceroNombre, :detalle, :valorDebito, :valorCredito)";
           $stmtDetalle = $pdo->prepare($sqlDetalle);
 
           foreach ($_POST['detalles'] as $detalle) {
@@ -98,7 +95,8 @@ switch($accion){
                   ':comprobante_id' => $txtId,
                   ':cuentaContable' => $detalle['cuentaContable'],
                   ':descripcionCuenta' => $detalle['descripcionCuenta'],
-                  ':tercero' => $detalle['tercero'],
+                  ':terceroCedula' => $detalle['terceroCedula'],
+                  ':terceroNombre' => $detalle['terceroNombre'],
                   ':detalle' => $detalle['detalle'],
                   ':valorDebito' => $detalle['valorDebito'],
                   ':valorCredito' => $detalle['valorCredito']
@@ -106,7 +104,6 @@ switch($accion){
           }
       }
 
-      // ✨ NUEVO: Registrar nuevos asientos contables
       $libroDiario->registrarComprobanteContable($txtId);
 
       header("Location: ".$_SERVER['PHP_SELF']."?msg=modificado");
@@ -114,15 +111,12 @@ switch($accion){
   break;
 
   case "btnEliminar":
-      // ✨ NUEVO: Eliminar asientos contables
       $libroDiario->eliminarMovimientos('comprobante_contable', $txtId);
       
-      // Primero eliminar los detalles asociados
       $sentenciaDetalle = $pdo->prepare("DELETE FROM detallecomprobantecontable WHERE comprobante_id = :id");
       $sentenciaDetalle->bindParam(':id', $txtId);
       $sentenciaDetalle->execute();
 
-      // Luego eliminar el comprobante principal
       $sentencia = $pdo->prepare("DELETE FROM doccomprobantecontable WHERE id = :id");
       $sentencia->bindParam(':id', $txtId);
       $sentencia->execute();
@@ -132,7 +126,6 @@ switch($accion){
   break;
 
   case "btnEditar":
-      // Cargar datos del comprobante
       $sentencia = $pdo->prepare("SELECT * FROM doccomprobantecontable WHERE id = :id");
       $sentencia->bindParam(':id', $txtId);
       $sentencia->execute();
@@ -144,7 +137,6 @@ switch($accion){
           $observaciones = $comprobante['observaciones'];
       }
 
-      // Cargar detalles asociados
       $stmtDetalle = $pdo->prepare("SELECT * FROM detallecomprobantecontable WHERE comprobante_id = :comprobante_id");
       $stmtDetalle->bindParam(':comprobante_id', $txtId);
       $stmtDetalle->execute();
@@ -210,14 +202,11 @@ document.addEventListener("DOMContentLoaded", () => {
   <meta content="" name="description">
   <meta content="" name="keywords">
 
-  <!-- Favicons -->
   <link href="assets/img/favicon.png" rel="icon">
   <link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
 
-  <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Raleway:300,300i,400,400i,500,500i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet">
 
-  <!-- Vendor CSS Files -->
   <link href="assets/vendor/animate.css/animate.min.css" rel="stylesheet">
   <link href="assets/vendor/aos/aos.css" rel="stylesheet">
   <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
@@ -229,13 +218,10 @@ document.addEventListener("DOMContentLoaded", () => {
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   
-  <!-- Select2 CSS -->
   <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
   
-  <!-- jQuery (necesario para Select2) -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   
-  <!-- Select2 JS -->
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
   <link href="assets/css/improved-style.css" rel="stylesheet">
@@ -277,7 +263,6 @@ document.addEventListener("DOMContentLoaded", () => {
       margin-left: 10px;
     }
     
-    /* Estilos para Select2 */
     .select2-container {
       width: 100% !important;
     }
@@ -297,7 +282,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 <body>
 
-  <!-- ======= Header ======= -->
   <header id="header" class="fixed-top d-flex align-items-center ">
     <div class="container d-flex align-items-center justify-content-between">
       <h1 class="logo">
@@ -319,11 +303,10 @@ document.addEventListener("DOMContentLoaded", () => {
           </li>
         </ul>
         <i class="bi bi-list mobile-nav-toggle"></i>
-      </nav><!-- .navbar -->
+      </nav>
     </div>
-  </header><!-- End Header -->
+  </header>
 
-    <!-- ======= Services Section ======= -->
     <section id="services" class="services">
       <button class="btn-ir" onclick="window.location.href='menudocumentos.php'">
         <i class="fa-solid fa-arrow-left"></i> Regresar
@@ -338,15 +321,13 @@ document.addEventListener("DOMContentLoaded", () => {
         
         <form id="formComprobanteContable" action="" method="post" class="container mt-3">
 
-          <!-- ID oculto -->
           <input type="hidden" value="<?php echo $txtId; ?>" id="txtId" name="txtId">
 
-          <!-- Fecha y Consecutivo -->
           <div class="row g-3">
             <div class="col-md-4">
               <label for="fecha" class="form-label fw-bold">Fecha del documento*</label>
               <input type="date" class="form-control" id="fecha" name="fecha"
-                    value="<?php echo $fecha; ?>" required>
+                    value="<?php echo $fecha ? $fecha : date('Y-m-d'); ?>" readonly required>
             </div>
 
             <div class="col-md-4">
@@ -357,14 +338,14 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
           </div>
 
-          <!-- Tabla de detalles -->
           <div class="table-responsive mt-3">
             <table class="table-container">
               <thead class="table-primary text-center">
                 <tr>
                   <th>Cuenta Contable</th>
                   <th>Descripción Cuenta</th>
-                  <th>Tercero (Cédula - Nombre)</th>
+                  <th>Cédula Tercero</th>
+                  <th>Nombre Tercero</th>
                   <th>Detalle</th>
                   <th>Valor Débito</th>
                   <th>Valor Crédito</th>
@@ -383,13 +364,8 @@ document.addEventListener("DOMContentLoaded", () => {
                             </select>
                           </td>
                           <td><input type="text" name="descripcionCuenta" class="form-control" value="<?= htmlspecialchars($detalle['descripcionCuenta']) ?>"></td>
-                          <td>
-                            <select name="tercero" class="form-control tercero-select" style="width: 100%;">
-                              <option value="<?= htmlspecialchars($detalle['tercero']) ?>" selected>
-                                <?= htmlspecialchars($detalle['tercero']) ?>
-                              </option>
-                            </select>
-                          </td>
+                          <td><input type="text" name="terceroCedula" class="form-control" value="<?= htmlspecialchars($detalle['terceroCedula'] ?? '') ?>"></td>
+                          <td><input type="text" name="terceroNombre" class="form-control" value="<?= htmlspecialchars($detalle['terceroNombre'] ?? '') ?>"></td>
                           <td><input type="text" name="detalle" class="form-control" value="<?= htmlspecialchars($detalle['detalle']) ?>"></td>
                           <td><input type="text" step="0.01" name="valorDebito" class="form-control debito" value="<?= htmlspecialchars($detalle['valorDebito']) ?>"></td>
                           <td><input type="text" step="0.01" name="valorCredito" class="form-control credito" value="<?= htmlspecialchars($detalle['valorCredito']) ?>"></td>
@@ -404,11 +380,8 @@ document.addEventListener("DOMContentLoaded", () => {
                         </select>
                       </td>
                       <td><input type="text" name="descripcionCuenta" class="form-control" value=""></td>
-                      <td>
-                        <select name="tercero" class="form-control tercero-select" style="width: 100%;">
-                          <option value="">Buscar tercero...</option>
-                        </select>
-                      </td>
+                      <td><input type="text" name="terceroCedula" class="form-control" placeholder="Cédula" value=""></td>
+                      <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value=""></td>
                       <td><input type="text" name="detalle" class="form-control" value=""></td>
                       <td><input type="text" step="0.01" name="valorDebito" class="form-control debito" placeholder="0.00" value=""></td>
                       <td><input type="text" step="0.01" name="valorCredito" class="form-control credito" placeholder="0.00" value=""></td>
@@ -419,7 +392,6 @@ document.addEventListener("DOMContentLoaded", () => {
             </table>
           </div>
 
-          <!-- Totales alineados a la derecha -->
           <div class="col-md-6 ms-auto mt-3">
             <div class="row mb-2">
               <div class="col-6">
@@ -444,7 +416,6 @@ document.addEventListener("DOMContentLoaded", () => {
             <input type="text" name="observaciones" value="<?php echo $observaciones;?>" class="form-control" id="observaciones" placeholder="">
           </div>
 
-          <!-- Botones de acción -->
           <div class="mt-4">
             <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
             <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion">Modificar</button>
@@ -493,7 +464,6 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
         
         <script>
-        // Función para inicializar Select2 en un select de cuenta
         function initCuentaSelect($select) {
           $select.select2({
             placeholder: "Buscar cuenta contable...",
@@ -514,7 +484,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     return { 
                       id: cuenta.valor, 
                       text: cuenta.texto,
-                      descripcion: cuenta.descripcion // Asegúrate de que el PHP devuelva este campo
+                      descripcion: cuenta.descripcion
                     };
                   })
                 };
@@ -523,16 +493,13 @@ document.addEventListener("DOMContentLoaded", () => {
             }
           });
           
-          // Evento cuando se selecciona una cuenta
           $select.on('select2:select', function (e) {
             const data = e.params.data;
             const row = $(this).closest('tr');
             
-            // Autocompletar el campo de descripción
             if (data.descripcion) {
               row.find('input[name="descripcionCuenta"]').val(data.descripcion);
             } else {
-              // Si no viene descripcion, extraer del texto
               const textoCompleto = data.text;
               const partes = textoCompleto.split('-');
               if (partes.length > 1) {
@@ -542,49 +509,15 @@ document.addEventListener("DOMContentLoaded", () => {
           });
         }
 
-        // Función para inicializar Select2 en un select de tercero
-        function initTerceroSelect($select) {
-          $select.select2({
-            placeholder: "Buscar tercero...",
-            allowClear: true,
-            width: '100%',
-            ajax: {
-              url: 'obtener_terceros.php',
-              dataType: 'json',
-              delay: 250,
-              data: function (params) {
-                return {
-                  search: params.term || ''
-                };
-              },
-              processResults: function (data) {
-                return {
-                  results: data.map(function (tercero) {
-                    return { id: tercero.valor, text: tercero.texto };
-                  })
-                };
-              },
-              cache: true
-            }
-          });
-        }
-
-        // Inicializar Select2 en todos los selects existentes al cargar
         $(document).ready(function() {
           $('.cuenta-select').each(function() {
             initCuentaSelect($(this));
           });
-          
-          $('.tercero-select').each(function() {
-            initTerceroSelect($(this));
-          });
         });
 
-        // Obtener consecutivo al cargar la página SOLO si no hay ID (modo agregar)
         window.addEventListener('DOMContentLoaded', function() {
             const txtId = document.getElementById("txtId").value;
             
-            // Solo obtener nuevo consecutivo si estamos en modo AGREGAR (sin ID)
             if (!txtId || txtId.trim() === "") {
                 fetch(window.location.pathname + "?get_consecutivo=1")
                     .then(response => response.json())
@@ -595,7 +528,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-        // Calcular totales automáticamente
         document.addEventListener("DOMContentLoaded", function () {
           function calcularTotales() {
             let sumaDebito = 0;
@@ -611,7 +543,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const diferencia = sumaDebito - sumaCredito;
 
-            // Mostrar con formato local (puntos de miles y coma decimal)
             document.querySelector("#sumaDebito").value = sumaDebito.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             document.querySelector("#sumaCredito").value = sumaCredito.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             document.querySelector("#diferencia").value = diferencia.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -631,11 +562,44 @@ document.addEventListener("DOMContentLoaded", () => {
             }
           });
 
-          // Agregar nueva fila
+          // Autocompletar nombre del tercero cuando se escribe la cédula
+          document.querySelector("#product-table").addEventListener("blur", function(event) {
+            if (event.target.name === "terceroCedula") {
+              const cedula = event.target.value.trim();
+              const row = event.target.closest('tr');
+              const inputNombre = row.querySelector('input[name="terceroNombre"]');
+              
+              if (cedula && inputNombre) {
+                // Buscar el tercero por cédula
+                fetch('buscar_tercero_por_cedula.php?cedula=' + encodeURIComponent(cedula))
+                  .then(response => response.json())
+                  .then(data => {
+                    if (data.success) {
+                      inputNombre.value = data.nombre;
+                      inputNombre.style.backgroundColor = '#d4edda'; // Verde claro
+                      setTimeout(() => {
+                        inputNombre.style.backgroundColor = '';
+                      }, 1500);
+                    } else {
+                      inputNombre.value = '';
+                      inputNombre.placeholder = 'Tercero no encontrado';
+                      inputNombre.style.backgroundColor = '#f8d7da'; // Rojo claro
+                      setTimeout(() => {
+                        inputNombre.style.backgroundColor = '';
+                        inputNombre.placeholder = 'Nombre';
+                      }, 2000);
+                    }
+                  })
+                  .catch(error => {
+                    console.error('Error al buscar tercero:', error);
+                  });
+              }
+            }
+          }, true);
+
           window.addRow = function() {
             const tableBody = document.getElementById("product-table");
             
-            // Crear nueva fila desde cero en lugar de clonar
             const newRow = document.createElement("tr");
             
             newRow.innerHTML = `
@@ -645,11 +609,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 </select>
               </td>
               <td><input type="text" name="descripcionCuenta" class="form-control" value=""></td>
-              <td>
-                <select name="tercero" class="form-control tercero-select" style="width: 100%;">
-                  <option value="">Buscar tercero...</option>
-                </select>
-              </td>
+              <td><input type="text" name="terceroCedula" class="form-control" placeholder="Cédula" value=""></td>
+              <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value=""></td>
               <td><input type="text" name="detalle" class="form-control" value=""></td>
               <td><input type="text" step="0.01" name="valorDebito" class="form-control debito" placeholder="0.00" value=""></td>
               <td><input type="text" step="0.01" name="valorCredito" class="form-control credito" placeholder="0.00" value=""></td>
@@ -659,14 +620,11 @@ document.addEventListener("DOMContentLoaded", () => {
               </td>
             `;
 
-            // Agregar evento al botón de eliminar
             const btnRemove = newRow.querySelector(".btn-remove");
             btnRemove.onclick = function() {
               const rows = tableBody.querySelectorAll("tr");
               if (rows.length > 1) {
-                // Destruir Select2 antes de eliminar
                 $(this.closest("tr")).find('.cuenta-select').select2('destroy');
-                $(this.closest("tr")).find('.tercero-select').select2('destroy');
                 this.closest("tr").remove();
                 calcularTotales();
               } else {
@@ -681,14 +639,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
             tableBody.appendChild(newRow);
             
-            // Inicializar Select2 en los nuevos selects
             initCuentaSelect($(newRow).find('.cuenta-select'));
-            initTerceroSelect($(newRow).find('.tercero-select'));
             
             calcularTotales();
           };
 
-          // Agregar botón "-" a la primera fila
           const firstRow = document.querySelector("#product-table tr");
           if (firstRow && !firstRow.querySelector(".btn-remove")) {
             const btn = document.createElement("button");
@@ -705,7 +660,6 @@ document.addEventListener("DOMContentLoaded", () => {
               const rows = document.querySelectorAll("#product-table tr");
               if (rows.length > 1) {
                 $(this.closest("tr")).find('.cuenta-select').select2('destroy');
-                $(this.closest("tr")).find('.tercero-select').select2('destroy');
                 this.closest("tr").remove();
                 calcularTotales();
               } else {
@@ -723,7 +677,6 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         });
 
-        // Manejo de modo agregar/editar
         document.addEventListener("DOMContentLoaded", function() {
           const id = document.getElementById("txtId").value;
           const btnAgregar = document.getElementById("btnAgregar");
@@ -738,7 +691,7 @@ document.addEventListener("DOMContentLoaded", () => {
             btnCancelar.style.display = "none";
 
             document.getElementById("txtId").value = "";
-            document.getElementById("fecha").value = "";
+            document.getElementById("fecha").value = new Date().toISOString().split('T')[0];
             document.getElementById("consecutivo").value = "";
             document.getElementById("observaciones").value = "";
 
@@ -751,11 +704,8 @@ document.addEventListener("DOMContentLoaded", () => {
                   </select>
                 </td>
                 <td><input type="text" name="descripcionCuenta" class="form-control" value=""></td>
-                <td>
-                  <select name="tercero" class="form-control tercero-select" style="width: 100%;">
-                    <option value="">Buscar tercero...</option>
-                  </select>
-                </td>
+                <td><input type="text" name="terceroCedula" class="form-control" placeholder="Cédula" value=""></td>
+                <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value=""></td>
                 <td><input type="text" name="detalle" class="form-control" value=""></td>
                 <td><input type="number" step="0.01" name="valorDebito" class="form-control debito" placeholder="0.00" value=""></td>
                 <td><input type="number" step="0.01" name="valorCredito" class="form-control credito" placeholder="0.00" value=""></td>
@@ -766,9 +716,7 @@ document.addEventListener("DOMContentLoaded", () => {
               </tr>
             `;
             
-            // Inicializar Select2 en los nuevos selects
             initCuentaSelect($('.cuenta-select'));
-            initTerceroSelect($('.tercero-select'));
 
             fetch(window.location.pathname + "?get_consecutivo=1")
               .then(response => response.json())
@@ -815,9 +763,7 @@ document.addEventListener("DOMContentLoaded", () => {
         function removeRowSafe(btn) {
           const rows = document.querySelectorAll("#product-table tr");
           if (rows.length > 1) {
-            // Destruir Select2 antes de eliminar
             $(btn.closest("tr")).find('.cuenta-select').select2('destroy');
-            $(btn.closest("tr")).find('.tercero-select').select2('destroy');
             btn.closest("tr").remove();
             calcularTotales();
           } else {
@@ -830,7 +776,6 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         }
 
-        // Confirmación con SweetAlert2
         document.addEventListener("DOMContentLoaded", () => {
           const forms = document.querySelectorAll("form");
 
@@ -875,7 +820,6 @@ document.addEventListener("DOMContentLoaded", () => {
           });
         });
 
-        // Enviar detalles como JSON
         document.getElementById("formComprobanteContable").addEventListener("submit", function(e) {
           const rows = document.querySelectorAll("#product-table tr");
           let detalles = [];
@@ -884,19 +828,20 @@ document.addEventListener("DOMContentLoaded", () => {
               const $selectCuenta = $(row).find("[name='cuentaContable']");
               const cuenta = $selectCuenta.val() || "";
               
-              const $selectTercero = $(row).find("[name='tercero']");
-              const tercero = $selectTercero.val() || "";
+              const terceroCedula = row.querySelector("[name='terceroCedula']")?.value || "";
+              const terceroNombre = row.querySelector("[name='terceroNombre']")?.value || "";
               
               const descripcion = row.querySelector("[name='descripcionCuenta']")?.value || "";
               const detalle = row.querySelector("[name='detalle']")?.value || "";
               const debito = row.querySelector("[name='valorDebito']")?.value || "0";
               const credito = row.querySelector("[name='valorCredito']")?.value || "0";
 
-              if (cuenta || descripcion || tercero || detalle) {
+              if (cuenta || descripcion || terceroCedula || terceroNombre || detalle) {
                   detalles.push({
                     cuentaContable: cuenta, 
                     descripcionCuenta: descripcion, 
-                    tercero: tercero, 
+                    terceroCedula: terceroCedula, 
+                    terceroNombre: terceroNombre, 
                     detalle: detalle, 
                     valorDebito: debito, 
                     valorCredito: credito
@@ -929,10 +874,29 @@ document.addEventListener("DOMContentLoaded", () => {
           document.querySelector("#diferencia").value = (sumaDebito - sumaCredito).toFixed(2);
         }
 
+        // Establecer fecha actual al cargar la página si está vacía
+        window.addEventListener('DOMContentLoaded', function() {
+          const fechaInput = document.getElementById('fecha');
+          const txtId = document.getElementById('txtId').value;
+         
+          // Solo establecer fecha actual si NO estamos editando
+          if (!txtId || txtId.trim() === "") {
+            // CORREGIDO: Obtener fecha local de Colombia (GMT-5)
+            const hoy = new Date();
+            const year = hoy.getFullYear();
+            const month = String(hoy.getMonth() + 1).padStart(2, '0');
+            const day = String(hoy.getDate()).padStart(2, '0');
+            const fechaLocal = `${year}-${month}-${day}`;
+           
+            fechaInput.value = fechaLocal;
+            fechaInput.setAttribute('max', fechaLocal);
+          }
+        });  
+
         </script>
         <br>
       </div>
-    </section><!-- End Services Section -->
+    </section> <!-- End Services Section -->
 
     <!-- ======= Footer ======= -->
     <footer id="footer" class="footer-minimalista">
