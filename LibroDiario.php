@@ -103,151 +103,161 @@ class LibroDiario {
     }
     
     /**
-     * Registra asientos de Factura de Venta
-     */
-    public function registrarFacturaVenta($idFactura) {
-        // Obtener datos de la factura
-        $sqlFactura = "SELECT * FROM facturav WHERE id = :id";
-        $stmt = $this->pdo->prepare($sqlFactura);
-        $stmt->execute([':id' => $idFactura]);
-        $factura = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if (!$factura) {
-            throw new Exception("Factura no encontrada");
+ * Registra asientos de Factura de Venta
+ * CORRECCIÓN: Se usa subtotal sin IVA para las ventas
+ */
+public function registrarFacturaVenta($idFactura) {
+    // Obtener datos de la factura
+    $sqlFactura = "SELECT * FROM facturav WHERE id = :id";
+    $stmt = $this->pdo->prepare($sqlFactura);
+    $stmt->execute([':id' => $idFactura]);
+    $factura = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$factura) {
+        throw new Exception("Factura no encontrada");
+    }
+    
+    // Obtener detalles con categorías
+    $sqlDetalle = "SELECT 
+                    fd.*,
+                    pi.categoriaInventarios,
+                    pi.tipoItem,
+                    pi.costoUnitario as costo_promedio
+                FROM factura_detalle fd
+                INNER JOIN productoinventarios pi ON fd.codigoProducto = pi.codigoProducto
+                WHERE fd.id_factura = :id_factura";
+    $stmt = $this->pdo->prepare($sqlDetalle);
+    $stmt->execute([':id_factura' => $idFactura]);
+    $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Determinar si es efectivo, transferencia o crédito
+    $formaPago = $factura['formaPago'];
+    $esCredito = stripos($formaPago, 'credito') !== false;
+    
+    // 1. REGISTRO DEL DÉBITO (Cliente o Medio de Pago)
+    if ($esCredito) {
+        // DEBITO: Clientes
+        $this->registrarMovimiento([
+            'fecha' => $factura['fecha'],
+            'tipo_documento' => 'factura_venta',
+            'numero_documento' => $factura['consecutivo'],
+            'id_documento' => $idFactura,
+            'codigo_cuenta' => '130505',
+            'nombre_cuenta' => 'Clientes Nacionales',
+            'tercero_identificacion' => $factura['identificacion'],
+            'tercero_nombre' => $factura['nombre'],
+            'concepto' => "Venta a crédito según factura {$factura['consecutivo']}",
+            'debito' => $factura['valorTotal'],
+            'credito' => 0
+        ]);
+    } else {
+        // DEBITO: Caja/Banco según medio de pago
+        $cuentaPago = $this->obtenerCuentaMedioPago($formaPago);
+        $this->registrarMovimiento([
+            'fecha' => $factura['fecha'],
+            'tipo_documento' => 'factura_venta',
+            'numero_documento' => $factura['consecutivo'],
+            'id_documento' => $idFactura,
+            'codigo_cuenta' => $cuentaPago['codigo'],
+            'nombre_cuenta' => $cuentaPago['nombre'],
+            'tercero_identificacion' => $factura['identificacion'],
+            'tercero_nombre' => $factura['nombre'],
+            'concepto' => "Cobro venta según factura {$factura['consecutivo']}",
+            'debito' => $factura['valorTotal'],
+            'credito' => 0
+        ]);
+    }
+    
+    // 2. CREDITO: IVA por Pagar
+    if ($factura['ivaTotal'] > 0) {
+        $this->registrarMovimiento([
+            'fecha' => $factura['fecha'],
+            'tipo_documento' => 'factura_venta',
+            'numero_documento' => $factura['consecutivo'],
+            'id_documento' => $idFactura,
+            'codigo_cuenta' => '240805',
+            'nombre_cuenta' => 'IVA por Pagar',
+            'tercero_identificacion' => $factura['identificacion'],
+            'tercero_nombre' => $factura['nombre'],
+            'concepto' => "IVA generado en venta factura {$factura['consecutivo']}",
+            'debito' => 0,
+            'credito' => $factura['ivaTotal']
+        ]);
+    }
+    
+    // 3. CREDITO: Retención en la Fuente (CORREGIDO: cuenta 135515)
+    if ($factura['retenciones'] > 0) {
+        $this->registrarMovimiento([
+            'fecha' => $factura['fecha'],
+            'tipo_documento' => 'factura_venta',
+            'numero_documento' => $factura['consecutivo'],
+            'id_documento' => $idFactura,
+            'codigo_cuenta' => '135515', // CUENTA CORREGIDA
+            'nombre_cuenta' => 'Retención en la Fuente por Cobrar',
+            'tercero_identificacion' => $factura['identificacion'],
+            'tercero_nombre' => $factura['nombre'],
+            'concepto' => "Retención aplicada factura {$factura['consecutivo']}",
+            'credito' => 0,
+            'debito' => $factura['retenciones']
+        ]);
+    }
+    
+    // 4. CREDITO: Ventas (agrupado por categoría) - CORREGIDO: usar subtotal sin IVA
+    $ventasPorCategoria = [];
+    foreach ($detalles as $detalle) {
+        $catId = $detalle['categoriaInventarios'];
+        if (!isset($ventasPorCategoria[$catId])) {
+            $ventasPorCategoria[$catId] = 0;
         }
+        // CORRECCIÓN: Calcular subtotal sin IVA (precioUnitario * cantidad)
+        $subtotalItem = $detalle['precio_unitario'] * $detalle['cantidad'];
+        $ventasPorCategoria[$catId] += $subtotalItem;
+    }
+    
+    foreach ($ventasPorCategoria as $catId => $subtotal) {
+        $cuentas = $this->obtenerCuentasCategoria($catId);
         
-        // Obtener detalles con categorías
-        $sqlDetalle = "SELECT 
-                        fd.*,
-                        pi.categoriaInventarios,
-                        pi.tipoItem
-                       FROM factura_detalle fd
-                       INNER JOIN productoinventarios pi ON fd.codigoProducto = pi.codigoProducto
-                       WHERE fd.id_factura = :id_factura";
-        $stmt = $this->pdo->prepare($sqlDetalle);
-        $stmt->execute([':id_factura' => $idFactura]);
-        $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Determinar si es efectivo, transferencia o crédito
-        $formaPago = $factura['formaPago'];
-        $esCredito = stripos($formaPago, 'credito') !== false;
-        
-        // 1. REGISTRO DEL DÉBITO (Cliente o Medio de Pago)
-        if ($esCredito) {
-            // DEBITO: Clientes
-            $this->registrarMovimiento([
-                'fecha' => $factura['fecha'],
-                'tipo_documento' => 'factura_venta',
-                'numero_documento' => $factura['consecutivo'],
-                'id_documento' => $idFactura,
-                'codigo_cuenta' => '130505',
-                'nombre_cuenta' => 'Clientes Nacionales',
-                'tercero_identificacion' => $factura['identificacion'],
-                'tercero_nombre' => $factura['nombre'],
-                'concepto' => "Venta a crédito según factura {$factura['consecutivo']}",
-                'debito' => $factura['valorTotal'],
-                'credito' => 0
-            ]);
-        } else {
-            // DEBITO: Caja/Banco según medio de pago
-            $cuentaPago = $this->obtenerCuentaMedioPago($formaPago);
-            $this->registrarMovimiento([
-                'fecha' => $factura['fecha'],
-                'tipo_documento' => 'factura_venta',
-                'numero_documento' => $factura['consecutivo'],
-                'id_documento' => $idFactura,
-                'codigo_cuenta' => $cuentaPago['codigo'],
-                'nombre_cuenta' => $cuentaPago['nombre'],
-                'tercero_identificacion' => $factura['identificacion'],
-                'tercero_nombre' => $factura['nombre'],
-                'concepto' => "Cobro venta según factura {$factura['consecutivo']}",
-                'debito' => $factura['valorTotal'],
-                'credito' => 0
-            ]);
-        }
-        
-        // 2. CREDITO: IVA por Pagar
-        if ($factura['ivaTotal'] > 0) {
-            $this->registrarMovimiento([
-                'fecha' => $factura['fecha'],
-                'tipo_documento' => 'factura_venta',
-                'numero_documento' => $factura['consecutivo'],
-                'id_documento' => $idFactura,
-                'codigo_cuenta' => '240805',
-                'nombre_cuenta' => 'IVA por Pagar',
-                'tercero_identificacion' => $factura['identificacion'],
-                'tercero_nombre' => $factura['nombre'],
-                'concepto' => "IVA generado en venta factura {$factura['consecutivo']}",
-                'debito' => 0,
-                'credito' => $factura['ivaTotal']
-            ]);
-        }
-        
-        // 3. CREDITO: Ventas (puede ser por categoría o general)
-        // Agrupar ventas por categoría
-        $ventasPorCategoria = [];
-        foreach ($detalles as $detalle) {
+        $this->registrarMovimiento([
+            'fecha' => $factura['fecha'],
+            'tipo_documento' => 'factura_venta',
+            'numero_documento' => $factura['consecutivo'],
+            'id_documento' => $idFactura,
+            'codigo_cuenta' => $cuentas['codigoCuentaVentas'],
+            'nombre_cuenta' => $cuentas['cuentaVentas'],
+            'tercero_identificacion' => $factura['identificacion'],
+            'tercero_nombre' => $factura['nombre'],
+            'concepto' => "Venta de mercancías factura {$factura['consecutivo']}",
+            'debito' => 0,
+            'credito' => $subtotal
+        ]);
+    }
+    
+    // 5. REGISTRO DEL COSTO (solo para productos) - MÉTODO SIMPLIFICADO
+    $costosPorCategoria = [];
+    foreach ($detalles as $detalle) {
+        if (strtolower($detalle['tipoItem']) === 'producto') {
             $catId = $detalle['categoriaInventarios'];
-            if (!isset($ventasPorCategoria[$catId])) {
-                $ventasPorCategoria[$catId] = 0;
-            }
-            // El subtotal sin IVA
-            $subtotalItem = $detalle['total'];
-            $ventasPorCategoria[$catId] += $subtotalItem;
-        }
-        
-        foreach ($ventasPorCategoria as $catId => $subtotal) {
-            $cuentas = $this->obtenerCuentasCategoria($catId);
             
-            $this->registrarMovimiento([
-                'fecha' => $factura['fecha'],
-                'tipo_documento' => 'factura_venta',
-                'numero_documento' => $factura['consecutivo'],
-                'id_documento' => $idFactura,
-                'codigo_cuenta' => $cuentas['codigoCuentaVentas'],
-                'nombre_cuenta' => $cuentas['cuentaVentas'],
-                'tercero_identificacion' => $factura['identificacion'],
-                'tercero_nombre' => $factura['nombre'],
-                'concepto' => "Venta de mercancías factura {$factura['consecutivo']}",
-                'debito' => 0,
-                'credito' => $subtotal
-            ]);
-        }
-        
-        // 4. REGISTRO DEL COSTO (solo para productos, no servicios)
-        // Agrupar costos por categoría
-        $costosPorCategoria = [];
-        foreach ($detalles as $detalle) {
-            // Solo registrar costo para productos, no servicios
-            if (strtolower($detalle['tipoItem']) === 'producto') {
-                $catId = $detalle['categoriaInventarios'];
-                
-                // Obtener el precio de costo del inventario
-                $sqlCosto = "SELECT 
-                                COALESCE(
-                                    (SELECT precioUnitario 
-                                     FROM detallefacturac dfc
-                                     INNER JOIN facturac fc ON dfc.factura_id = fc.id
-                                     WHERE dfc.codigoProducto = :codigo
-                                     ORDER BY fc.fecha DESC
-                                     LIMIT 1
-                                    ), 0
-                                ) as costo_unitario";
-                $stmtCosto = $this->pdo->prepare($sqlCosto);
-                $stmtCosto->execute([':codigo' => $detalle['codigoProducto']]);
-                $resultCosto = $stmtCosto->fetch(PDO::FETCH_ASSOC);
-                $costoUnitario = $resultCosto['costo_unitario'];
-                
-                $costoTotal = $costoUnitario * $detalle['cantidad'];
-                
-                if (!isset($costosPorCategoria[$catId])) {
-                    $costosPorCategoria[$catId] = 0;
-                }
-                $costosPorCategoria[$catId] += $costoTotal;
+            // USAR DIRECTAMENTE EL COSTO UNITARIO DE LA TABLA
+            $costoUnitario = $detalle['costo_promedio'] ?? 0;
+            
+            // Si no hay costo definido, estimar como 70% del precio de venta
+            if ($costoUnitario <= 0) {
+                $costoUnitario = $detalle['precio_unitario'] * 0.7;
             }
+            
+            $costoTotal = $costoUnitario * $detalle['cantidad'];
+            
+            if (!isset($costosPorCategoria[$catId])) {
+                $costosPorCategoria[$catId] = 0;
+            }
+            $costosPorCategoria[$catId] += $costoTotal;
         }
-        
-        foreach ($costosPorCategoria as $catId => $costoTotal) {
+    }
+
+    // REGISTRAR LOS COSTOS SOLO SI HAY PRODUCTOS CON COSTO
+    foreach ($costosPorCategoria as $catId => $costoTotal) {
+        if ($costoTotal > 0) {
             $cuentas = $this->obtenerCuentasCategoria($catId);
             
             // DEBITO: Costo de Ventas
@@ -281,10 +291,11 @@ class LibroDiario {
             ]);
         }
     }
+}
     
     /**
      * Registra asientos de Factura de Compra
-     * CORRECCIÓN: IVA Descontable debe usar cuenta 135515, no 240805
+     * CORRECCIÓN: Se registra el SUBTOTAL en inventario, no el valor total con IVA
      */
     public function registrarFacturaCompra($idFactura) {
         // Obtener datos de la factura
@@ -302,14 +313,14 @@ class LibroDiario {
                         fd.*,
                         pi.categoriaInventarios,
                         pi.tipoItem
-                       FROM detallefacturac fd
-                       INNER JOIN productoinventarios pi ON fd.codigoProducto = pi.codigoProducto
-                       WHERE fd.factura_id = :id_factura";
+                    FROM detallefacturac fd
+                    INNER JOIN productoinventarios pi ON fd.codigoProducto = pi.codigoProducto
+                    WHERE fd.factura_id = :id_factura";
         $stmt = $this->pdo->prepare($sqlDetalle);
         $stmt->execute([':id_factura' => $idFactura]);
         $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        // 1. DEBITO: Inventario/Compras (agrupado por categoría)
+        // 1. DEBITO: Inventario/Compras (agrupado por categoría) - CORREGIDO: usar subtotal, no valorTotal
         $comprasPorCategoria = [];
         foreach ($detalles as $detalle) {
             // Solo registrar en inventario si es producto, no servicio
@@ -318,7 +329,9 @@ class LibroDiario {
                 if (!isset($comprasPorCategoria[$catId])) {
                     $comprasPorCategoria[$catId] = 0;
                 }
-                $comprasPorCategoria[$catId] += $detalle['valorTotal'];
+                // CORRECCIÓN: Calcular subtotal (precioUnitario * cantidad) en lugar de usar valorTotal
+                $subtotalLinea = $detalle['precioUnitario'] * $detalle['cantidad'];
+                $comprasPorCategoria[$catId] += $subtotalLinea;
             }
         }
         
@@ -340,7 +353,7 @@ class LibroDiario {
             ]);
         }
         
-        // 2. DEBITO: IVA por Pagar (se debita en compras para compensar)
+        // 2. DEBITO: IVA Descontable (se debita en compras para compensar)
         if ($factura['ivaTotal'] > 0) {
             $this->registrarMovimiento([
                 'fecha' => $factura['fecha'],
@@ -411,7 +424,6 @@ class LibroDiario {
             ]);
         }
     }
-    
     /**
      * Registra asientos de Recibo de Caja
      */

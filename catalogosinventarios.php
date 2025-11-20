@@ -6,7 +6,7 @@ $conn = new connection();
 $pdo = $conn->connect();
 
 // Inicialización de variables para Categoría
-$idcategoria=(isset($_POST['idcategoria']))?$_POST['idcategoria']:""; // Añadido para edición/eliminación
+$idcategoria=(isset($_POST['idcategoria']))?$_POST['idcategoria']:"";
 $categoria=(isset($_POST['categoria']))?$_POST['categoria']:"";
 $codigoCuentaVentas=(isset($_POST['codigoCuentaVentas']))?$_POST['codigoCuentaVentas']:"";
 $cuentaVentas=(isset($_POST['cuentaVentas']))?$_POST['cuentaVentas']:"";
@@ -18,21 +18,23 @@ $codigoCuentaDevoluciones=(isset($_POST['codigoCuentaDevoluciones']))?$_POST['co
 $cuentaDevoluciones=(isset($_POST['cuentaDevoluciones']))?$_POST['cuentaDevoluciones']:"";
 
 // Inicialización de variables para Producto
-$idproducto=(isset($_POST['idproducto']))?$_POST['idproducto']:""; // Añadido para edición/eliminación
+$idproducto=(isset($_POST['idproducto']))?$_POST['idproducto']:"";
 $categoriaInventarios=(isset($_POST['categoriaInventarios']))?$_POST['categoriaInventarios']:"";
 $codigoProducto=(isset($_POST['codigoProducto']))?$_POST['codigoProducto']:"";
 $descripcionProducto=(isset($_POST['descripcionProducto']))?$_POST['descripcionProducto']:"";
 $unidadMedida=(isset($_POST['unidadMedida']))?$_POST['unidadMedida']:"";
 $cantidad=(isset($_POST['cantidad']))?$_POST['cantidad']:"";
+$precioUnitario=(isset($_POST['precioUnitario']))?$_POST['precioUnitario']:""; // Precio de VENTA
+$costoUnitario=(isset($_POST['costoUnitario']))?$_POST['costoUnitario']:""; // NUEVO: Precio de COSTO
 
 $tipoItem=(isset($_POST['tipoItem']))?$_POST['tipoItem']:"";
 $facturacionCero_post=(isset($_POST['facturacionCero']))?$_POST['facturacionCero']:"";
 $activo_post=(isset($_POST['activo']))?$_POST['activo']:"";
-$productoIva_post=(isset($_POST['productoIva']))?$_POST['productoIva']:""; // Variable temporal para el checkbox
+$productoIva_post=(isset($_POST['productoIva']))?$_POST['productoIva']:"";
 
 $accion=(isset($_POST['accion']))?$_POST['accion']:"";
 
-// Convertir checkboxes a valores binarios (usamos las variables temporales para evitar conflictos)
+// Convertir checkboxes a valores binarios
 $productoIva = isset($_POST['productoIva']) ? 1 : 0;
 $facturacionCero = isset($_POST['facturacionCero']) ? 1 : 0;
 $activo = isset($_POST['activo']) ? 1 : 0;
@@ -63,7 +65,6 @@ switch($accion){
     break;
 
     case "btnModificarCategoria":
-        // Asegúrate de incluir el campo oculto idcategoria en tu formulario de edición
         $sentencia=$pdo->prepare("UPDATE categoriainventarios SET categoria=:categoria, codigoCuentaVentas=:codigoCuentaVentas, cuentaVentas=:cuentaVentas, codigoCuentaInventarios=:codigoCuentaInventarios, cuentaInventarios=:cuentaInventarios, codigoCuentaCostos=:codigoCuentaCostos, cuentaCostos=:cuentaCostos, codigoCuentaDevoluciones=:codigoCuentaDevoluciones, cuentaDevoluciones=:cuentaDevoluciones WHERE id=:idcategoria");
 
         $sentencia->bindParam(':idcategoria',$idcategoria);
@@ -94,28 +95,31 @@ switch($accion){
     break;
 
     case "btnAgregarProducto":
-        $sentencia=$pdo->prepare("INSERT INTO productoinventarios(categoriaInventarios,codigoProducto,descripcionProducto,unidadMedida,cantidad,productoIva,tipoItem,facturacionCero,activo) 
-        VALUES (:categoriaInventarios,:codigoProducto,:descripcionProducto,:unidadMedida,:cantidad,:productoIva,:tipoItem,:facturacionCero,:activo)");
+        // MODIFICADO: Se agregó costoUnitario
+        $sentencia=$pdo->prepare("INSERT INTO productoinventarios(categoriaInventarios,codigoProducto,descripcionProducto,unidadMedida,cantidad,precioUnitario,costoUnitario,productoIva,tipoItem,facturacionCero,activo) 
+        VALUES (:categoriaInventarios,:codigoProducto,:descripcionProducto,:unidadMedida,:cantidad,:precioUnitario,:costoUnitario,:productoIva,:tipoItem,:facturacionCero,:activo)");
         
         $sentencia->bindParam(':categoriaInventarios',$categoriaInventarios);
         $sentencia->bindParam(':codigoProducto',$codigoProducto);
         $sentencia->bindParam(':descripcionProducto',$descripcionProducto);
         $sentencia->bindParam(':unidadMedida',$unidadMedida);
         $sentencia->bindParam(':cantidad',$cantidad);
-        $sentencia->bindParam(':productoIva',$productoIva); // Ya es 0 o 1
+        $sentencia->bindParam(':precioUnitario',$precioUnitario);
+        $sentencia->bindParam(':costoUnitario',$costoUnitario); // NUEVO CAMPO
+        $sentencia->bindParam(':productoIva',$productoIva);
         $sentencia->bindParam(':tipoItem',$tipoItem);
-        $sentencia->bindParam(':facturacionCero',$facturacionCero); // Ya es 0 o 1
-        $sentencia->bindParam(':activo',$activo); // Ya es 0 o 1
+        $sentencia->bindParam(':facturacionCero',$facturacionCero);
+        $sentencia->bindParam(':activo',$activo);
 
         $sentencia->execute();
 
         header("Location: ".$_SERVER['PHP_SELF']."?msg=agregadoProducto");
         exit;
-
     break;
 
     case "btnModificarProducto":
-        $sentencia=$pdo->prepare("UPDATE productoinventarios SET categoriaInventarios=:categoriaInventarios, codigoProducto=:codigoProducto, descripcionProducto=:descripcionProducto, unidadMedida=:unidadMedida, cantidad=:cantidad, productoIva=:productoIva, tipoItem=:tipoItem, facturacionCero=:facturacionCero, activo=:activo WHERE id=:idproducto");
+        // MODIFICADO: Se agregó costoUnitario
+        $sentencia=$pdo->prepare("UPDATE productoinventarios SET categoriaInventarios=:categoriaInventarios, codigoProducto=:codigoProducto, descripcionProducto=:descripcionProducto, unidadMedida=:unidadMedida, cantidad=:cantidad, precioUnitario=:precioUnitario, costoUnitario=:costoUnitario, productoIva=:productoIva, tipoItem=:tipoItem, facturacionCero=:facturacionCero, activo=:activo WHERE id=:idproducto");
         
         $sentencia->bindParam(':idproducto',$idproducto);
         $sentencia->bindParam(':categoriaInventarios',$categoriaInventarios);
@@ -123,16 +127,17 @@ switch($accion){
         $sentencia->bindParam(':descripcionProducto',$descripcionProducto);
         $sentencia->bindParam(':unidadMedida',$unidadMedida);
         $sentencia->bindParam(':cantidad',$cantidad);
-        $sentencia->bindParam(':productoIva',$productoIva); // Ya es 0 o 1
+        $sentencia->bindParam(':precioUnitario',$precioUnitario);
+        $sentencia->bindParam(':costoUnitario',$costoUnitario); // NUEVO CAMPO
+        $sentencia->bindParam(':productoIva',$productoIva);
         $sentencia->bindParam(':tipoItem',$tipoItem);
-        $sentencia->bindParam(':facturacionCero',$facturacionCero); // Ya es 0 o 1
-        $sentencia->bindParam(':activo',$activo); // Ya es 0 o 1
+        $sentencia->bindParam(':facturacionCero',$facturacionCero);
+        $sentencia->bindParam(':activo',$activo);
 
         $sentencia->execute();
 
         header("Location: ".$_SERVER['PHP_SELF']."?msg=modificadoProducto");
         exit;
-
     break;
 
     case "btnEliminarProducto":
@@ -155,8 +160,7 @@ $sentenciaCategorias = $pdo->prepare("SELECT id, categoria, codigoCuentaVentas, 
 $sentenciaCategorias->execute();
 $categorias = $sentenciaCategorias->fetchAll(PDO::FETCH_ASSOC);
 
-
-// Obtener todos los productos/servicios registrados (usando JOIN para mostrar el nombre de la categoría)
+// Obtener todos los productos/servicios registrados (MODIFICADO: Se agregó precioUnitario)
 $sentenciaProductos = $pdo->prepare("SELECT 
     p.id, 
     p.categoriaInventarios AS idCategoria,
@@ -165,6 +169,8 @@ $sentenciaProductos = $pdo->prepare("SELECT
     p.descripcionProducto,
     p.unidadMedida,
     p.cantidad,
+    p.precioUnitario,
+    p.costoUnitario, -- NUEVO CAMPO
     p.productoIva,
     p.tipoItem,
     p.facturacionCero,
@@ -611,6 +617,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 <input type="number" class="form-control" id="cantidad" name="cantidad" min="0">
               </div>
 
+              <div class="col-md-3">
+                <label for="precioUnitario" class="form-label fw-bold">Precio de Venta*</label>
+                <input type="number" class="form-control" id="precioUnitario" name="precioUnitario" step="0.01" min="0" placeholder="0.00" required>
+              </div>
+
+              <div class="col-md-3">
+                <label for="costoUnitario" class="form-label fw-bold">Costo Unitario*</label>
+                <input type="number" class="form-control" id="costoUnitario" name="costoUnitario" step="0.01" min="0" placeholder="0.00" required>
+              </div>
+
               <div class="col-md-2 d-flex align-items-center">
                 <div class="form-check">
                   <input type="checkbox" class="form-check-input" id="productoIva" name="productoIva">
@@ -673,18 +689,20 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="table-responsive">
                 <table class="table-container">
                     <thead>
-                        <tr>
-                            <th scope="col">ID</th>
-                            <th scope="col">Categoría</th>
-                            <th scope="col">Código</th>
-                            <th scope="col">Descripción</th>
-                            <th scope="col">Unidad</th>
-                            <th scope="col">Cant.</th>
-                            <th scope="col">Tipo</th>
-                            <th scope="col">IVA</th>
-                            <th scope="col">Activo</th>
-                            <th scope="col">Acciones</th>
-                        </tr>
+                      <tr>
+                          <th scope="col">ID</th>
+                          <th scope="col">Categoría</th>
+                          <th scope="col">Código</th>
+                          <th scope="col">Descripción</th>
+                          <th scope="col">Unidad</th>
+                          <th scope="col">Cant.</th>
+                          <th scope="col">Precio Venta</th>
+                          <th scope="col">Precio de Compra</th> <!-- NUEVA COLUMNA -->
+                          <th scope="col">Tipo</th>
+                          <th scope="col">IVA</th>
+                          <th scope="col">Activo</th>
+                          <th scope="col">Acciones</th>
+                      </tr>
                     </thead>
                     <tbody>
                         <?php foreach ($productos as $prod): ?>
@@ -695,6 +713,8 @@ document.addEventListener("DOMContentLoaded", () => {
                             <td><?php echo htmlspecialchars($prod['descripcionProducto']); ?></td>
                             <td><?php echo htmlspecialchars($prod['unidadMedida']); ?></td>
                             <td><?php echo htmlspecialchars($prod['cantidad']); ?></td>
+                            <td>$<?php echo number_format($prod['precioUnitario'], 2); ?></td> <!-- NUEVA COLUMNA -->
+                            <td>$<?php echo number_format($prod['costoUnitario'], 2); ?></td> <!-- NUEVA COLUMNA -->
                             <td><?php echo htmlspecialchars(ucfirst($prod['tipoItem'])); ?></td>
                             <td><?php echo $prod['productoIva'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
                             <td><?php echo $prod['activo'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
@@ -707,6 +727,8 @@ document.addEventListener("DOMContentLoaded", () => {
                                     <input type="hidden" data-campo="descripcionProducto" value="<?php echo htmlspecialchars($prod['descripcionProducto']); ?>">
                                     <input type="hidden" data-campo="unidadMedida" value="<?php echo htmlspecialchars($prod['unidadMedida']); ?>">
                                     <input type="hidden" data-campo="cantidad" value="<?php echo htmlspecialchars($prod['cantidad']); ?>">
+                                    <input type="hidden" data-campo="precioUnitario" value="<?php echo htmlspecialchars($prod['precioUnitario']); ?>"> <!-- NUEVO CAMPO -->
+                                    <input type="hidden" data-campo="costoUnitario" value="<?php echo htmlspecialchars($prod['costoUnitario']); ?>">
                                     <input type="hidden" data-campo="productoIva" value="<?php echo htmlspecialchars($prod['productoIva']); ?>">
                                     <input type="hidden" data-campo="facturacionCero" value="<?php echo htmlspecialchars($prod['facturacionCero']); ?>">
                                     <input type="hidden" data-campo="activo" value="<?php echo htmlspecialchars($prod['activo']); ?>">
@@ -949,9 +971,20 @@ document.addEventListener("DOMContentLoaded", () => {
                             if (radioButton) {
                                 radioButton.checked = true;
                             }
+                        } else if (targetId === 'precioUnitario') {
+                            const targetInput = formProductos.querySelector(`#${targetId}`);
+                            if (targetInput) {
+                                targetInput.value = value;
+                            }  
+                        } else if (targetId === 'costoUnitario') {
+                            const targetInput = formProductos.querySelector(`#${targetId}`);
+                            if (targetInput) {
+                                targetInput.value = value;
+                            }
                         } else if (targetId === 'unidadMedida') {
                             $('#unidadMedida').val(value).trigger('change');
-                        } else if (targetId === 'categoriaInventarios') {
+                        }
+                         else if (targetId === 'categoriaInventarios') {
                             const targetInput = formProductos.querySelector(`#${targetId}`);
                             if (targetInput) {
                                 targetInput.value = value;
