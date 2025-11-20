@@ -201,23 +201,23 @@ foreach ($todas_cuentas as $cuenta) {
 // ================== AGREGAR AGRUPACIONES SUPERIORES ==================
 function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial = false) {
     $agrupaciones = [];
-    
-    // Niveles válidos: 1, 2, 4, 6, 8, 10 dígitos
     $niveles_validos = [1, 2, 4, 6, 8, 10];
+    
+    // Primero: identificar todas las agrupaciones necesarias
+    $cuentas_con_saldo = [];
+    foreach ($array_cuentas as $cuenta) {
+        $cuentas_con_saldo[$cuenta['codigo']] = $cuenta;
+    }
     
     foreach ($array_cuentas as $cuenta) {
         $codigo = $cuenta['codigo'];
         $longitud_actual = strlen($codigo);
         
-        // Generar códigos de agrupación solo para los niveles válidos
         foreach ($niveles_validos as $longitud) {
-            // Solo generar agrupaciones para niveles superiores al actual
             if ($longitud < $longitud_actual) {
                 $grupo = substr($codigo, 0, $longitud);
                 
-                // Verificar que no sea la cuenta actual y que no esté ya procesada
-                if ($grupo != $codigo && !in_array($grupo, $cuentas_procesadas)) {
-                    // Usar el nombre de la tabla cuentas_contables si existe
+                if (!isset($cuentas_con_saldo[$grupo]) && !in_array($grupo, $cuentas_procesadas)) {
                     $nombre = isset($nombres_cuentas[$grupo]) ? $nombres_cuentas[$grupo] : 'Grupo ' . $grupo;
                     
                     if (!isset($agrupaciones[$grupo])) {
@@ -229,21 +229,39 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuen
                             'nivel' => strlen($grupo),
                             'es_grupo' => true
                         ];
-                        $cuentas_procesadas[] = $grupo;
-                    }
-                    $agrupaciones[$grupo]['saldo'] += $cuenta['saldo'];
-                    if ($mostrar_saldo_inicial) {
-                        $agrupaciones[$grupo]['saldo_inicial'] += $cuenta['saldo_inicial'];
                     }
                 }
             }
         }
     }
     
-    // Fusionar agrupaciones con cuentas detalle
+    // Segundo: acumular saldos de niveles inferiores a superiores
+    foreach ($niveles_validos as $nivel) {
+        foreach (array_reverse($niveles_validos) as $nivel_hijo) {
+            if ($nivel_hijo > $nivel) {
+                foreach (array_merge($array_cuentas, array_values($agrupaciones)) as $item) {
+                    if (strlen($item['codigo']) == $nivel_hijo) {
+                        $codigo_padre = substr($item['codigo'], 0, $nivel);
+                        
+                        if (isset($agrupaciones[$codigo_padre])) {
+                            // Siempre suma algebraicamente (respeta signos positivos y negativos)
+                            $agrupaciones[$codigo_padre]['saldo'] += $item['saldo'];
+                            if ($mostrar_saldo_inicial) {
+                                $agrupaciones[$codigo_padre]['saldo_inicial'] += $item['saldo_inicial'];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    foreach ($agrupaciones as $codigo => $grupo) {
+        $cuentas_procesadas[] = $codigo;
+    }
+    
     $resultado = array_merge(array_values($agrupaciones), $array_cuentas);
     
-    // Ordenar por código
     usort($resultado, function($a, $b) {
         return strcmp($a['codigo'], $b['codigo']);
     });

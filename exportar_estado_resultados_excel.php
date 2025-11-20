@@ -42,6 +42,32 @@ function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
+// ================== OBTENER NOMBRES DE CUENTAS DESDE LA TABLA cuentas_contables ==================
+function obtenerNombresCuentas($pdo) {
+    $sql = "SELECT nivel1, nivel2, nivel3, nivel4, nivel5, nivel6 FROM cuentas_contables";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute();
+    $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    $nombres = [];
+    foreach ($resultados as $fila) {
+        for ($i = 1; $i <= 6; $i++) {
+            $campo = 'nivel' . $i;
+            if (!empty($fila[$campo])) {
+                $partes = explode('-', $fila[$campo], 2);
+                if (count($partes) == 2) {
+                    $codigo = trim($partes[0]);
+                    $nombre = trim($partes[1]);
+                    $nombres[$codigo] = $nombre;
+                }
+            }
+        }
+    }
+    return $nombres;
+}
+
+$nombres_cuentas = obtenerNombresCuentas($pdo);
+
 // ================== OBTENER TODAS LAS CUENTAS DE INGRESOS (4), COSTOS (6) Y GASTOS (5) ==================
 $sql_cuentas = "SELECT DISTINCT 
                     codigo_cuenta, 
@@ -95,9 +121,11 @@ foreach ($todas_cuentas as $cuenta) {
     }
     
     if ($saldo != 0) {
+        $nombre_cuenta = isset($nombres_cuentas[$codigo]) ? $nombres_cuentas[$codigo] : $cuenta['nombre_cuenta'];
+        
         $item = [
             'codigo' => $codigo,
-            'nombre' => $cuenta['nombre_cuenta'],
+            'nombre' => $nombre_cuenta,
             'saldo' => $saldo,
             'nivel' => strlen($codigo)
         ];
@@ -118,41 +146,60 @@ foreach ($todas_cuentas as $cuenta) {
 }
 
 // ================== AGREGAR AGRUPACIONES SUPERIORES ==================
-function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas) {
+function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuentas) {
     $agrupaciones = [];
-    $nombres_grupo = [
-        '41' => 'Operacionales',
-        '42' => 'Otros ingresos',
-        '51' => 'Operacionales de administración',
-        '52' => 'Operacionales de ventas',
-        '53' => 'Otros gastos',
-        '61' => 'Costo de ventas y de prestación de servicios'
-    ];
+    $niveles_validos = [1, 2, 4, 6, 8, 10];
+    
+    // Primero: identificar todas las agrupaciones necesarias
+    $cuentas_con_saldo = [];
+    foreach ($array_cuentas as $cuenta) {
+        $cuentas_con_saldo[$cuenta['codigo']] = $cuenta;
+    }
     
     foreach ($array_cuentas as $cuenta) {
         $codigo = $cuenta['codigo'];
+        $longitud_actual = strlen($codigo);
         
-        $niveles = [];
-        if (strlen($codigo) >= 2) $niveles[] = substr($codigo, 0, 2);
-        if (strlen($codigo) >= 4) $niveles[] = substr($codigo, 0, 4);
-        if (strlen($codigo) >= 6) $niveles[] = substr($codigo, 0, 6);
-        
-        foreach ($niveles as $grupo) {
-            if (!in_array($grupo, $cuentas_procesadas)) {
-                $nombre = isset($nombres_grupo[$grupo]) ? $nombres_grupo[$grupo] : 'Grupo ' . $grupo;
-                if (!isset($agrupaciones[$grupo])) {
-                    $agrupaciones[$grupo] = [
-                        'codigo' => $grupo,
-                        'nombre' => $nombre,
-                        'saldo' => 0,
-                        'nivel' => strlen($grupo),
-                        'es_grupo' => true
-                    ];
-                    $cuentas_procesadas[] = $grupo;
+        foreach ($niveles_validos as $longitud) {
+            if ($longitud < $longitud_actual) {
+                $grupo = substr($codigo, 0, $longitud);
+                
+                if (!isset($cuentas_con_saldo[$grupo]) && !in_array($grupo, $cuentas_procesadas)) {
+                    $nombre = isset($nombres_cuentas[$grupo]) ? $nombres_cuentas[$grupo] : 'Grupo ' . $grupo;
+                    
+                    if (!isset($agrupaciones[$grupo])) {
+                        $agrupaciones[$grupo] = [
+                            'codigo' => $grupo,
+                            'nombre' => $nombre,
+                            'saldo' => 0,
+                            'nivel' => strlen($grupo),
+                            'es_grupo' => true
+                        ];
+                    }
                 }
-                $agrupaciones[$grupo]['saldo'] += $cuenta['saldo'];
             }
         }
+    }
+    
+    // Segundo: acumular saldos de niveles inferiores a superiores
+    foreach ($niveles_validos as $nivel) {
+        foreach (array_reverse($niveles_validos) as $nivel_hijo) {
+            if ($nivel_hijo > $nivel) {
+                foreach (array_merge($array_cuentas, array_values($agrupaciones)) as $item) {
+                    if (strlen($item['codigo']) == $nivel_hijo) {
+                        $codigo_padre = substr($item['codigo'], 0, $nivel);
+                        
+                        if (isset($agrupaciones[$codigo_padre])) {
+                            $agrupaciones[$codigo_padre]['saldo'] += $item['saldo'];
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    foreach ($agrupaciones as $codigo => $grupo) {
+        $cuentas_procesadas[] = $codigo;
     }
     
     $resultado = array_merge(array_values($agrupaciones), $array_cuentas);
@@ -164,9 +211,9 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas) {
     return $resultado;
 }
 
-$ingresos = agregarAgrupaciones($ingresos, $cuentas_procesadas);
-$costos = agregarAgrupaciones($costos, $cuentas_procesadas);
-$gastos = agregarAgrupaciones($gastos, $cuentas_procesadas);
+$ingresos = agregarAgrupaciones($ingresos, $cuentas_procesadas, $nombres_cuentas);
+$costos = agregarAgrupaciones($costos, $cuentas_procesadas, $nombres_cuentas);
+$gastos = agregarAgrupaciones($gastos, $cuentas_procesadas, $nombres_cuentas);
 
 // ================== RESULTADO DEL EJERCICIO ==================
 $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;

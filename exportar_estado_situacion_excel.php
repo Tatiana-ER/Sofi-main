@@ -231,23 +231,18 @@ foreach ($todas_cuentas as $cuenta) {
 // ================== AGREGAR AGRUPACIONES ==================
 function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial = false) {
     $agrupaciones = [];
-    
-    // Niveles válidos: 1, 2, 4, 6, 8, 10 dígitos
     $niveles_validos = [1, 2, 4, 6, 8, 10];
     
+    // Crear todas las agrupaciones necesarias
     foreach ($array_cuentas as $cuenta) {
         $codigo = $cuenta['codigo'];
         $longitud_actual = strlen($codigo);
         
-        // Generar códigos de agrupación solo para los niveles válidos
         foreach ($niveles_validos as $longitud) {
-            // Solo generar agrupaciones para niveles superiores al actual
             if ($longitud < $longitud_actual) {
                 $grupo = substr($codigo, 0, $longitud);
                 
-                // Verificar que no sea la cuenta actual y que no esté ya procesada
                 if ($grupo != $codigo && !in_array($grupo, $cuentas_procesadas)) {
-                    // Usar el nombre de la tabla cuentas_contables si existe
                     $nombre = isset($nombres_cuentas[$grupo]) ? $nombres_cuentas[$grupo] : 'Grupo ' . $grupo;
                     
                     if (!isset($agrupaciones[$grupo])) {
@@ -261,19 +256,58 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuen
                         ];
                         $cuentas_procesadas[] = $grupo;
                     }
-                    $agrupaciones[$grupo]['saldo'] += $cuenta['saldo'];
-                    if ($mostrar_saldo_inicial) {
-                        $agrupaciones[$grupo]['saldo_inicial'] += $cuenta['saldo_inicial'];
-                    }
                 }
             }
         }
     }
     
-    // Fusionar agrupaciones con cuentas detalle
+    // Calcular saldos sumando SOLO los hijos directos (del nivel inmediatamente inferior)
+    // Procesar de mayor a menor nivel para acumular correctamente
+    foreach (array_reverse($niveles_validos) as $nivel_actual) {
+        // Para cada agrupación de este nivel
+        foreach ($agrupaciones as $cod_grupo => &$grupo) {
+            if ($grupo['nivel'] == $nivel_actual) {
+                $nivel_hijo_esperado = null;
+                
+                // Determinar el nivel del hijo directo esperado
+                foreach ($niveles_validos as $nv) {
+                    if ($nv > $nivel_actual) {
+                        $nivel_hijo_esperado = $nv;
+                        break;
+                    }
+                }
+                
+                if ($nivel_hijo_esperado) {
+                    // Sumar cuentas detalle del nivel hijo
+                    foreach ($array_cuentas as $cuenta) {
+                        if (strlen($cuenta['codigo']) == $nivel_hijo_esperado && 
+                            strpos($cuenta['codigo'], $cod_grupo) === 0) {
+                            $grupo['saldo'] += $cuenta['saldo'];
+                            if ($mostrar_saldo_inicial) {
+                                $grupo['saldo_inicial'] += $cuenta['saldo_inicial'];
+                            }
+                        }
+                    }
+                    
+                    // Sumar agrupaciones del nivel hijo
+                    foreach ($agrupaciones as $cod_hijo => $hijo) {
+                        if ($hijo['nivel'] == $nivel_hijo_esperado && 
+                            strpos($cod_hijo, $cod_grupo) === 0 && 
+                            $cod_hijo != $cod_grupo) {
+                            $grupo['saldo'] += $hijo['saldo'];
+                            if ($mostrar_saldo_inicial) {
+                                $grupo['saldo_inicial'] += $hijo['saldo_inicial'];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        unset($grupo);
+    }
+    
     $resultado = array_merge(array_values($agrupaciones), $array_cuentas);
     
-    // Ordenar por código
     usort($resultado, function($a, $b) {
         return strcmp($a['codigo'], $b['codigo']);
     });
@@ -281,23 +315,30 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuen
     return $resultado;
 }
 
-// Aplicar agrupaciones
+// Aplicar agrupaciones a activos y pasivos
 $activos = agregarAgrupaciones($activos, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
 $pasivos = agregarAgrupaciones($pasivos, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
-$patrimonios = agregarAgrupaciones($patrimonios, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
 
-// Agregar resultado del ejercicio
+// ================== AGREGAR RESULTADO DEL EJERCICIO ANTES DE AGRUPACIONES ==================
 $resultado_ejercicio = obtenerResultadoEjercicio($pdo, $fecha_desde, $fecha_hasta, $tercero);
+
 if ($resultado_ejercicio != 0) {
-    $patrimonios[] = [
+    $cuenta_resultado = [
         'codigo' => ($resultado_ejercicio >= 0) ? '360501' : '361001',
         'nombre' => ($resultado_ejercicio >= 0) ? 'Utilidad del ejercicio' : 'Pérdida del ejercicio',
         'saldo_inicial' => 0,
-        'saldo' => abs($resultado_ejercicio),
-        'nivel' => 6
+        'saldo' => $resultado_ejercicio, // VALOR CON SIGNO (negativo si es pérdida)
+        'nivel' => 6,
+        'es_resultado' => true
     ];
+    
+    $patrimonios[] = $cuenta_resultado;
     $totalPatrimonios += $resultado_ejercicio;
+    $cuentas_procesadas[] = $cuenta_resultado['codigo'];
 }
+
+// Ahora sí aplicar agrupaciones al patrimonio
+$patrimonios = agregarAgrupaciones($patrimonios, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
 
 // ================== GENERAR EXCEL ==================
 header('Content-Type: application/vnd.ms-excel; charset=utf-8');
@@ -422,14 +463,17 @@ echo '</tr>';
 
 foreach ($patrimonios as $fila) {
     $padding_left = ($fila['nivel'] - 1) * 15;
+    // Añadir clase de color rojo si es valor negativo
+    $color_style = ($fila['saldo'] < 0) ? 'color: #dc3545;' : '';
+    
     echo '<tr>';
     echo '<td style="padding: 5px;">' . htmlspecialchars($fila['codigo'], ENT_QUOTES, 'UTF-8') . '</td>';
     echo '<td style="padding: 5px; padding-left: ' . $padding_left . 'px;">' . htmlspecialchars($fila['nombre'], ENT_QUOTES, 'UTF-8') . '</td>';
     if ($mostrar_saldo_inicial) {
-        echo '<td style="padding: 5px; text-align: right;">' . number_format($fila['saldo_inicial'], 2, ',', '.') . '</td>';
-        echo '<td style="padding: 5px; text-align: right;">' . number_format($fila['saldo'], 2, ',', '.') . '</td>';
+        echo '<td style="padding: 5px; text-align: right; ' . $color_style . '">' . number_format($fila['saldo_inicial'], 2, ',', '.') . '</td>';
+        echo '<td style="padding: 5px; text-align: right; ' . $color_style . '">' . number_format($fila['saldo'], 2, ',', '.') . '</td>';
     } else {
-        echo '<td style="padding: 5px; text-align: right;">' . number_format($fila['saldo'], 2, ',', '.') . '</td>';
+        echo '<td style="padding: 5px; text-align: right; ' . $color_style . '">' . number_format($fila['saldo'], 2, ',', '.') . '</td>';
     }
     echo '</tr>';
 }

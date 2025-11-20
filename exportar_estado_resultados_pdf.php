@@ -13,6 +13,11 @@ $fecha_hasta = isset($_GET['hasta']) ? $_GET['hasta'] : date('Y-m-t');
 $cuenta_codigo = isset($_GET['cuenta']) ? $_GET['cuenta'] : '';
 $tercero = isset($_GET['tercero']) ? $_GET['tercero'] : '';
 
+// ================== FUNCIÓN PARA CONVERTIR TEXTO ==================
+function convertir_texto($texto) {
+    return mb_convert_encoding($texto, 'ISO-8859-1', 'UTF-8');
+}
+
 // ================== FUNCIÓN PARA CALCULAR SALDOS POR CUENTA ==================
 function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $tercero = '') {
     $sql = "SELECT 
@@ -38,6 +43,32 @@ function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $
     
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
+
+// ================== OBTENER NOMBRES DE CUENTAS DESDE LA TABLA cuentas_contables ==================
+function obtenerNombresCuentas($pdo) {
+    $sql = "SELECT nivel1, nivel2, nivel3, nivel4, nivel5, nivel6 FROM cuentas_contables";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute();
+    $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    $nombres = [];
+    foreach ($resultados as $fila) {
+        for ($i = 1; $i <= 6; $i++) {
+            $campo = 'nivel' . $i;
+            if (!empty($fila[$campo])) {
+                $partes = explode('-', $fila[$campo], 2);
+                if (count($partes) == 2) {
+                    $codigo = trim($partes[0]);
+                    $nombre = trim($partes[1]);
+                    $nombres[$codigo] = $nombre;
+                }
+            }
+        }
+    }
+    return $nombres;
+}
+
+$nombres_cuentas = obtenerNombresCuentas($pdo);
 
 // ================== OBTENER TODAS LAS CUENTAS DE INGRESOS (4), COSTOS (6) Y GASTOS (5) ==================
 $sql_cuentas = "SELECT DISTINCT 
@@ -92,9 +123,11 @@ foreach ($todas_cuentas as $cuenta) {
     }
     
     if ($saldo != 0) {
+        $nombre_cuenta = isset($nombres_cuentas[$codigo]) ? $nombres_cuentas[$codigo] : $cuenta['nombre_cuenta'];
+        
         $item = [
             'codigo' => $codigo,
-            'nombre' => $cuenta['nombre_cuenta'],
+            'nombre' => $nombre_cuenta,
             'saldo' => $saldo,
             'nivel' => strlen($codigo)
         ];
@@ -115,41 +148,60 @@ foreach ($todas_cuentas as $cuenta) {
 }
 
 // ================== AGREGAR AGRUPACIONES SUPERIORES ==================
-function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas) {
+function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuentas) {
     $agrupaciones = [];
-    $nombres_grupo = [
-        '41' => 'Operacionales',
-        '42' => 'Otros ingresos',
-        '51' => 'Operacionales de administración',
-        '52' => 'Operacionales de ventas',
-        '53' => 'Otros gastos',
-        '61' => 'Costo de ventas y de prestación de servicios'
-    ];
+    $niveles_validos = [1, 2, 4, 6, 8, 10];
+    
+    // Primero: identificar todas las agrupaciones necesarias
+    $cuentas_con_saldo = [];
+    foreach ($array_cuentas as $cuenta) {
+        $cuentas_con_saldo[$cuenta['codigo']] = $cuenta;
+    }
     
     foreach ($array_cuentas as $cuenta) {
         $codigo = $cuenta['codigo'];
+        $longitud_actual = strlen($codigo);
         
-        $niveles = [];
-        if (strlen($codigo) >= 2) $niveles[] = substr($codigo, 0, 2);
-        if (strlen($codigo) >= 4) $niveles[] = substr($codigo, 0, 4);
-        if (strlen($codigo) >= 6) $niveles[] = substr($codigo, 0, 6);
-        
-        foreach ($niveles as $grupo) {
-            if (!in_array($grupo, $cuentas_procesadas)) {
-                $nombre = isset($nombres_grupo[$grupo]) ? $nombres_grupo[$grupo] : 'Grupo ' . $grupo;
-                if (!isset($agrupaciones[$grupo])) {
-                    $agrupaciones[$grupo] = [
-                        'codigo' => $grupo,
-                        'nombre' => $nombre,
-                        'saldo' => 0,
-                        'nivel' => strlen($grupo),
-                        'es_grupo' => true
-                    ];
-                    $cuentas_procesadas[] = $grupo;
+        foreach ($niveles_validos as $longitud) {
+            if ($longitud < $longitud_actual) {
+                $grupo = substr($codigo, 0, $longitud);
+                
+                if (!isset($cuentas_con_saldo[$grupo]) && !in_array($grupo, $cuentas_procesadas)) {
+                    $nombre = isset($nombres_cuentas[$grupo]) ? $nombres_cuentas[$grupo] : 'Grupo ' . $grupo;
+                    
+                    if (!isset($agrupaciones[$grupo])) {
+                        $agrupaciones[$grupo] = [
+                            'codigo' => $grupo,
+                            'nombre' => $nombre,
+                            'saldo' => 0,
+                            'nivel' => strlen($grupo),
+                            'es_grupo' => true
+                        ];
+                    }
                 }
-                $agrupaciones[$grupo]['saldo'] += $cuenta['saldo'];
             }
         }
+    }
+    
+    // Segundo: acumular saldos de niveles inferiores a superiores
+    foreach ($niveles_validos as $nivel) {
+        foreach (array_reverse($niveles_validos) as $nivel_hijo) {
+            if ($nivel_hijo > $nivel) {
+                foreach (array_merge($array_cuentas, array_values($agrupaciones)) as $item) {
+                    if (strlen($item['codigo']) == $nivel_hijo) {
+                        $codigo_padre = substr($item['codigo'], 0, $nivel);
+                        
+                        if (isset($agrupaciones[$codigo_padre])) {
+                            $agrupaciones[$codigo_padre]['saldo'] += $item['saldo'];
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    foreach ($agrupaciones as $codigo => $grupo) {
+        $cuentas_procesadas[] = $codigo;
     }
     
     $resultado = array_merge(array_values($agrupaciones), $array_cuentas);
@@ -161,9 +213,9 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas) {
     return $resultado;
 }
 
-$ingresos = agregarAgrupaciones($ingresos, $cuentas_procesadas);
-$costos = agregarAgrupaciones($costos, $cuentas_procesadas);
-$gastos = agregarAgrupaciones($gastos, $cuentas_procesadas);
+$ingresos = agregarAgrupaciones($ingresos, $cuentas_procesadas, $nombres_cuentas);
+$costos = agregarAgrupaciones($costos, $cuentas_procesadas, $nombres_cuentas);
+$gastos = agregarAgrupaciones($gastos, $cuentas_procesadas, $nombres_cuentas);
 
 // ================== RESULTADO DEL EJERCICIO ==================
 $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
@@ -193,10 +245,10 @@ class PDF extends FPDF
         // Arial bold 15
         $this->SetFont('Arial', 'B', 15);
         // Título
-        $this->Cell(0, 10, 'ESTADO DE RESULTADOS', 0, 1, 'C');
+        $this->Cell(0, 10, convertir_texto('ESTADO DE RESULTADOS'), 0, 1, 'C');
         // Fecha
         $this->SetFont('Arial', '', 10);
-        $this->Cell(0, 5, 'SOFI - Software Financiero', 0, 1, 'C');
+        $this->Cell(0, 5, convertir_texto('SOFI - Software Financiero'), 0, 1, 'C');
         // Salto de línea
         $this->Ln(5);
     }
@@ -209,7 +261,7 @@ class PDF extends FPDF
         // Arial italic 8
         $this->SetFont('Arial', 'I', 8);
         // Número de página
-        $this->Cell(0, 10, 'Pagina ' . $this->PageNo() . '/{nb}', 0, 0, 'C');
+        $this->Cell(0, 10, convertir_texto('Página ') . $this->PageNo() . '/{nb}', 0, 0, 'C');
     }
 
     // Función para agregar sección
@@ -218,16 +270,16 @@ class PDF extends FPDF
         // Título de sección
         $this->SetFont('Arial', 'B', 12);
         $this->SetFillColor(227, 242, 253);
-        $this->Cell(0, 8, $titulo, 0, 1, 'L', true);
+        $this->Cell(0, 8, convertir_texto($titulo), 0, 1, 'L', true);
         $this->Ln(2);
 
         // Cabecera de tabla
         $this->SetFont('Arial', 'B', 10);
         $this->SetFillColor(5, 74, 133);
         $this->SetTextColor(255, 255, 255);
-        $this->Cell(25, 8, 'Codigo', 0, 0, 'L', true);
-        $this->Cell(115, 8, 'Nombre de la cuenta', 0, 0, 'L', true);
-        $this->Cell(40, 8, 'Saldo', 0, 1, 'R', true);
+        $this->Cell(25, 8, convertir_texto('Código'), 0, 0, 'L', true);
+        $this->Cell(115, 8, convertir_texto('Nombre de la cuenta'), 0, 0, 'L', true);
+        $this->Cell(40, 8, convertir_texto('Saldo'), 0, 1, 'R', true);
         $this->SetTextColor(0, 0, 0);
 
         // Datos
@@ -238,7 +290,7 @@ class PDF extends FPDF
                 
                 // Aplicar sangría según nivel
                 $sangria = ($fila['nivel'] - 2) * 3;
-                $nombre = $fila['nombre'];
+                $nombre = convertir_texto($fila['nombre']);
                 if ($sangria > 0) {
                     $this->Cell(115, 6, str_repeat(' ', $sangria) . $nombre, 0, 0, 'L');
                 } else {
@@ -251,14 +303,14 @@ class PDF extends FPDF
             // Total de sección
             $this->SetFont('Arial', 'B', 10);
             $this->SetFillColor(248, 249, 250);
-            $this->Cell(140, 8, 'TOTAL ' . $titulo, 0, 0, 'L', true);
+            $this->Cell(140, 8, convertir_texto('TOTAL ' . $titulo), 0, 0, 'L', true);
             $this->Cell(40, 8, number_format($total, 2, ',', '.'), 0, 1, 'R', true);
             
             // Agregar utilidad bruta después de costos
             if ($tipo_seccion == 'costos') {
                 $this->SetFont('Arial', 'BI', 10);
                 $this->SetFillColor(232, 244, 248);
-                $this->Cell(140, 8, 'UTILIDAD BRUTA (Ingresos - Costos)', 0, 0, 'L', true);
+                $this->Cell(140, 8, convertir_texto('UTILIDAD BRUTA (Ingresos - Costos)'), 0, 0, 'L', true);
                 $this->Cell(40, 8, number_format($this->utilidad_bruta, 2, ',', '.'), 0, 1, 'R', true);
             }
             
@@ -266,11 +318,11 @@ class PDF extends FPDF
             if ($tipo_seccion == 'gastos') {
                 $this->SetFont('Arial', 'BI', 10);
                 $this->SetFillColor(232, 244, 248);
-                $this->Cell(140, 8, 'UTILIDAD OPERACIONAL (Utilidad Bruta - Gastos)', 0, 0, 'L', true);
+                $this->Cell(140, 8, convertir_texto('UTILIDAD OPERACIONAL (Utilidad Bruta - Gastos)'), 0, 0, 'L', true);
                 $this->Cell(40, 8, number_format($this->utilidad_operacional, 2, ',', '.'), 0, 1, 'R', true);
             }
         } else {
-            $this->Cell(0, 8, 'No hay datos en el periodo seleccionado', 0, 1, 'C');
+            $this->Cell(0, 8, convertir_texto('No hay datos en el período seleccionado'), 0, 1, 'C');
         }
         
         $this->Ln(5);
@@ -287,12 +339,12 @@ $pdf->setUtilidades($utilidad_bruta, $utilidad_operacional);
 
 // Información del período
 $pdf->SetFont('Arial', '', 10);
-$pdf->Cell(0, 5, 'Periodo: ' . $fecha_desde . ' al ' . $fecha_hasta, 0, 1, 'L');
+$pdf->Cell(0, 5, convertir_texto('Período: ') . $fecha_desde . ' al ' . $fecha_hasta, 0, 1, 'L');
 if ($cuenta_codigo != '') {
-    $pdf->Cell(0, 5, 'Cuenta filtrada: ' . $cuenta_codigo, 0, 1, 'L');
+    $pdf->Cell(0, 5, convertir_texto('Cuenta filtrada: ') . $cuenta_codigo, 0, 1, 'L');
 }
 if ($tercero != '') {
-    $pdf->Cell(0, 5, 'Tercero filtrado: ' . $tercero, 0, 1, 'L');
+    $pdf->Cell(0, 5, convertir_texto('Tercero filtrado: ') . $tercero, 0, 1, 'L');
 }
 $pdf->Ln(5);
 
@@ -311,13 +363,13 @@ $pdf->Ln(8);
 $pdf->SetFont('Arial', 'B', 12);
 $pdf->SetFillColor(5, 74, 133);
 $pdf->SetTextColor(255, 255, 255);
-$pdf->Cell(0, 10, 'RESULTADO DEL EJERCICIO', 0, 1, 'C', true);
+$pdf->Cell(0, 10, convertir_texto('RESULTADO DEL EJERCICIO'), 0, 1, 'C', true);
 $pdf->Ln(2);
 
 $pdf->SetFont('Arial', 'B', 14);
 $pdf->SetFillColor(5, 74, 133);
 $pdf->SetTextColor(255, 255, 255);
-$pdf->Cell(140, 12, ($resultado_ejercicio >= 0 ? 'UTILIDAD DEL EJERCICIO' : 'PERDIDA DEL EJERCICIO'), 0, 0, 'L', true);
+$pdf->Cell(140, 12, convertir_texto($resultado_ejercicio >= 0 ? 'UTILIDAD DEL EJERCICIO' : 'PÉRDIDA DEL EJERCICIO'), 0, 0, 'L', true);
 $pdf->Cell(40, 12, number_format(abs($resultado_ejercicio), 2, ',', '.'), 0, 1, 'R', true);
 $pdf->SetTextColor(0, 0, 0);
 
@@ -329,24 +381,24 @@ $pdf->Cell(90, 5, '_________________________', 0, 0, 'C');
 $pdf->Cell(20, 5, '', 0, 0, 'C');
 $pdf->Cell(90, 5, '_________________________', 0, 1, 'C');
 
-$pdf->Cell(90, 5, 'CONTADOR PUBLICO', 0, 0, 'C');
+$pdf->Cell(90, 5, convertir_texto('CONTADOR PÚBLICO'), 0, 0, 'C');
 $pdf->Cell(20, 5, '', 0, 0, 'C');
-$pdf->Cell(90, 5, 'REPRESENTANTE LEGAL', 0, 1, 'C');
+$pdf->Cell(90, 5, convertir_texto('REPRESENTANTE LEGAL'), 0, 1, 'C');
 
-$pdf->Cell(90, 5, 'T.P. __________', 0, 0, 'C');
+$pdf->Cell(90, 5, convertir_texto('T.P. __________'), 0, 0, 'C');
 $pdf->Cell(20, 5, '', 0, 0, 'C');
-$pdf->Cell(90, 5, 'C.C. __________', 0, 1, 'C');
+$pdf->Cell(90, 5, convertir_texto('C.C. __________'), 0, 1, 'C');
 
 $pdf->Ln(10);
 
 // INFORMACIÓN ADICIONAL
 $pdf->SetFont('Arial', 'I', 8);
 $pdf->SetFillColor(240, 240, 240);
-$pdf->Cell(0, 5, 'Informacion del Reporte:', 0, 1, 'L', true);
-$pdf->Cell(0, 4, 'Generado el: ' . date('Y-m-d H:i:s'), 0, 1, 'L');
-$pdf->Cell(0, 4, 'Periodo fiscal: ' . $periodo_fiscal, 0, 1, 'L');
-if ($cuenta_codigo != '') $pdf->Cell(0, 4, 'Cuenta filtrada: ' . $cuenta_codigo, 0, 1, 'L');
-if ($tercero != '') $pdf->Cell(0, 4, 'Tercero filtrado: ' . $tercero, 0, 1, 'L');
+$pdf->Cell(0, 5, convertir_texto('Información del Reporte:'), 0, 1, 'L', true);
+$pdf->Cell(0, 4, convertir_texto('Generado el: ') . date('Y-m-d H:i:s'), 0, 1, 'L');
+$pdf->Cell(0, 4, convertir_texto('Período fiscal: ') . $periodo_fiscal, 0, 1, 'L');
+if ($cuenta_codigo != '') $pdf->Cell(0, 4, convertir_texto('Cuenta filtrada: ') . $cuenta_codigo, 0, 1, 'L');
+if ($tercero != '') $pdf->Cell(0, 4, convertir_texto('Tercero filtrado: ') . $tercero, 0, 1, 'L');
 
 // Salida del PDF
 $pdf->Output('I', 'estado_resultados_' . date('Y-m-d') . '.pdf');

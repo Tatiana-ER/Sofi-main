@@ -238,23 +238,18 @@ foreach ($todas_cuentas as $cuenta) {
 // ================== AGREGAR AGRUPACIONES ==================
 function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial = false) {
     $agrupaciones = [];
-    
-    // Niveles válidos: 1, 2, 4, 6, 8, 10 dígitos
     $niveles_validos = [1, 2, 4, 6, 8, 10];
     
+    // Crear todas las agrupaciones necesarias
     foreach ($array_cuentas as $cuenta) {
         $codigo = $cuenta['codigo'];
         $longitud_actual = strlen($codigo);
         
-        // Generar códigos de agrupación solo para los niveles válidos
         foreach ($niveles_validos as $longitud) {
-            // Solo generar agrupaciones para niveles superiores al actual
             if ($longitud < $longitud_actual) {
                 $grupo = substr($codigo, 0, $longitud);
                 
-                // Verificar que no sea la cuenta actual y que no esté ya procesada
                 if ($grupo != $codigo && !in_array($grupo, $cuentas_procesadas)) {
-                    // Usar el nombre de la tabla cuentas_contables si existe
                     $nombre = isset($nombres_cuentas[$grupo]) ? $nombres_cuentas[$grupo] : 'Grupo ' . $grupo;
                     
                     if (!isset($agrupaciones[$grupo])) {
@@ -268,19 +263,58 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuen
                         ];
                         $cuentas_procesadas[] = $grupo;
                     }
-                    $agrupaciones[$grupo]['saldo'] += $cuenta['saldo'];
-                    if ($mostrar_saldo_inicial) {
-                        $agrupaciones[$grupo]['saldo_inicial'] += $cuenta['saldo_inicial'];
-                    }
                 }
             }
         }
     }
     
-    // Fusionar agrupaciones con cuentas detalle
+    // Calcular saldos sumando SOLO los hijos directos (del nivel inmediatamente inferior)
+    // Procesar de mayor a menor nivel para acumular correctamente
+    foreach (array_reverse($niveles_validos) as $nivel_actual) {
+        // Para cada agrupación de este nivel
+        foreach ($agrupaciones as $cod_grupo => &$grupo) {
+            if ($grupo['nivel'] == $nivel_actual) {
+                $nivel_hijo_esperado = null;
+                
+                // Determinar el nivel del hijo directo esperado
+                foreach ($niveles_validos as $nv) {
+                    if ($nv > $nivel_actual) {
+                        $nivel_hijo_esperado = $nv;
+                        break;
+                    }
+                }
+                
+                if ($nivel_hijo_esperado) {
+                    // Sumar cuentas detalle del nivel hijo
+                    foreach ($array_cuentas as $cuenta) {
+                        if (strlen($cuenta['codigo']) == $nivel_hijo_esperado && 
+                            strpos($cuenta['codigo'], $cod_grupo) === 0) {
+                            $grupo['saldo'] += $cuenta['saldo'];
+                            if ($mostrar_saldo_inicial) {
+                                $grupo['saldo_inicial'] += $cuenta['saldo_inicial'];
+                            }
+                        }
+                    }
+                    
+                    // Sumar agrupaciones del nivel hijo
+                    foreach ($agrupaciones as $cod_hijo => $hijo) {
+                        if ($hijo['nivel'] == $nivel_hijo_esperado && 
+                            strpos($cod_hijo, $cod_grupo) === 0 && 
+                            $cod_hijo != $cod_grupo) {
+                            $grupo['saldo'] += $hijo['saldo'];
+                            if ($mostrar_saldo_inicial) {
+                                $grupo['saldo_inicial'] += $hijo['saldo_inicial'];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        unset($grupo);
+    }
+    
     $resultado = array_merge(array_values($agrupaciones), $array_cuentas);
     
-    // Ordenar por código
     usort($resultado, function($a, $b) {
         return strcmp($a['codigo'], $b['codigo']);
     });
@@ -288,23 +322,30 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuen
     return $resultado;
 }
 
-// Aplicar agrupaciones
+// Aplicar agrupaciones a activos y pasivos
 $activos = agregarAgrupaciones($activos, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
 $pasivos = agregarAgrupaciones($pasivos, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
-$patrimonios = agregarAgrupaciones($patrimonios, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
 
-// Agregar resultado del ejercicio
+// ================== AGREGAR RESULTADO DEL EJERCICIO ANTES DE AGRUPACIONES ==================
 $resultado_ejercicio = obtenerResultadoEjercicio($pdo, $fecha_desde, $fecha_hasta, $tercero);
+
 if ($resultado_ejercicio != 0) {
-    $patrimonios[] = [
+    $cuenta_resultado = [
         'codigo' => ($resultado_ejercicio >= 0) ? '360501' : '361001',
         'nombre' => ($resultado_ejercicio >= 0) ? 'Utilidad del ejercicio' : 'Pérdida del ejercicio',
         'saldo_inicial' => 0,
-        'saldo' => abs($resultado_ejercicio),
-        'nivel' => 6
+        'saldo' => $resultado_ejercicio, // VALOR CON SIGNO (negativo si es pérdida)
+        'nivel' => 6,
+        'es_resultado' => true
     ];
+    
+    $patrimonios[] = $cuenta_resultado;
     $totalPatrimonios += $resultado_ejercicio;
+    $cuentas_procesadas[] = $cuenta_resultado['codigo'];
 }
+
+// Ahora sí aplicar agrupaciones al patrimonio
+$patrimonios = agregarAgrupaciones($patrimonios, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
 
 // ================== CREAR PDF CON FPDF ==================
 class PDF extends FPDF {
@@ -317,16 +358,13 @@ class PDF extends FPDF {
     }
     
     function Header() {
-        // Logo
         if (file_exists('./Img/sofilogo5pequeño.png')) {
             $this->Image('./Img/sofilogo5pequeño.png', 10, 8, 20);
         }
         
-        // Título
         $this->SetFont('Arial', 'B', 16);
         $this->Cell(0, 10, convertText($this->title), 0, 1, 'C');
         
-        // Línea separadora
         $this->SetLineWidth(0.5);
         $this->Line(10, 30, 200, 30);
         $this->Ln(5);
@@ -366,19 +404,24 @@ class PDF extends FPDF {
         $this->SetFont('Arial', '', 9);
         $this->SetTextColor(0, 0, 0);
         
-        // Determinar estilo según el nivel
+        // Si es valor negativo, usar color rojo
+        $es_negativo = $fila['saldo'] < 0;
+        if ($es_negativo) {
+            $this->SetTextColor(220, 53, 69); // Color rojo
+        }
+        
         $font_style = '';
-        $indent = ($fila['nivel'] - 1) * 3; // Indentación basada en el nivel
+        $indent = ($fila['nivel'] - 1) * 3;
         
         if ($fila['nivel'] <= 2) {
-            $font_style = 'B'; // Negrita para niveles 1 y 2
-            $this->SetFillColor(230, 240, 255); // Fondo azul claro para grupos principales
+            $font_style = 'B';
+            $this->SetFillColor(230, 240, 255);
         } elseif ($fila['nivel'] <= 4) {
             $font_style = '';
-            $this->SetFillColor(245, 245, 245); // Fondo gris claro para subgrupos
+            $this->SetFillColor(245, 245, 245);
         } else {
             $font_style = '';
-            $this->SetFillColor(255, 255, 255); // Fondo blanco para cuentas detalle
+            $this->SetFillColor(255, 255, 255);
         }
         
         $this->SetFont('Arial', $font_style, 9);
@@ -393,6 +436,9 @@ class PDF extends FPDF {
             $this->Cell(125, 7, convertText(str_repeat('  ', $indent) . $fila['nombre']), 1, 0, 'L', $fill);
             $this->Cell(40, 7, number_format($fila['saldo'], 2, ',', '.'), 1, 1, 'R', $fill);
         }
+        
+        // Restaurar color de texto
+        $this->SetTextColor(0, 0, 0);
     }
     
     function TableTotal($label, $total_saldo_inicial, $total) {
@@ -426,7 +472,6 @@ $pdf->TableHeader();
 
 $fill = false;
 foreach ($activos as $fila) {
-    // Verificar si hay espacio suficiente para la siguiente fila
     if ($pdf->GetY() > 250) {
         $pdf->AddPage();
         $pdf->ChapterTitle('ACTIVOS (continuación)');
@@ -442,7 +487,6 @@ $pdf->TableTotal('TOTAL ACTIVOS', $totalSaldoInicialActivos, $totalActivos);
 $pdf->Ln(8);
 
 // PASIVOS
-// Verificar si hay espacio suficiente para la sección de pasivos
 if ($pdf->GetY() > 200) {
     $pdf->AddPage();
 }
@@ -452,7 +496,6 @@ $pdf->TableHeader();
 
 $fill = false;
 foreach ($pasivos as $fila) {
-    // Verificar si hay espacio suficiente para la siguiente fila
     if ($pdf->GetY() > 250) {
         $pdf->AddPage();
         $pdf->ChapterTitle('PASIVOS (continuación)');
@@ -468,7 +511,6 @@ $pdf->TableTotal('TOTAL PASIVOS', $totalSaldoInicialPasivos, $totalPasivos);
 $pdf->Ln(8);
 
 // PATRIMONIO
-// Verificar si hay espacio suficiente para la sección de patrimonio
 if ($pdf->GetY() > 200) {
     $pdf->AddPage();
 }
@@ -478,7 +520,6 @@ $pdf->TableHeader();
 
 $fill = false;
 foreach ($patrimonios as $fila) {
-    // Verificar si hay espacio suficiente para la siguiente fila
     if ($pdf->GetY() > 250) {
         $pdf->AddPage();
         $pdf->ChapterTitle('PATRIMONIO (continuación)');
