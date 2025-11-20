@@ -41,17 +41,21 @@ switch($accion){
 
       if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
           $sqlDetalle = "INSERT INTO detallecomprobantecontable 
-                        (comprobante_id, cuentaContable, descripcionCuenta, terceroCedula, terceroNombre, detalle, valorDebito, valorCredito)
-                        VALUES (:comprobante_id, :cuentaContable, :descripcionCuenta, :terceroCedula, :terceroNombre, :detalle, :valorDebito, :valorCredito)";
+                        (comprobante_id, cuentaContable, descripcionCuenta, tercero, detalle, valorDebito, valorCredito)
+                        VALUES (:comprobante_id, :cuentaContable, :descripcionCuenta, :tercero, :detalle, :valorDebito, :valorCredito)";
           $stmtDetalle = $pdo->prepare($sqlDetalle);
 
           foreach ($_POST['detalles'] as $detalle) {
+              $terceroCompleto = trim(($detalle['terceroCedula'] ?? '') . ' - ' . ($detalle['terceroNombre'] ?? ''));
+              if ($terceroCompleto == ' - ') {
+                  $terceroCompleto = '';
+              }
+              
               $stmtDetalle->execute([
                   ':comprobante_id' => $idComprobante,
                   ':cuentaContable' => $detalle['cuentaContable'],
                   ':descripcionCuenta' => $detalle['descripcionCuenta'],
-                  ':terceroCedula' => $detalle['terceroCedula'],
-                  ':terceroNombre' => $detalle['terceroNombre'],
+                  ':tercero' => $terceroCompleto,
                   ':detalle' => $detalle['detalle'],
                   ':valorDebito' => $detalle['valorDebito'],
                   ':valorCredito' => $detalle['valorCredito']
@@ -86,17 +90,21 @@ switch($accion){
 
       if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
           $sqlDetalle = "INSERT INTO detallecomprobantecontable 
-                        (comprobante_id, cuentaContable, descripcionCuenta, terceroCedula, terceroNombre, detalle, valorDebito, valorCredito)
-                        VALUES (:comprobante_id, :cuentaContable, :descripcionCuenta, :terceroCedula, :terceroNombre, :detalle, :valorDebito, :valorCredito)";
+                        (comprobante_id, cuentaContable, descripcionCuenta, tercero, detalle, valorDebito, valorCredito)
+                        VALUES (:comprobante_id, :cuentaContable, :descripcionCuenta, :tercero, :detalle, :valorDebito, :valorCredito)";
           $stmtDetalle = $pdo->prepare($sqlDetalle);
 
           foreach ($_POST['detalles'] as $detalle) {
+              $terceroCompleto = trim(($detalle['terceroCedula'] ?? '') . ' - ' . ($detalle['terceroNombre'] ?? ''));
+              if ($terceroCompleto == ' - ') {
+                  $terceroCompleto = '';
+              }
+              
               $stmtDetalle->execute([
                   ':comprobante_id' => $txtId,
                   ':cuentaContable' => $detalle['cuentaContable'],
                   ':descripcionCuenta' => $detalle['descripcionCuenta'],
-                  ':terceroCedula' => $detalle['terceroCedula'],
-                  ':terceroNombre' => $detalle['terceroNombre'],
+                  ':tercero' => $terceroCompleto,
                   ':detalle' => $detalle['detalle'],
                   ':valorDebito' => $detalle['valorDebito'],
                   ':valorCredito' => $detalle['valorCredito']
@@ -137,7 +145,10 @@ switch($accion){
           $observaciones = $comprobante['observaciones'];
       }
 
-      $stmtDetalle = $pdo->prepare("SELECT * FROM detallecomprobantecontable WHERE comprobante_id = :comprobante_id");
+      $stmtDetalle = $pdo->prepare("SELECT *, 
+                                  TRIM(SUBSTRING_INDEX(tercero, '-', 1)) as terceroCedula,
+                                  TRIM(SUBSTRING_INDEX(tercero, '-', -1)) as terceroNombre
+                                  FROM detallecomprobantecontable WHERE comprobante_id = :comprobante_id");
       $stmtDetalle->bindParam(':comprobante_id', $txtId);
       $stmtDetalle->execute();
       $detalles = $stmtDetalle->fetchAll(PDO::FETCH_ASSOC);
@@ -508,6 +519,20 @@ document.addEventListener("DOMContentLoaded", () => {
             }
           });
         }
+
+        // En la función initCuentaSelect, después de cargar la descripción:
+        $select.on('select2:select', function (e) {
+            const data = e.params.data;
+            const row = $(this).closest('tr');
+            
+            // Normalizar nombres específicos
+            let descripcion = data.descripcion || '';
+            if (data.id && data.id.startsWith('130505')) {
+                descripcion = 'Clientes Nacionales';
+            }
+            
+            row.find('input[name="descripcionCuenta"]').val(descripcion);
+        });
 
         $(document).ready(function() {
           $('.cuenta-select').each(function() {

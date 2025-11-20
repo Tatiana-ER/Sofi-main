@@ -540,13 +540,37 @@ public function registrarFacturaVenta($idFactura) {
         
         // Registrar cada línea del comprobante
         foreach ($detalles as $detalle) {
-            // Extraer código de cuenta (puede venir como "1105-Caja" o solo "1105")
+            // Extraer código de cuenta y normalizar nombre
             $codigoCuenta = $detalle['cuentaContable'];
+            $nombreCuenta = $detalle['descripcionCuenta'];
+
+            // Si el código viene con formato "110505-Caja general", separarlo
             if (strpos($codigoCuenta, '-') !== false) {
-                $partes = explode('-', $codigoCuenta);
-                $codigoCuenta = $partes[0];
+                $partes = explode('-', $codigoCuenta, 2);
+                $codigoCuenta = trim($partes[0]);
+                // Usar el nombre proporcionado o el extraído
+                if (empty($nombreCuenta) && isset($partes[1])) {
+                    $nombreCuenta = trim($partes[1]);
+                }
             }
-            
+
+            // NORMALIZAR NOMBRES DE CUENTAS ESPECÍFICAS
+            switch($codigoCuenta) {
+                case '130505':
+                    $nombreCuenta = 'Clientes Nacionales'; // FORZAR NOMBRE CONSISTENTE
+                    break;
+                case '110505':
+                    $nombreCuenta = 'Caja general';
+                    break;
+                case '11100501':
+                    $nombreCuenta = 'Bancolombia';
+                    break;
+                // Agregar más casos según necesites
+            }
+
+            // Después de extraer el código y nombre:
+            $nombreCuenta = $this->normalizarNombreCuenta($codigoCuenta, $nombreCuenta);
+
             $this->registrarMovimiento([
                 'fecha' => $comprobante['fecha'],
                 'tipo_documento' => 'comprobante_contable',
@@ -561,6 +585,23 @@ public function registrarFacturaVenta($idFactura) {
                 'credito' => $detalle['valorCredito'] ?? 0
             ]);
         }
+    }
+
+     /**
+     * Normaliza el nombre de una cuenta contable para mantener consistencia
+     */
+    private function normalizarNombreCuenta($codigo, $nombreActual) {
+        $nombresNormalizados = [
+            '130505' => 'Clientes Nacionales',
+            '110505' => 'Caja general', 
+            '11100501' => 'Bancolombia',
+            '220501' => 'Proveedores Nacionales',
+            '240805' => 'IVA por Pagar',
+            '135515' => 'Retención en la Fuente por Cobrar',
+            '236505' => 'Retención en la Fuente por Pagar'
+        ];
+        
+        return $nombresNormalizados[$codigo] ?? $nombreActual;
     }
 }
 ?>
