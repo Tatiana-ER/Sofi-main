@@ -355,9 +355,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 <tr>
                   <th>Cuenta Contable</th>
                   <th>Descripción Cuenta</th>
-                  <th>Cédula Tercero</th>
-                  <th>Nombre Tercero</th>
-                  <th>Detalle</th>
+                  <th style="width: 30%;">Cédula Tercero</th>
+                  <th style="width: 50%;">Nombre Tercero</th>
+                  <th style="width: 30%;">Detalle</th>
                   <th>Valor Débito</th>
                   <th>Valor Crédito</th>
                   <th></th>
@@ -375,7 +375,17 @@ document.addEventListener("DOMContentLoaded", () => {
                             </select>
                           </td>
                           <td><input type="text" name="descripcionCuenta" class="form-control" value="<?= htmlspecialchars($detalle['descripcionCuenta']) ?>"></td>
-                          <td><input type="text" name="terceroCedula" class="form-control" value="<?= htmlspecialchars($detalle['terceroCedula'] ?? '') ?>"></td>
+                          <td>
+                            <select name="terceroCedula" class="form-control tercero-select" style="width: 100%;">
+                              <?php if (!empty($detalle['terceroCedula'])): ?>
+                                <option value="<?= htmlspecialchars($detalle['terceroCedula']) ?>" selected>
+                                  <?= htmlspecialchars($detalle['terceroCedula'] . ' - ' . ($detalle['terceroNombre'] ?? '')) ?>
+                                </option>
+                              <?php else: ?>
+                                <option value="">Buscar por cédula...</option>
+                              <?php endif; ?>
+                            </select>
+                          </td>
                           <td><input type="text" name="terceroNombre" class="form-control" value="<?= htmlspecialchars($detalle['terceroNombre'] ?? '') ?>"></td>
                           <td><input type="text" name="detalle" class="form-control" value="<?= htmlspecialchars($detalle['detalle']) ?>"></td>
                           <td><input type="text" step="0.01" name="valorDebito" class="form-control debito" value="<?= htmlspecialchars($detalle['valorDebito']) ?>"></td>
@@ -384,20 +394,24 @@ document.addEventListener("DOMContentLoaded", () => {
                       </tr>
                   <?php endforeach; ?>
               <?php else: ?>
-                  <tr>
-                      <td>
-                        <select name="cuentaContable" class="form-control cuenta-select" style="width: 100%;">
-                          <option value="">Buscar cuenta...</option>
-                        </select>
-                      </td>
-                      <td><input type="text" name="descripcionCuenta" class="form-control" value=""></td>
-                      <td><input type="text" name="terceroCedula" class="form-control" placeholder="Cédula" value=""></td>
-                      <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value=""></td>
-                      <td><input type="text" name="detalle" class="form-control" value=""></td>
-                      <td><input type="text" step="0.01" name="valorDebito" class="form-control debito" placeholder="0.00" value=""></td>
-                      <td><input type="text" step="0.01" name="valorCredito" class="form-control credito" placeholder="0.00" value=""></td>
-                      <td><button type="button" class="btn-add" onclick="addRow()">+</button></td>
-                  </tr>
+                <tr>
+                  <td>
+                    <select name="cuentaContable" class="form-control cuenta-select" style="width: 100%;">
+                      <option value="">Buscar cuenta...</option>
+                    </select>
+                  </td>
+                  <td><input type="text" name="descripcionCuenta" class="form-control" value=""></td>
+                  <td>
+                    <select name="terceroCedula" class="form-control tercero-select" style="width: 100%;">
+                      <option value="">Buscar por cédula...</option>
+                    </select>
+                  </td>
+                  <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value="" readonly></td>
+                  <td><input type="text" name="detalle" class="form-control" value=""></td>
+                  <td><input type="text" step="0.01" name="valorDebito" class="form-control debito" placeholder="0.00" value=""></td>
+                  <td><input type="text" step="0.01" name="valorCredito" class="form-control credito" placeholder="0.00" value=""></td>
+                  <td><button type="button" class="btn-add" onclick="addRow()">+</button></td>
+                </tr>
               <?php endif; ?>
               </tbody>
             </table>
@@ -524,6 +538,10 @@ document.addEventListener("DOMContentLoaded", () => {
           $('.cuenta-select').each(function() {
             initCuentaSelect($(this));
           });
+          // Inicializar selects de terceros
+          $('.tercero-select').each(function() {
+              initTerceroSelect($(this));
+          });
         });
 
         // En la función initCuentaSelect, después de cargar la descripción:
@@ -622,6 +640,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
           }, true);
 
+          // Función para agregar fila (actualizada)
           window.addRow = function() {
             const tableBody = document.getElementById("product-table");
             
@@ -634,8 +653,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 </select>
               </td>
               <td><input type="text" name="descripcionCuenta" class="form-control" value=""></td>
-              <td><input type="text" name="terceroCedula" class="form-control" placeholder="Cédula" value=""></td>
-              <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value=""></td>
+              <td>
+                <select name="terceroCedula" class="form-control tercero-select" style="width: 100%;">
+                  <option value="">Buscar por cédula...</option>
+                </select>
+              </td>
+              <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value="" readonly></td>
               <td><input type="text" name="detalle" class="form-control" value=""></td>
               <td><input type="text" step="0.01" name="valorDebito" class="form-control debito" placeholder="0.00" value=""></td>
               <td><input type="text" step="0.01" name="valorCredito" class="form-control credito" placeholder="0.00" value=""></td>
@@ -650,6 +673,7 @@ document.addEventListener("DOMContentLoaded", () => {
               const rows = tableBody.querySelectorAll("tr");
               if (rows.length > 1) {
                 $(this.closest("tr")).find('.cuenta-select').select2('destroy');
+                $(this.closest("tr")).find('.tercero-select').select2('destroy');
                 this.closest("tr").remove();
                 calcularTotales();
               } else {
@@ -664,7 +688,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             tableBody.appendChild(newRow);
             
+            // Inicializar los selects en la nueva fila
             initCuentaSelect($(newRow).find('.cuenta-select'));
+            initTerceroSelect($(newRow).find('.tercero-select'));
             
             calcularTotales();
           };
@@ -709,7 +735,13 @@ document.addEventListener("DOMContentLoaded", () => {
           const btnEliminar = document.getElementById("btnEliminar");
           const btnCancelar = document.getElementById("btnCancelar");
 
+          // Función para modo agregar (actualizada)
           function modoAgregar() {
+            const btnAgregar = document.getElementById("btnAgregar");
+            const btnModificar = document.getElementById("btnModificar");
+            const btnEliminar = document.getElementById("btnEliminar");
+            const btnCancelar = document.getElementById("btnCancelar");
+
             btnAgregar.style.display = "inline-block";
             btnModificar.style.display = "none";
             btnEliminar.style.display = "none";
@@ -729,8 +761,12 @@ document.addEventListener("DOMContentLoaded", () => {
                   </select>
                 </td>
                 <td><input type="text" name="descripcionCuenta" class="form-control" value=""></td>
-                <td><input type="text" name="terceroCedula" class="form-control" placeholder="Cédula" value=""></td>
-                <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value=""></td>
+                <td>
+                  <select name="terceroCedula" class="form-control tercero-select" style="width: 100%;">
+                    <option value="">Buscar por cédula...</option>
+                  </select>
+                </td>
+                <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value="" readonly></td>
                 <td><input type="text" name="detalle" class="form-control" value=""></td>
                 <td><input type="number" step="0.01" name="valorDebito" class="form-control debito" placeholder="0.00" value=""></td>
                 <td><input type="number" step="0.01" name="valorCredito" class="form-control credito" placeholder="0.00" value=""></td>
@@ -741,7 +777,9 @@ document.addEventListener("DOMContentLoaded", () => {
               </tr>
             `;
             
+            // Inicializar ambos selects
             initCuentaSelect($('.cuenta-select'));
+            initTerceroSelect($('.tercero-select'));
 
             fetch(window.location.pathname + "?get_consecutivo=1")
               .then(response => response.json())
@@ -789,6 +827,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const rows = document.querySelectorAll("#product-table tr");
           if (rows.length > 1) {
             $(btn.closest("tr")).find('.cuenta-select').select2('destroy');
+            $(btn.closest("tr")).find('.tercero-select').select2('destroy'); // <- AGREGAR ESTA LÍNEA
             btn.closest("tr").remove();
             calcularTotales();
           } else {
@@ -845,33 +884,132 @@ document.addEventListener("DOMContentLoaded", () => {
           });
         });
 
+        // Función para inicializar el select2 de terceros
+        function initTerceroSelect($select) {
+          $select.select2({
+            placeholder: "Buscar por cédula o nombre...",
+            allowClear: true,
+            width: '100%',
+            minimumInputLength: 1,
+            language: {
+              inputTooShort: function() {
+                return "Por favor ingrese al menos 1 carácter";
+              },
+              noResults: function() {
+                return "No se encontraron resultados";
+              },
+              searching: function() {
+                return "Buscando...";
+              },
+              errorLoading: function() {
+                return "Error al cargar los resultados";
+              }
+            },
+            ajax: {
+              url: 'buscar_terceros_comprobante.php',
+              dataType: 'json',
+              delay: 250,
+              data: function (params) {
+                return {
+                  search: params.term || ''
+                };
+              },
+              processResults: function (data) {
+                console.log('Datos recibidos:', data);
+                
+                if (!Array.isArray(data)) {
+                  console.error('Los datos no son un array:', data);
+                  return { results: [] };
+                }
+                
+                return {
+                  results: data.map(function (tercero) {
+                    return { 
+                      id: tercero.cedula,
+                      text: tercero.cedula + ' - ' + tercero.nombre,
+                      cedula: tercero.cedula,
+                      nombre: tercero.nombre
+                    };
+                  })
+                };
+              },
+              cache: true,
+              error: function(jqXHR, textStatus, errorThrown) {
+                console.error('Error en AJAX:', textStatus, errorThrown);
+                console.error('Respuesta del servidor:', jqXHR.responseText);
+              }
+            }
+          });
+          
+          // Evento cuando se selecciona un tercero
+          $select.on('select2:select', function (e) {
+            const data = e.params.data;
+            const row = $(this).closest('tr');
+            
+            // Crear una nueva opción con solo la cédula
+            const newOption = new Option(data.cedula, data.cedula, true, true);
+            
+            // Reemplazar la opción seleccionada
+            $(this).empty().append(newOption).trigger('change');
+            
+            // Llenar el campo de nombre automáticamente
+            row.find('input[name="terceroNombre"]').val(data.nombre || '');
+            
+            // Agregar feedback visual
+            const nombreInput = row.find('input[name="terceroNombre"]');
+            nombreInput.css('background-color', '#d4edda');
+            setTimeout(() => {
+              nombreInput.css('background-color', '');
+            }, 1000);
+            
+            console.log('Tercero seleccionado - Cédula:', data.cedula, 'Nombre:', data.nombre);
+          });
+
+          // Evento cuando se limpia la selección
+          $select.on('select2:clear', function (e) {
+            const row = $(this).closest('tr');
+            row.find('input[name="terceroNombre"]').val('');
+          });
+        }
+
+        // Inicializar todos los selects de terceros al cargar
+        $(document).ready(function() {
+          $('.tercero-select').each(function() {
+            initTerceroSelect($(this));
+          });
+        });
+
+        // Al enviar el formulario, obtener solo la cédula del select
         document.getElementById("formComprobanteContable").addEventListener("submit", function(e) {
           const rows = document.querySelectorAll("#product-table tr");
           let detalles = [];
 
           rows.forEach(row => {
-              const $selectCuenta = $(row).find("[name='cuentaContable']");
-              const cuenta = $selectCuenta.val() || "";
-              
-              const terceroCedula = row.querySelector("[name='terceroCedula']")?.value || "";
-              const terceroNombre = row.querySelector("[name='terceroNombre']")?.value || "";
-              
-              const descripcion = row.querySelector("[name='descripcionCuenta']")?.value || "";
-              const detalle = row.querySelector("[name='detalle']")?.value || "";
-              const debito = row.querySelector("[name='valorDebito']")?.value || "0";
-              const credito = row.querySelector("[name='valorCredito']")?.value || "0";
+            const $selectCuenta = $(row).find("[name='cuentaContable']");
+            const cuenta = $selectCuenta.val() || "";
+            
+            // Obtener cédula del select
+            const $selectTercero = $(row).find("[name='terceroCedula']");
+            const terceroCedula = $selectTercero.val() || "";
+            
+            const terceroNombre = row.querySelector("[name='terceroNombre']")?.value || "";
+            
+            const descripcion = row.querySelector("[name='descripcionCuenta']")?.value || "";
+            const detalle = row.querySelector("[name='detalle']")?.value || "";
+            const debito = row.querySelector("[name='valorDebito']")?.value || "0";
+            const credito = row.querySelector("[name='valorCredito']")?.value || "0";
 
-              if (cuenta || descripcion || terceroCedula || terceroNombre || detalle) {
-                  detalles.push({
-                    cuentaContable: cuenta, 
-                    descripcionCuenta: descripcion, 
-                    terceroCedula: terceroCedula, 
-                    terceroNombre: terceroNombre, 
-                    detalle: detalle, 
-                    valorDebito: debito, 
-                    valorCredito: credito
-                  });
-              }
+            if (cuenta || descripcion || terceroCedula || terceroNombre || detalle) {
+              detalles.push({
+                cuentaContable: cuenta, 
+                descripcionCuenta: descripcion, 
+                terceroCedula: terceroCedula, 
+                terceroNombre: terceroNombre, 
+                detalle: detalle, 
+                valorDebito: debito, 
+                valorCredito: credito
+              });
+            }
           });
 
           const inputDetalles = document.createElement("input");
@@ -880,6 +1018,15 @@ document.addEventListener("DOMContentLoaded", () => {
           inputDetalles.value = JSON.stringify(detalles);
 
           this.appendChild(inputDetalles);
+        });
+
+        // Inicializar al cargar la página
+        $(document).ready(function() {
+          $('.tercero-select').each(function() {
+            initTerceroSelect($(this));
+          });
+          
+          console.log('Select2 de terceros inicializado');
         });
 
         function calcularTotales() {
