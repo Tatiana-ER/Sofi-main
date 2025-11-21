@@ -520,6 +520,12 @@ document.addEventListener("DOMContentLoaded", () => {
           });
         }
 
+        $(document).ready(function() {
+          $('.cuenta-select').each(function() {
+            initCuentaSelect($(this));
+          });
+        });
+
         // En la función initCuentaSelect, después de cargar la descripción:
         $select.on('select2:select', function (e) {
             const data = e.params.data;
@@ -532,12 +538,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             
             row.find('input[name="descripcionCuenta"]').val(descripcion);
-        });
-
-        $(document).ready(function() {
-          $('.cuenta-select').each(function() {
-            initCuentaSelect($(this));
-          });
         });
 
         window.addEventListener('DOMContentLoaded', function() {
