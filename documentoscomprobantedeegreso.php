@@ -1,410 +1,179 @@
 <?php
 include("connection.php");
 include("LibroDiario.php");
- 
+
 $conn = new connection();
 $pdo = $conn->connect();
 $libroDiario = new LibroDiario($pdo);
- 
-// Obtener consecutivo automático
+
+// Obtener el siguiente consecutivo 
 if (isset($_GET['get_consecutivo'])) {
-    $stmt = $pdo->query("SELECT MAX(CAST(consecutivo AS UNSIGNED)) AS ultimo FROM doccomprobanteegreso");
+    $stmt = $pdo->query("SELECT MAX(consecutivo) AS ultimo FROM doccomprobantecontable");
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     $ultimoConsecutivo = $row['ultimo'] ?? 0;
     $nuevoConsecutivo = $ultimoConsecutivo + 1;
     echo json_encode(['consecutivo' => $nuevoConsecutivo]);
     exit;
 }
- 
-// Obtener facturas a crédito del proveedor con saldo pendiente
-if (isset($_GET['get_facturas']) && isset($_GET['identificacion'])) {
-    $identificacion = $_GET['identificacion'];
-    
-    $stmt = $pdo->prepare("
-        SELECT 
-            id, 
-            consecutivo, 
-            fecha, 
-            CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(10,2)) as valorTotal,
-            COALESCE(CAST(saldoReal AS DECIMAL(10,2)), CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(10,2))) as saldoReal
-        FROM facturac 
-        WHERE identificacion = :identificacion 
-        AND formaPago LIKE '%Credito%'
-        AND COALESCE(CAST(saldoReal AS DECIMAL(10,2)), CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(10,2))) > 0
-        ORDER BY fecha ASC
-    ");
-    $stmt->bindParam(':identificacion', $identificacion);
-    $stmt->execute();
-    $facturas = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    echo json_encode($facturas);
-    exit;
-}
- 
-// Obtener detalles de un comprobante para editar
-if (isset($_GET['get_detalles']) && isset($_GET['idComprobante'])) {
-    $idComprobante = $_GET['idComprobante'];
-   
-    $stmt = $pdo->prepare("
-        SELECT
-            consecutivoFactura,
-            valorAplicado,
-            fechaVencimiento
-        FROM detalle_comprobante_egreso
-        WHERE idComprobante = :idComprobante
-        ORDER BY id
-    ");
-    $stmt->bindParam(':idComprobante', $idComprobante);
-    $stmt->execute();
-    $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
-   
-    echo json_encode($detalles);
-    exit;
-}
- 
-// Buscar proveedor
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['buscar_proveedor'])) {
-    $identificacion = $_POST['identificacion'];
-   
-    $stmt = $pdo->prepare("SELECT nombres, apellidos FROM catalogosterceros WHERE cedula = :cedula AND tipoTercero = 'proveedor'");
-    $stmt->bindParam(':cedula', $identificacion);
-    $stmt->execute();
-    $proveedor = $stmt->fetch(PDO::FETCH_ASSOC);
-   
-    if ($proveedor) {
-        echo json_encode([
-            "nombre" => trim($proveedor['nombres'] . " " . $proveedor['apellidos'])
-        ]);
-    } else {
-        echo json_encode([
-            "nombre" => "No encontrado o no es un proveedor"
-        ]);
-    }
-    exit;
-}
- 
-// Variables iniciales
-$txtId = $_POST['txtId'] ?? "";
-$fecha = $_POST['fecha'] ?? "";
-$consecutivo = $_POST['consecutivo'] ?? "";
-$identificacion = $_POST['identificacion'] ?? "";
-$nombre = $_POST['nombre'] ?? "";
-$numeroFactura = $_POST['numeroFactura'] ?? "";
-$fechaVencimiento = $_POST['fechaVencimiento'] ?? "";
-$valor = $_POST['valor'] ?? "";
-$valorTotal = $_POST['valorTotal'] ?? "";
-$formaPago = $_POST['formaPago'] ?? "";
-$observaciones = $_POST['observaciones'] ?? "";
-$accion = $_POST['accion'] ?? "";
- 
-// Datos de facturas (JSON)
-$facturasData = $_POST['facturasData'] ?? "";
- 
-// Función para actualizar saldos de facturas de compra
-function actualizarSaldosFacturasCompra($pdo, $facturasData) {
-    if (!empty($facturasData)) {
-        $dataArray = json_decode($facturasData, true);
-        
-        foreach ($dataArray as $facturaData) {
-            // Obtener información actual de la factura
-            $stmt = $pdo->prepare("
-                SELECT 
-                    CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(10,2)) as valorTotal,
-                    COALESCE(CAST(saldoReal AS DECIMAL(10,2)), CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(10,2))) as saldoReal
-                FROM facturac 
-                WHERE consecutivo = :consecutivo
-            ");
-            $stmt->execute([':consecutivo' => $facturaData['consecutivo']]);
-            $factura = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($factura) {
-                // Calcular nuevo saldo
-                $nuevoSaldo = $factura['saldoReal'] - floatval($facturaData['valor']);
-                
-                // Actualizar saldo en la factura
-                $stmtUpdate = $pdo->prepare("
-                    UPDATE facturac 
-                    SET saldoReal = :nuevoSaldo 
-                    WHERE consecutivo = :consecutivo
-                ");
-                $stmtUpdate->execute([
-                    ':nuevoSaldo' => $nuevoSaldo,
-                    ':consecutivo' => $facturaData['consecutivo']
-                ]);
-            }
-        }
-    }
+
+$txtId=(isset($_POST['txtId']))?$_POST['txtId']:"";
+$fecha=(isset($_POST['fecha']))?$_POST['fecha']:"";
+$consecutivo=(isset($_POST['consecutivo']))?$_POST['consecutivo']:"";
+$observaciones=(isset($_POST['observaciones']))?$_POST['observaciones']:"";
+
+$accion=(isset($_POST['accion']))?$_POST['accion']:"";
+
+if (isset($_POST['detalles'])) {
+    $_POST['detalles'] = json_decode($_POST['detalles'], true);
 }
 
-// Función para restaurar saldos cuando se elimina o modifica un comprobante
-function restaurarSaldosFacturasCompra($pdo, $idComprobante) {
-    // Obtener los detalles del comprobante que se va a eliminar/modificar
-    $stmt = $pdo->prepare("
-        SELECT consecutivoFactura, valorAplicado 
-        FROM detalle_comprobante_egreso 
-        WHERE idComprobante = :idComprobante
-    ");
-    $stmt->execute([':idComprobante' => $idComprobante]);
-    $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Restaurar saldos
-    foreach ($detalles as $detalle) {
-        $stmtUpdate = $pdo->prepare("
-            UPDATE facturac 
-            SET saldoReal = COALESCE(saldoReal, CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(10,2))) + :valor 
-            WHERE consecutivo = :consecutivo
-        ");
-        $stmtUpdate->execute([
-            ':valor' => $detalle['valorAplicado'],
-            ':consecutivo' => $detalle['consecutivoFactura']
-        ]);
-    }
-}
+switch($accion){
+  case "btnAgregar":
+      $sentencia=$pdo->prepare("INSERT INTO doccomprobantecontable(fecha,consecutivo,observaciones) 
+      VALUES (:fecha,:consecutivo,:observaciones)");
+      
+      $sentencia->bindParam(':fecha',$fecha);
+      $sentencia->bindParam(':consecutivo',$consecutivo);
+      $sentencia->bindParam(':observaciones',$observaciones);
+      $sentencia->execute();
 
-switch($accion) {
-case "btnAgregar":
-    try {
-        $pdo->beginTransaction();
-        
-        // Validar saldos disponibles antes de procesar
-        if (!empty($facturasData)) {
-            $dataArray = json_decode($facturasData, true);
-            
-            foreach ($dataArray as $facturaData) {
-                $stmt = $pdo->prepare("
-                    SELECT 
-                        COALESCE(CAST(saldoReal AS DECIMAL(10,2)), CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(10,2))) as saldoReal
-                    FROM facturac 
-                    WHERE consecutivo = :consecutivo
-                ");
-                $stmt->execute([':consecutivo' => $facturaData['consecutivo']]);
-                $factura = $stmt->fetch(PDO::FETCH_ASSOC);
-                
-                if (!$factura || floatval($facturaData['valor']) > $factura['saldoReal']) {
-                    throw new Exception("El valor aplicado a la factura {$facturaData['consecutivo']} excede el saldo disponible");
-                }
-            }
-        }
-        
-        // Insertar comprobante principal
-        $sentencia = $pdo->prepare("INSERT INTO doccomprobanteegreso(
-            fecha, consecutivo, identificacion, nombre, numeroFactura, 
-            fechaVencimiento, valor, valorTotal, formaPago, observaciones
-        ) VALUES (
-            :fecha, :consecutivo, :identificacion, :nombre, :numeroFactura, 
-            :fechaVencimiento, :valor, :valorTotal, :formaPago, :observaciones
-        )");
-        
-        $sentencia->bindParam(':fecha', $fecha);
-        $sentencia->bindParam(':consecutivo', $consecutivo);
-        $sentencia->bindParam(':identificacion', $identificacion);
-        $sentencia->bindParam(':nombre', $nombre);
-        $sentencia->bindParam(':numeroFactura', $numeroFactura);
-        $sentencia->bindParam(':fechaVencimiento', $fechaVencimiento);
-        $sentencia->bindParam(':valor', $valor);
-        $sentencia->bindParam(':valorTotal', $valorTotal);
-        $sentencia->bindParam(':formaPago', $formaPago);
-        $sentencia->bindParam(':observaciones', $observaciones);
-        $sentencia->execute();
-        
-        $idComprobante = $pdo->lastInsertId();
-        
-        // Insertar detalles de facturas
-        if (!empty($facturasData)) {
-            $dataArray = json_decode($facturasData, true);
-            
-            foreach ($dataArray as $facturaData) {
-                $stmtDetalle = $pdo->prepare("
-                    INSERT INTO detalle_comprobante_egreso 
-                    (idComprobante, consecutivoFactura, valorAplicado, fechaVencimiento)
-                    VALUES (:idComprobante, :consecutivo, :valor, :fechaVenc)
-                ");
-                $stmtDetalle->execute([
-                    ':idComprobante' => $idComprobante,
-                    ':consecutivo' => $facturaData['consecutivo'],
-                    ':valor' => $facturaData['valor'],
-                    ':fechaVenc' => $facturaData['fechaVencimiento'] ?: null
-                ]);
-            }
-        }
-        
-        // Actualizar saldos de las facturas
-        actualizarSaldosFacturasCompra($pdo, $facturasData);
+      $idComprobante = $pdo->lastInsertId();
 
-        // Registrar en Libro Diario
-        $libroDiario->registrarComprobanteEgreso($idComprobante);
+      if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
+          $sqlDetalle = "INSERT INTO detallecomprobantecontable 
+                        (comprobante_id, cuentaContable, descripcionCuenta, tercero, detalle, valorDebito, valorCredito)
+                        VALUES (:comprobante_id, :cuentaContable, :descripcionCuenta, :tercero, :detalle, :valorDebito, :valorCredito)";
+          $stmtDetalle = $pdo->prepare($sqlDetalle);
 
-        $pdo->commit();
-        header("Location: " . $_SERVER['PHP_SELF'] . "?msg=agregado");
-        exit();       
-        
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        header("Location: " . $_SERVER['PHP_SELF'] . "?msg=error&detalle=" . urlencode($e->getMessage()));
-        exit();
-    }
-    break;
- 
-  case "btnModificar":
-      try {
-          $pdo->beginTransaction();
-          
-          // Restaurar saldos de las facturas del comprobante original
-          restaurarSaldosFacturasCompra($pdo, $txtId);
-          
-          // Validar nuevos saldos
-          if (!empty($facturasData)) {
-              $dataArray = json_decode($facturasData, true);
-              
-              foreach ($dataArray as $facturaData) {
-                  $stmt = $pdo->prepare("
-                      SELECT 
-                          COALESCE(CAST(saldoReal AS DECIMAL(10,2)), CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(10,2))) as saldoReal
-                      FROM facturac 
-                      WHERE consecutivo = :consecutivo
-                  ");
-                  $stmt->execute([':consecutivo' => $facturaData['consecutivo']]);
-                  $factura = $stmt->fetch(PDO::FETCH_ASSOC);
-                  
-                  if (!$factura || floatval($facturaData['valor']) > $factura['saldoReal']) {
-                      throw new Exception("El valor aplicado a la factura {$facturaData['consecutivo']} excede el saldo disponible");
-                  }
+          foreach ($_POST['detalles'] as $detalle) {
+              $terceroCompleto = trim(($detalle['terceroCedula'] ?? '') . ' - ' . ($detalle['terceroNombre'] ?? ''));
+              if ($terceroCompleto == ' - ') {
+                  $terceroCompleto = '';
               }
-          }
-          
-          // Actualizar comprobante principal
-          $sentencia = $pdo->prepare("UPDATE doccomprobanteegreso SET
-              fecha = :fecha,
-              consecutivo = :consecutivo,
-              identificacion = :identificacion,
-              nombre = :nombre,
-              numeroFactura = :numeroFactura,
-              fechaVencimiento = :fechaVencimiento,
-              valor = :valor,
-              valorTotal = :valorTotal,
-              formaPago = :formaPago,
-              observaciones = :observaciones
-              WHERE id = :id");
-          
-          $sentencia->bindParam(':fecha', $fecha);
-          $sentencia->bindParam(':consecutivo', $consecutivo);
-          $sentencia->bindParam(':identificacion', $identificacion);
-          $sentencia->bindParam(':nombre', $nombre);
-          $sentencia->bindParam(':numeroFactura', $numeroFactura);
-          $sentencia->bindParam(':fechaVencimiento', $fechaVencimiento);
-          $sentencia->bindParam(':valor', $valor);
-          $sentencia->bindParam(':valorTotal', $valorTotal);
-          $sentencia->bindParam(':formaPago', $formaPago);
-          $sentencia->bindParam(':observaciones', $observaciones);
-          $sentencia->bindParam(':id', $txtId);
-          $sentencia->execute();
-          
-          // Eliminar detalles antiguos
-          $stmtDelete = $pdo->prepare("DELETE FROM detalle_comprobante_egreso WHERE idComprobante = :idComprobante");
-          $stmtDelete->execute([':idComprobante' => $txtId]);
-
-          // Eliminar asientos contables antiguos
-          $libroDiario->eliminarMovimientos('comprobante_egreso', $txtId);
-          
-          // Insertar nuevos detalles
-          if (!empty($facturasData)) {
-              $dataArray = json_decode($facturasData, true);
               
-              foreach ($dataArray as $facturaData) {
-                  $stmtDetalle = $pdo->prepare("
-                      INSERT INTO detalle_comprobante_egreso 
-                      (idComprobante, consecutivoFactura, valorAplicado, fechaVencimiento)
-                      VALUES (:idComprobante, :consecutivo, :valor, :fechaVenc)
-                  ");
-                  $stmtDetalle->execute([
-                      ':idComprobante' => $txtId,
-                      ':consecutivo' => $facturaData['consecutivo'],
-                      ':valor' => $facturaData['valor'],
-                      ':fechaVenc' => $facturaData['fechaVencimiento'] ?: null
-                  ]);
-              }
+              $stmtDetalle->execute([
+                  ':comprobante_id' => $idComprobante,
+                  ':cuentaContable' => $detalle['cuentaContable'],
+                  ':descripcionCuenta' => $detalle['descripcionCuenta'],
+                  ':tercero' => $terceroCompleto,
+                  ':detalle' => $detalle['detalle'],
+                  ':valorDebito' => $detalle['valorDebito'],
+                  ':valorCredito' => $detalle['valorCredito']
+              ]);
           }
-          
-          // Actualizar nuevos saldos
-          actualizarSaldosFacturasCompra($pdo, $facturasData);
-
-          // Registrar nuevos asientos contables
-          $libroDiario->registrarComprobanteEgreso($txtId);
-
-          $pdo->commit();
-          header("Location: " . $_SERVER['PHP_SELF'] . "?msg=modificado");
-          exit();
-          
-      } catch (Exception $e) {
-          $pdo->rollBack();
-          header("Location: " . $_SERVER['PHP_SELF'] . "?msg=error&detalle=" . urlencode($e->getMessage()));
-          exit();
       }
-    break;
- 
-    case "btnEliminar":
-    try {
-        $pdo->beginTransaction();
-        
-        // Eliminar asientos contables
-        $libroDiario->eliminarMovimientos('comprobante_egreso', $txtId);
-        
-        // Restaurar saldos antes de eliminar
-        restaurarSaldosFacturasCompra($pdo, $txtId);
-        
-        // Eliminar comprobante (cascade eliminará los detalles)
-        $sentencia = $pdo->prepare("DELETE FROM doccomprobanteegreso WHERE id = :id");
-        $sentencia->bindParam(':id', $txtId);
-        $sentencia->execute();
-        
-        $pdo->commit();
-        header("Location: " . $_SERVER['PHP_SELF'] . "?msg=eliminado");
-        exit();
-        
-    } catch (Exception $e) {
-        $pdo->rollBack();
-        header("Location: " . $_SERVER['PHP_SELF'] . "?msg=error&detalle=" . urlencode($e->getMessage()));
-        exit();
-    }
-    break;
+
+      $libroDiario->registrarComprobanteContable($idComprobante);
+
+      header("Location: ".$_SERVER['PHP_SELF']."?msg=agregado");
+      exit;
+  break;
+
+  case "btnModificar":
+      $sentencia = $pdo->prepare("UPDATE doccomprobantecontable 
+                                  SET fecha = :fecha,
+                                      consecutivo = :consecutivo,
+                                      observaciones = :observaciones
+                                  WHERE id = :id");
+
+      $sentencia->bindParam(':fecha', $fecha);
+      $sentencia->bindParam(':consecutivo', $consecutivo);
+      $sentencia->bindParam(':observaciones', $observaciones);
+      $sentencia->bindParam(':id', $txtId);
+      $sentencia->execute();
+      
+      $libroDiario->eliminarMovimientos('comprobante_contable', $txtId);
+
+      $deleteDetalle = $pdo->prepare("DELETE FROM detallecomprobantecontable WHERE comprobante_id = :comprobante_id");
+      $deleteDetalle->bindParam(':comprobante_id', $txtId);
+      $deleteDetalle->execute();
+
+      if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
+          $sqlDetalle = "INSERT INTO detallecomprobantecontable 
+                        (comprobante_id, cuentaContable, descripcionCuenta, tercero, detalle, valorDebito, valorCredito)
+                        VALUES (:comprobante_id, :cuentaContable, :descripcionCuenta, :tercero, :detalle, :valorDebito, :valorCredito)";
+          $stmtDetalle = $pdo->prepare($sqlDetalle);
+
+          foreach ($_POST['detalles'] as $detalle) {
+              $terceroCompleto = trim(($detalle['terceroCedula'] ?? '') . ' - ' . ($detalle['terceroNombre'] ?? ''));
+              if ($terceroCompleto == ' - ') {
+                  $terceroCompleto = '';
+              }
+              
+              $stmtDetalle->execute([
+                  ':comprobante_id' => $txtId,
+                  ':cuentaContable' => $detalle['cuentaContable'],
+                  ':descripcionCuenta' => $detalle['descripcionCuenta'],
+                  ':tercero' => $terceroCompleto,
+                  ':detalle' => $detalle['detalle'],
+                  ':valorDebito' => $detalle['valorDebito'],
+                  ':valorCredito' => $detalle['valorCredito']
+              ]);
+          }
+      }
+
+      $libroDiario->registrarComprobanteContable($txtId);
+
+      header("Location: ".$_SERVER['PHP_SELF']."?msg=modificado");
+      exit;
+  break;
+
+  case "btnEliminar":
+      $libroDiario->eliminarMovimientos('comprobante_contable', $txtId);
+      
+      $sentenciaDetalle = $pdo->prepare("DELETE FROM detallecomprobantecontable WHERE comprobante_id = :id");
+      $sentenciaDetalle->bindParam(':id', $txtId);
+      $sentenciaDetalle->execute();
+
+      $sentencia = $pdo->prepare("DELETE FROM doccomprobantecontable WHERE id = :id");
+      $sentencia->bindParam(':id', $txtId);
+      $sentencia->execute();
+
+      header("Location: ".$_SERVER['PHP_SELF']."?msg=eliminado");
+      exit;
+  break;
+
+  case "btnEditar":
+      $sentencia = $pdo->prepare("SELECT * FROM doccomprobantecontable WHERE id = :id");
+      $sentencia->bindParam(':id', $txtId);
+      $sentencia->execute();
+      $comprobante = $sentencia->fetch(PDO::FETCH_ASSOC);
+
+      if ($comprobante) {
+          $fecha = $comprobante['fecha'];
+          $consecutivo = $comprobante['consecutivo'];
+          $observaciones = $comprobante['observaciones'];
+      }
+
+      $stmtDetalle = $pdo->prepare("SELECT *, 
+                                  TRIM(SUBSTRING_INDEX(tercero, '-', 1)) as terceroCedula,
+                                  TRIM(SUBSTRING_INDEX(tercero, '-', -1)) as terceroNombre
+                                  FROM detallecomprobantecontable WHERE comprobante_id = :comprobante_id");
+      $stmtDetalle->bindParam(':comprobante_id', $txtId);
+      $stmtDetalle->execute();
+      $detalles = $stmtDetalle->fetchAll(PDO::FETCH_ASSOC);
+  break;
 }
- 
-// Consulta para mostrar la tabla con información de detalles
-$sentencia = $pdo->prepare("
-    SELECT
-        c.*,
-        (SELECT COUNT(*) FROM detalle_comprobante_egreso WHERE idComprobante = c.id) as numFacturas
-    FROM doccomprobanteegreso c
-    ORDER BY CAST(c.consecutivo AS UNSIGNED) DESC
-");
+
+$sentencia= $pdo->prepare("SELECT * FROM `doccomprobantecontable` WHERE 1");
 $sentencia->execute();
-$lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
- 
-// Obtener medios de pago
-$mediosPago = [];
-$stmt = $pdo->query("SELECT metodoPago, cuentaContable FROM mediosdepago");
-while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-    $mediosPago[] = $row;
-}
+$lista=$sentencia->fetchALL(PDO::FETCH_ASSOC);
+
 ?>
- 
-<!-- SweetAlert -->
+
 <?php if (isset($_GET['msg'])): ?>
 <script>
 document.addEventListener("DOMContentLoaded", () => {
-  const msg = "<?= $_GET['msg'] ?>";
-  const detalle = "<?= $_GET['detalle'] ?? '' ?>";
- 
-  switch (msg) {
+  switch ("<?= $_GET['msg'] ?>") {
     case "agregado":
       Swal.fire({
         icon: 'success',
         title: 'Guardado exitosamente',
-        text: 'El comprobante de egreso se ha agregado correctamente',
+        text: 'El comprobante contable se ha agregado correctamente',
         confirmButtonColor: '#3085d6'
       });
       break;
- 
+
     case "modificado":
       Swal.fire({
         icon: 'success',
@@ -413,178 +182,118 @@ document.addEventListener("DOMContentLoaded", () => {
         confirmButtonColor: '#3085d6'
       });
       break;
- 
+
     case "eliminado":
       Swal.fire({
         icon: 'success',
         title: 'Eliminado correctamente',
-        text: 'El comprobante de egreso fue eliminado del registro',
+        text: 'El comprobante contable fue eliminado del registro',
         confirmButtonColor: '#3085d6'
       });
       break;
-     
-    case "error":
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: detalle || 'Ocurrió un error al procesar la solicitud',
-        confirmButtonColor: '#d33'
-      });
-      break;
   }
- 
+
   if (window.history.replaceState) {
     const url = new URL(window.location);
     url.searchParams.delete('msg');
-    url.searchParams.delete('detalle');
     window.history.replaceState({}, document.title, url);
   }
 });
 </script>
 <?php endif; ?>
- 
+
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
-  <title>Comprobante de Egreso - SOFI</title>
- 
-  <!-- Favicons -->
+
+  <title>SOFI - UDES</title>
+  <meta content="" name="description">
+  <meta content="" name="keywords">
+
   <link href="assets/img/favicon.png" rel="icon">
- 
-  <!-- Google Fonts -->
-  <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700|Raleway:300,400,500,600,700|Poppins:300,400,500,600,700%22 rel="stylesheet">
- 
-  <!-- Vendor CSS -->
+  <link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
+
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Raleway:300,300i,400,400i,500,500i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet">
+
+  <link href="assets/vendor/animate.css/animate.min.css" rel="stylesheet">
+  <link href="assets/vendor/aos/aos.css" rel="stylesheet">
   <link href="assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link href="assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
+  <link href="assets/vendor/boxicons/css/boxicons.min.css" rel="stylesheet">
+  <link href="assets/vendor/glightbox/css/glightbox.min.css" rel="stylesheet">
+  <link href="assets/vendor/remixicon/remixicon.css" rel="stylesheet">
+  <link href="assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
- 
+  
+  <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+  
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
   <link href="assets/css/improved-style.css" rel="stylesheet">
- 
-  <style>
-    .table-container {
-      overflow-x: auto;
-      margin-top: 20px;
-    }
-   
-    table {
+
+  <style> 
+    input[type="text"], input[type="number"] {
       width: 100%;
-      border-collapse: collapse;
-      background: white;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      box-sizing: border-box;
+      padding: 5px;
     }
-   
-    table th {
-      background: #0d6efd;
-      color: white;
-      padding: 12px;
-      text-align: left;
-      font-weight: 600;
-      font-size: 14px;
-    }
-   
-    table td {
-      padding: 10px;
-      border-bottom: 1px solid #dee2e6;
-      font-size: 14px;
-    }
-   
-    table tbody tr:hover {
-      background: #f8f9fa;
-    }
-   
-    .factura-row {
-      background: #f8f9fa;
-      transition: all 0.2s;
-    }
-   
-    .factura-row:hover {
-      background: #e9ecef;
-    }
-   
-    .btn-cargar-facturas {
-      margin-top: 15px;
-      margin-bottom: 10px;
-      background: #198754;
+
+    .add-row-btn {
+      cursor: pointer;
+      background-color: #0d6efd;
       color: white;
       border: none;
-      padding: 10px 25px;
-      border-radius: 5px;
-      cursor: pointer;
+      padding: 10px;
+      font-size: 18px;
+      margin-top: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+    .form-group label {
       font-weight: bold;
-      transition: all 0.3s;
+      display: inline-block;
+      width: 150px;
     }
-   
-    .btn-cargar-facturas:hover {
-      background: #146c43;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }
-   
     .totals {
       margin-top: 20px;
       text-align: right;
-      padding: 15px;
-      background: #f8f9fa;
-      border-radius: 5px;
-      border: 2px solid #0d6efd;
     }
-   
     .totals label {
       font-weight: bold;
-      font-size: 18px;
-      color: #0d6efd;
-      margin-right: 10px;
     }
-   
     .totals input {
-      width: 200px;
-      font-size: 20px;
-      font-weight: bold;
-      text-align: right;
-      display: inline-block;
-      border: 2px solid #0d6efd;
-      color: #0d6efd;
+      width: 160px;
+      margin-left: 10px;
     }
-   
-    .badge {
-      padding: 5px 10px;
-      border-radius: 4px;
-      font-size: 12px;
-      font-weight: 600;
+    
+    .select2-container {
+      width: 100% !important;
     }
-   
-    .badge-info {
-      background: #0dcaf0;
-      color: #000;
+    .select2-container .select2-selection--single {
+      height: 38px;
+      padding: 6px 12px;
     }
-   
-    .info-box {
-      background: #e7f3ff;
-      border-left: 4px solid #0d6efd;
-      padding: 12px;
-      margin: 15px 0;
-      border-radius: 4px;
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+      line-height: 24px;
     }
-   
-    .info-box i {
-      color: #0d6efd;
-      margin-right: 8px;
-    }
-   
-    .form-control:focus {
-      border-color: #0d6efd;
-      box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+      height: 36px;
     }
   </style>
+
 </head>
- 
+
 <body>
-  <!-- Header -->
-  <header id="header" class="fixed-top d-flex align-items-center">
+
+  <header id="header" class="fixed-top d-flex align-items-center ">
     <div class="container d-flex align-items-center justify-content-between">
       <h1 class="logo">
         <a href="dashboard.php">
@@ -594,189 +303,162 @@ document.addEventListener("DOMContentLoaded", () => {
       </h1>
       <nav id="navbar" class="navbar">
         <ul>
-          <li><a class="nav-link" href="dashboard.php">Inicio</a></li>
-          <li><a class="nav-link" href="perfil.php">Mi Negocio</a></li>
-          <li><a class="nav-link" href="index.php">Cerrar Sesión</a></li>
+          <li>
+            <a class="nav-link scrollto active" href="dashboard.php" style="color: darkblue;">Inicio</a>
+          </li>
+          <li>
+            <a class="nav-link scrollto active" href="perfil.php" style="color: darkblue;">Mi Negocio</a>
+          </li>
+          <li>
+            <a class="nav-link scrollto active" href="index.php" style="color: darkblue;">Cerrar Sesión</a>
+          </li>
         </ul>
         <i class="bi bi-list mobile-nav-toggle"></i>
       </nav>
     </div>
   </header>
- 
-  <!-- Main Section -->
-  <section id="services" class="services">
-    <button class="btn-ir" onclick="window.location.href='menudocumentos.php'">
-      <i class="fa-solid fa-arrow-left"></i> Regresar
-    </button>
-   
-    <div class="container" data-aos="fade-up">
-      <div class="section-title">
-        <h2>COMPROBANTE DE EGRESO</h2>
-        <p>Registre los pagos realizados a sus proveedores</p>
-        <p>(Los campos marcados con * son obligatorios)</p>
-      </div>
-     
-      <form id="formComprobanteEgreso" action="" method="post">
-        <input type="hidden" value="<?php echo $txtId; ?>" id="txtId" name="txtId">
-        <input type="hidden" id="numeroFactura" name="numeroFactura">
-        <input type="hidden" id="fechaVencimiento" name="fechaVencimiento">
-        <input type="hidden" id="valor" name="valor">
-        <input type="hidden" id="facturasData" name="facturasData">
- 
-        <!-- Fecha y Consecutivo -->
-        <div class="row g-3 mt-2">
-          <div class="col-md-6">
-            <label for="fecha" class="form-label fw-bold">Fecha del Comprobante*</label>
-            <input type="date" class="form-control" id="fecha" name="fecha"
-                   value="<?php echo htmlspecialchars($fecha); ?>" required>
+
+    <section id="services" class="services">
+      <button class="btn-ir" onclick="window.location.href='menudocumentos.php'">
+        <i class="fa-solid fa-arrow-left"></i> Regresar
+      </button>
+      <div class="container" data-aos="fade-up">
+
+        <div class="section-title">
+          <h2>COMPROBANTE CONTABLE</h2>
+          <p>Para crear un nuevo comprobante contable diligencie los campos a continuación:</p>
+          <p>(Los campos marcados con * son obligatorios)</p>
+        </div>
+        
+        <form id="formComprobanteContable" action="" method="post" class="container mt-3">
+
+          <input type="hidden" value="<?php echo $txtId; ?>" id="txtId" name="txtId">
+
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label for="fecha" class="form-label fw-bold">Fecha del documento*</label>
+              <input type="date" class="form-control" id="fecha" name="fecha"
+                    value="<?php echo $fecha ? $fecha : date('Y-m-d'); ?>" readonly required>
+            </div>
+
+            <div class="col-md-4">
+              <label for="consecutivo" class="form-label fw-bold">Consecutivo*</label>
+              <input type="text" class="form-control" id="consecutivo" name="consecutivo"
+                    placeholder="Número consecutivo"
+                    value="<?php echo $consecutivo; ?>" readonly>
+            </div>
           </div>
-          <div class="col-md-6">
-            <label for="consecutivo" class="form-label fw-bold">Consecutivo*</label>
-            <input type="text" class="form-control" id="consecutivo" name="consecutivo"
-                   value="<?php echo htmlspecialchars($consecutivo); ?>" readonly required>
-          </div>
-        </div>
- 
-        <!-- Proveedor -->
-        <div class="row g-3 mt-2">
-          <div class="col-md-6">
-            <label for="identificacion" class="form-label fw-bold">Identificación del Proveedor*</label>
-            <input type="number" class="form-control" id="identificacion" name="identificacion"
-                   placeholder="Ej: 123456789"
-                   value="<?php echo htmlspecialchars($identificacion); ?>" required>
-          </div>
-          <div class="col-md-6">
-            <label for="nombre" class="form-label fw-bold">Nombre del Proveedor*</label>
-            <input type="text" class="form-control" id="nombre" name="nombre"
-                   placeholder="Nombre del proveedor"
-                   value="<?php echo htmlspecialchars($nombre); ?>" readonly required>
-          </div>
-        </div>
- 
-        <button type="button" class="btn-cargar-facturas" id="btnCargarFacturas">
-          <i class="fas fa-file-invoice"></i> Cargar Facturas de Compra Pendientes
-        </button>
- 
-        <!-- Tabla de facturas -->
-        <div class="table-container">
-          <table id="tablaFacturas">
-            <thead>
-              <tr>
-                <th style="width: 15%;">Consecutivo</th>
-                <th style="width: 15%;">Fecha Factura</th>
-                <th style="width: 15%;">Valor Total Factura</th>
-                <th style="width: 15%;">Saldo Pendiente</th>
-                <th style="width: 15%;">Fecha Vencimiento*</th>
-                <th style="width: 20%;">Valor a Pagar*</th>
-                <th style="width: 10%; text-align: center;">Seleccionar</th>
-              </tr>
-            </thead>
-            <tbody id="facturasBody">
-              <tr>
-                <td colspan="6" class="text-center" style="padding: 30px;">
-                  <i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>
-                  Ingrese una identificación y cargue las facturas pendientes
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
- 
-        <!-- Total -->
-        <div class="totals">
-          <label for="valorTotal"><i class="fas fa-dollar-sign"></i> VALOR TOTAL A PAGAR:</label>
-          <input type="text" id="valorTotal" name="valorTotal" class="form-control"
-                 value="<?php echo htmlspecialchars($valorTotal); ?>" readonly>
-        </div>
- 
-        <!-- Forma de Pago -->
-        <div class="row g-3 mt-3">
-          <div class="col-md-6">
-            <label for="formaPago" class="form-label fw-bold">Forma de Pago*</label>
-            <select id="formaPago" name="formaPago" class="form-control" required>
-              <option value="">Seleccione una opción</option>
-              <?php foreach ($mediosPago as $medio): ?>
-                <option value="<?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>"
-                        <?php if($formaPago == $medio['metodoPago']) echo 'selected'; ?>>
-                  <?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>
-                </option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-        </div>
- 
-        <!-- Observaciones -->
-        <div class="mb-3 mt-3">
-          <label for="observaciones" class="form-label fw-bold">Observaciones</label>
-          <textarea class="form-control" id="observaciones" name="observaciones" rows="3"
-                    placeholder="Ingrese observaciones adicionales (opcional)"><?php echo htmlspecialchars($observaciones); ?></textarea>
-        </div>
- 
-        <!-- Botones -->
-        <div class="mt-4 mb-4">
-          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">
-            <i class="fas fa-save"></i> Guardar Comprobante
-          </button>
-          <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion" style="display:none;">
-            <i class="fas fa-edit"></i> Modificar
-          </button>
-          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-danger" name="accion" style="display:none;">
-            <i class="fas fa-trash"></i> Eliminar
-          </button>
-          <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">
-            <i class="fas fa-times"></i> Cancelar
-          </button>
-        </div>
-      </form>
- 
-      <!-- Tabla de registros -->
-      <div class="section-title mt-5">
-        <h3>Comprobantes de Egreso Registrados</h3>
-      </div>
-     
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>Consecutivo</th>
-              <th>Fecha</th>
-              <th>Proveedor</th>
-              <th>Facturas Aplicadas</th>
-              <th>Valor Total</th>
-              <th>Forma de Pago</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <?php if(count($lista) > 0): ?>
-              <?php foreach($lista as $comprobante): ?>
+
+          <div class="table-responsive mt-3">
+            <table class="table-container">
+              <thead class="table-primary text-center">
                 <tr>
-                  <td><strong><?php echo htmlspecialchars($comprobante['consecutivo']); ?></strong></td>
-                  <td><?php echo date('d/m/Y', strtotime($comprobante['fecha'])); ?></td>
+                  <th>Cuenta Contable</th>
+                  <th>Descripción Cuenta</th>
+                  <th>Cédula Tercero</th>
+                  <th>Nombre Tercero</th>
+                  <th>Detalle</th>
+                  <th>Valor Débito</th>
+                  <th>Valor Crédito</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="product-table">
+                <?php if (!empty($detalles)) : ?>
+                  <?php foreach ($detalles as $detalle): ?>
+                      <tr>
+                          <td>
+                            <select name="cuentaContable" class="form-control cuenta-select" style="width: 100%;">
+                              <option value="<?= htmlspecialchars($detalle['cuentaContable']) ?>" selected>
+                                <?= htmlspecialchars($detalle['cuentaContable']) ?>
+                              </option>
+                            </select>
+                          </td>
+                          <td><input type="text" name="descripcionCuenta" class="form-control" value="<?= htmlspecialchars($detalle['descripcionCuenta']) ?>"></td>
+                          <td><input type="text" name="terceroCedula" class="form-control" value="<?= htmlspecialchars($detalle['terceroCedula'] ?? '') ?>"></td>
+                          <td><input type="text" name="terceroNombre" class="form-control" value="<?= htmlspecialchars($detalle['terceroNombre'] ?? '') ?>"></td>
+                          <td><input type="text" name="detalle" class="form-control" value="<?= htmlspecialchars($detalle['detalle']) ?>"></td>
+                          <td><input type="text" step="0.01" name="valorDebito" class="form-control debito" value="<?= htmlspecialchars($detalle['valorDebito']) ?>"></td>
+                          <td><input type="text" step="0.01" name="valorCredito" class="form-control credito" value="<?= htmlspecialchars($detalle['valorCredito']) ?>"></td>
+                          <td><button type="button" class="btn-add" onclick="addRow()">+</button></td>
+                      </tr>
+                  <?php endforeach; ?>
+              <?php else: ?>
+                  <tr>
+                      <td>
+                        <select name="cuentaContable" class="form-control cuenta-select" style="width: 100%;">
+                          <option value="">Buscar cuenta...</option>
+                        </select>
+                      </td>
+                      <td><input type="text" name="descripcionCuenta" class="form-control" value=""></td>
+                      <td><input type="text" name="terceroCedula" class="form-control" placeholder="Cédula" value=""></td>
+                      <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value=""></td>
+                      <td><input type="text" name="detalle" class="form-control" value=""></td>
+                      <td><input type="text" step="0.01" name="valorDebito" class="form-control debito" placeholder="0.00" value=""></td>
+                      <td><input type="text" step="0.01" name="valorCredito" class="form-control credito" placeholder="0.00" value=""></td>
+                      <td><button type="button" class="btn-add" onclick="addRow()">+</button></td>
+                  </tr>
+              <?php endif; ?>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="col-md-6 ms-auto mt-3">
+            <div class="row mb-2">
+              <div class="col-6">
+                <label for="sumaDebito" class="form-label fw-bold">Suma Débito</label>
+                <input type="text" id="sumaDebito" name="sumaDebito" class="form-control text-end" value="0.00" readonly>
+              </div>
+              <div class="col-6">
+                <label for="sumaCredito" class="form-label fw-bold">Suma Crédito</label>
+                <input type="text" id="sumaCredito" name="sumaCredito" class="form-control text-end" value="0.00" readonly>
+              </div>
+            </div>
+            <div class="mb-2">
+              <label for="diferencia" class="form-label fw-bold">Diferencia</label>
+              <input type="text" id="diferencia" name="diferencia" 
+                    class="form-control text-end fw-bold border-2" 
+                    value="0.00" readonly>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="observaciones" class="form-label fw-bold">Observaciones</label>
+            <input type="text" name="observaciones" value="<?php echo $observaciones;?>" class="form-control" id="observaciones" placeholder="">
+          </div>
+
+          <div class="mt-4">
+            <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
+            <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion">Modificar</button>
+            <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-danger" name="accion">Eliminar</button>
+            <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">Cancelar</button>
+          </div>
+        </form>
+
+        <div class="row mt-4">
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Consecutivo</th>
+                  <th>Observaciones</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody id="tabla-registros">
+              <?php foreach($lista as $comprobante){ ?>
+                <tr>
+                  <td><?php echo $comprobante['fecha']; ?></td>
+                  <td><?php echo $comprobante['consecutivo']; ?></td>
+                  <td><?php echo $comprobante['observaciones']; ?></td>
                   <td>
-                    <strong><?php echo htmlspecialchars($comprobante['nombre']); ?></strong><br>
-                    <small class="text-muted">ID: <?php echo htmlspecialchars($comprobante['identificacion']); ?></small>
-                  </td>
-                  <td>
-                    <?php echo htmlspecialchars($comprobante['numeroFactura']); ?>
-                    <br><span class="badge badge-info"><?php echo $comprobante['numFacturas']; ?> factura(s)</span>
-                  </td>
-                  <td><strong style="color: #dc3545;">$<?php echo number_format($comprobante['valorTotal'], 2); ?></strong></td>
-                  <td><?php echo htmlspecialchars($comprobante['formaPago']); ?></td>
-                  <td>
-                    <form action="" method="post" style="display:flex; gap:5px;">
-                      <input type="hidden" name="txtId" value="<?php echo $comprobante['id']; ?>">
-                      <input type="hidden" name="fecha" value="<?php echo $comprobante['fecha']; ?>">
-                      <input type="hidden" name="consecutivo" value="<?php echo $comprobante['consecutivo']; ?>">
-                      <input type="hidden" name="identificacion" value="<?php echo $comprobante['identificacion']; ?>">
-                      <input type="hidden" name="nombre" value="<?php echo $comprobante['nombre']; ?>">
-                      <input type="hidden" name="numeroFactura" value="<?php echo $comprobante['numeroFactura']; ?>">
-                      <input type="hidden" name="fechaVencimiento" value="<?php echo $comprobante['fechaVencimiento']; ?>">
-                      <input type="hidden" name="valor" value="<?php echo $comprobante['valor']; ?>">
-                      <input type="hidden" name="valorTotal" value="<?php echo $comprobante['valorTotal']; ?>">
-                      <input type="hidden" name="formaPago" value="<?php echo $comprobante['formaPago']; ?>">
-                      <input type="hidden" name="observaciones" value="<?php echo $comprobante['observaciones']; ?>">
- 
+                    <form action="" method="post">
+                      <input type="hidden" name="txtId" value="<?php echo $comprobante['id']; ?>" >
+                      <input type="hidden" name="fecha" value="<?php echo $comprobante['fecha']; ?>" >
+                      <input type="hidden" name="consecutivo" value="<?php echo $comprobante['consecutivo']; ?>" >
+                      <input type="hidden" name="observaciones" value="<?php echo $comprobante['observaciones']; ?>" >
+                      
                       <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info" title="Editar">
                         <i class="fas fa-edit"></i>
                       </button>
@@ -786,393 +468,468 @@ document.addEventListener("DOMContentLoaded", () => {
                     </form>
                   </td>
                 </tr>
-              <?php endforeach; ?>
-            <?php else: ?>
+              <?php } ?>
+              </tbody>
+            </table>
+          </div>  
+        </div>
+        
+        <script>
+        function initCuentaSelect($select) {
+          $select.select2({
+            placeholder: "Buscar cuenta contable...",
+            allowClear: true,
+            width: '100%',
+            ajax: {
+              url: 'obtener_cuentas_comprobantecontable.php',
+              dataType: 'json',
+              delay: 250,
+              data: function (params) {
+                return {
+                  search: params.term || ''
+                };
+              },
+              processResults: function (data) {
+                return {
+                  results: data.map(function (cuenta) {
+                    return { 
+                      id: cuenta.valor, 
+                      text: cuenta.texto,
+                      descripcion: cuenta.descripcion
+                    };
+                  })
+                };
+              },
+              cache: true
+            }
+          });
+          
+          $select.on('select2:select', function (e) {
+            const data = e.params.data;
+            const row = $(this).closest('tr');
+            
+            if (data.descripcion) {
+              row.find('input[name="descripcionCuenta"]').val(data.descripcion);
+            } else {
+              const textoCompleto = data.text;
+              const partes = textoCompleto.split('-');
+              if (partes.length > 1) {
+                row.find('input[name="descripcionCuenta"]').val(partes.slice(1).join('-').trim());
+              }
+            }
+          });
+        }
+
+        $(document).ready(function() {
+          $('.cuenta-select').each(function() {
+            initCuentaSelect($(this));
+          });
+        });
+
+        window.addEventListener('DOMContentLoaded', function() {
+            const txtId = document.getElementById("txtId").value;
+            
+            if (!txtId || txtId.trim() === "") {
+                fetch(window.location.pathname + "?get_consecutivo=1")
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('consecutivo').value = data.consecutivo;
+                    })
+                    .catch(error => console.error('Error al obtener consecutivo:', error));
+            }
+        });
+
+        document.addEventListener("DOMContentLoaded", function () {
+          function calcularTotales() {
+            let sumaDebito = 0;
+            let sumaCredito = 0;
+
+            document.querySelectorAll("#product-table tr").forEach(row => {
+              const debito = parseFloat(row.querySelector(".debito")?.value.replace(/\./g, '').replace(',', '.') || 0);
+              const credito = parseFloat(row.querySelector(".credito")?.value.replace(/\./g, '').replace(',', '.') || 0);
+
+              sumaDebito += debito;
+              sumaCredito += credito;
+            });
+
+            const diferencia = sumaDebito - sumaCredito;
+
+            document.querySelector("#sumaDebito").value = sumaDebito.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.querySelector("#sumaCredito").value = sumaCredito.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.querySelector("#diferencia").value = diferencia.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          }
+
+          document.querySelector("#product-table").addEventListener("input", function (event) {
+            if (event.target.classList.contains("debito") || event.target.classList.contains("credito")) {
+              calcularTotales();
+            }
+          });
+
+          document.addEventListener('input', function(e) {
+            if (e.target.classList.contains('numero')) {
+              let valor = e.target.value.replace(/\D/g, '');
+              valor = valor.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+              e.target.value = valor;
+            }
+          });
+
+          // Autocompletar nombre del tercero cuando se escribe la cédula
+          document.querySelector("#product-table").addEventListener("blur", function(event) {
+            if (event.target.name === "terceroCedula") {
+              const cedula = event.target.value.trim();
+              const row = event.target.closest('tr');
+              const inputNombre = row.querySelector('input[name="terceroNombre"]');
+              
+              if (cedula && inputNombre) {
+                // Buscar el tercero por cédula
+                fetch('buscar_tercero_por_cedula.php?cedula=' + encodeURIComponent(cedula))
+                  .then(response => response.json())
+                  .then(data => {
+                    if (data.success) {
+                      inputNombre.value = data.nombre;
+                      inputNombre.style.backgroundColor = '#d4edda'; // Verde claro
+                      setTimeout(() => {
+                        inputNombre.style.backgroundColor = '';
+                      }, 1500);
+                    } else {
+                      inputNombre.value = '';
+                      inputNombre.placeholder = 'Tercero no encontrado';
+                      inputNombre.style.backgroundColor = '#f8d7da'; // Rojo claro
+                      setTimeout(() => {
+                        inputNombre.style.backgroundColor = '';
+                        inputNombre.placeholder = 'Nombre';
+                      }, 2000);
+                    }
+                  })
+                  .catch(error => {
+                    console.error('Error al buscar tercero:', error);
+                  });
+              }
+            }
+          }, true);
+
+          window.addRow = function() {
+            const tableBody = document.getElementById("product-table");
+            
+            const newRow = document.createElement("tr");
+            
+            newRow.innerHTML = `
+              <td>
+                <select name="cuentaContable" class="form-control cuenta-select" style="width: 100%;">
+                  <option value="">Buscar cuenta...</option>
+                </select>
+              </td>
+              <td><input type="text" name="descripcionCuenta" class="form-control" value=""></td>
+              <td><input type="text" name="terceroCedula" class="form-control" placeholder="Cédula" value=""></td>
+              <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value=""></td>
+              <td><input type="text" name="detalle" class="form-control" value=""></td>
+              <td><input type="text" step="0.01" name="valorDebito" class="form-control debito" placeholder="0.00" value=""></td>
+              <td><input type="text" step="0.01" name="valorCredito" class="form-control credito" placeholder="0.00" value=""></td>
+              <td>
+                <button type="button" class="btn-add" onclick="addRow()">+</button>
+                <button type="button" class="btn-remove" style="margin-left:10px; background-color:red; color:white; border:none; border-radius:4px; cursor:pointer;">-</button>
+              </td>
+            `;
+
+            const btnRemove = newRow.querySelector(".btn-remove");
+            btnRemove.onclick = function() {
+              const rows = tableBody.querySelectorAll("tr");
+              if (rows.length > 1) {
+                $(this.closest("tr")).find('.cuenta-select').select2('destroy');
+                this.closest("tr").remove();
+                calcularTotales();
+              } else {
+                Swal.fire({
+                  icon: 'warning',
+                  title: 'Atención',
+                  text: 'Debe haber al menos una fila',
+                  confirmButtonColor: '#3085d6'
+                });
+              }
+            };
+
+            tableBody.appendChild(newRow);
+            
+            initCuentaSelect($(newRow).find('.cuenta-select'));
+            
+            calcularTotales();
+          };
+
+          const firstRow = document.querySelector("#product-table tr");
+          if (firstRow && !firstRow.querySelector(".btn-remove")) {
+            const btn = document.createElement("button");
+            btn.textContent = "-";
+            btn.className = "btn-remove";
+            btn.style.marginLeft = "10px";
+            btn.style.backgroundColor = "red";
+            btn.style.color = "white";
+            btn.style.border = "none";
+            btn.style.borderRadius = "4px";
+            btn.style.cursor = "pointer";
+
+            btn.onclick = function() {
+              const rows = document.querySelectorAll("#product-table tr");
+              if (rows.length > 1) {
+                $(this.closest("tr")).find('.cuenta-select').select2('destroy');
+                this.closest("tr").remove();
+                calcularTotales();
+              } else {
+                Swal.fire({
+                  icon: 'warning',
+                  title: 'Atención',
+                  text: 'Debe haber al menos una fila',
+                  confirmButtonColor: '#3085d6'
+                });
+              }
+            };
+
+            const lastCell = firstRow.lastElementChild;
+            lastCell.appendChild(btn);
+          }
+        });
+
+        document.addEventListener("DOMContentLoaded", function() {
+          const id = document.getElementById("txtId").value;
+          const btnAgregar = document.getElementById("btnAgregar");
+          const btnModificar = document.getElementById("btnModificar");
+          const btnEliminar = document.getElementById("btnEliminar");
+          const btnCancelar = document.getElementById("btnCancelar");
+
+          function modoAgregar() {
+            btnAgregar.style.display = "inline-block";
+            btnModificar.style.display = "none";
+            btnEliminar.style.display = "none";
+            btnCancelar.style.display = "none";
+
+            document.getElementById("txtId").value = "";
+            document.getElementById("fecha").value = new Date().toISOString().split('T')[0];
+            document.getElementById("consecutivo").value = "";
+            document.getElementById("observaciones").value = "";
+
+            const tableBody = document.getElementById("product-table");
+            tableBody.innerHTML = `
               <tr>
-                <td colspan="7" class="text-center" style="padding: 30px;">
-                  No hay comprobantes de egreso registrados
+                <td>
+                  <select name="cuentaContable" class="form-control cuenta-select" style="width: 100%;">
+                    <option value="">Buscar cuenta...</option>
+                  </select>
+                </td>
+                <td><input type="text" name="descripcionCuenta" class="form-control" value=""></td>
+                <td><input type="text" name="terceroCedula" class="form-control" placeholder="Cédula" value=""></td>
+                <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value=""></td>
+                <td><input type="text" name="detalle" class="form-control" value=""></td>
+                <td><input type="number" step="0.01" name="valorDebito" class="form-control debito" placeholder="0.00" value=""></td>
+                <td><input type="number" step="0.01" name="valorCredito" class="form-control credito" placeholder="0.00" value=""></td>
+                <td>
+                  <button type="button" class="btn-add" onclick="addRow()">+</button>
+                  <button type="button" class="btn-remove" style="margin-left:10px; background-color:red; color:white; border:none; border-radius:4px; cursor:pointer;" onclick="removeRowSafe(this)">-</button>
                 </td>
               </tr>
-            <?php endif; ?>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
- 
-  <!-- Footer -->
-  <footer id="footer" class="footer-minimalista">
-    <p>Universidad de Santander - Ingeniería de Software</p>
-    <p>Todos los derechos reservados © 2025</p>
-  </footer>
- 
-  <script>
-    // Variable global para modo edición
-    let modoEdicion = false;
- 
-    // Obtener consecutivo
-    window.addEventListener('DOMContentLoaded', function() {
-      const txtId = document.getElementById('txtId').value;
-     
-      if (!txtId || txtId.trim() === "") {
-        fetch(window.location.pathname + "?get_consecutivo=1")
-          .then(r => r.json())
-          .then(data => {
-            document.getElementById('consecutivo').value = data.consecutivo;
-          })
-          .catch(err => console.error('Error:', err));
-      } else {
-        modoEdicion = true;
-      }
-    });
- 
-    // Buscar proveedor
-    document.getElementById("identificacion").addEventListener("input", function() {
-      let identificacion = this.value;
-     
-      if (identificacion.length > 0) {
-        fetch("", {
-          method: "POST",
-          body: new URLSearchParams({
-            buscar_proveedor: "1",
-            identificacion: identificacion
-          }),
-          headers: { "Content-Type": "application/x-www-form-urlencoded" }
-        })
-        .then(r => r.json())
-        .then(data => {
-          document.getElementById("nombre").value = data.nombre;
-        })
-        .catch(err => console.error("Error:", err));
-      } else {
-        document.getElementById("nombre").value = "";
-        if (!modoEdicion) {
-          document.getElementById("facturasBody").innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 30px;"><i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>Ingrese una identificación</td></tr>';
-        }
-      }
-    });
- 
-    // Cargar facturas pendientes
-    document.getElementById("btnCargarFacturas").addEventListener("click", function() {
-      const identificacion = document.getElementById("identificacion").value;
-      const txtId = document.getElementById("txtId").value;
-     
-      if (!identificacion) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'Atención',
-          text: 'Debe ingresar una identificación primero',
-          confirmButtonColor: '#3085d6'
-        });
-        return;
-      }
-     
-      const tbody = document.getElementById("facturasBody");
-      tbody.innerHTML = '<tr><td colspan="6" class="text-center"><i class="fas fa-spinner fa-spin"></i> Cargando facturas...</td></tr>';
-     
-      fetch(`?get_facturas=1&identificacion=${identificacion}`)
-        .then(r => r.json())
-        .then(facturas => {
-          if (facturas.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 30px;"><i class="fas fa-inbox" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>No hay facturas de compra a crédito pendientes para este proveedor</td></tr>';
-            return;
-          }
-         
-          tbody.innerHTML = "";
-         
-          // Si estamos editando, cargar los detalles previos
-          if (txtId && txtId.trim() !== "") {
-            fetch(`?get_detalles=1&idComprobante=${txtId}`)
-              .then(r => r.json())
-              .then(detalles => {
-                renderFacturas(facturas, detalles);
-              })
-              .catch(err => {
-                console.error(err);
-                renderFacturas(facturas, []);
+            `;
+            
+            initCuentaSelect($('.cuenta-select'));
+
+            fetch(window.location.pathname + "?get_consecutivo=1")
+              .then(response => response.json())
+              .then(data => {
+                document.getElementById('consecutivo').value = data.consecutivo;
               });
-          } else {
-            renderFacturas(facturas, []);
-          }
-        })
-        .catch(err => {
-          console.error(err);
-          tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">Error al cargar las facturas</td></tr>';
-          Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'No se pudieron cargar las facturas',
-            confirmButtonColor: '#d33'
-          });
-        });
-    });
- 
-    // Renderizar facturas con o sin detalles previos
-    function renderFacturas(facturas, detalles) {
-      const tbody = document.getElementById("facturasBody");
-      tbody.innerHTML = "";
-     
-      facturas.forEach(f => {
-        const tr = document.createElement("tr");
-        tr.className = "factura-row";
-        tr.dataset.consecutivo = f.consecutivo;
-        tr.dataset.valorTotal = f.valorTotal;
-       
-        // Buscar si esta factura estaba previamente seleccionada
-        const detalleExistente = detalles.find(d => d.consecutivoFactura === f.consecutivo);
-       
-      tr.innerHTML = `
-        <td><strong>${f.consecutivo}</strong></td>
-        <td>${formatDate(f.fecha)}</td>
-        <td><strong>${parseFloat(f.valorTotal).toFixed(2)}</strong></td>
-        <td>
-          <span class="saldo-pendiente">${parseFloat(f.saldoReal).toFixed(2)}</span>
-          <br>
-          <span class="badge badge-info">${((parseFloat(f.saldoReal) / parseFloat(f.valorTotal)) * 100).toFixed(0)}% pendiente</span>
-        </td>
-        <td>
-          <input type="date"
-                class="form-control fecha-venc"
-                value="${detalleExistente ? detalleExistente.fechaVencimiento : ''}"
-                placeholder="Fecha vencimiento">
-        </td>
-        <td>
-          <input type="number"
-                class="form-control valor-aplicar"
-                step="0.01"
-                min="0"
-                max="${parseFloat(f.saldoReal).toFixed(2)}"
-                value="${detalleExistente ? parseFloat(detalleExistente.valorAplicado).toFixed(2) : ''}"
-                placeholder="Máx: ${parseFloat(f.saldoReal).toFixed(2)}">
-          <small class="saldo-info">Máximo: ${parseFloat(f.saldoReal).toFixed(2)}</small>
-        </td>
-        <td style="text-align: center;">
-          <input type="checkbox"
-                class="factura-checkbox form-check-input"
-                style="width: 20px; height: 20px;"
-                ${detalleExistente ? 'checked' : ''}>
-        </td>
-      `;
-       
-        tbody.appendChild(tr);
-      });
-     
-      // Agregar eventos
 
-      document.querySelectorAll(".valor-aplicar").forEach(input => {
-        input.addEventListener("input", function() {
-          const row = this.closest('.factura-row');
-          const saldoReal = parseFloat(row.dataset.saldoReal);
-          const valor = parseFloat(this.value) || 0;
-          
-          if (valor > saldoReal) {
-            Swal.fire({
-              icon: 'warning',
-              title: 'Valor excedido',
-              text: `El valor no puede ser mayor al saldo pendiente (${saldoReal.toFixed(2)})`,
-              confirmButtonColor: '#3085d6'
-            });
-            this.value = saldoReal.toFixed(2);
-          }
-          
-          calcularTotal();
-        });
-      });
-
-      document.querySelectorAll(".factura-checkbox").forEach(checkbox => {
-        checkbox.addEventListener("change", calcularTotal);
-      });
-     
-      // Calcular total inicial si hay detalles
-      if (detalles.length > 0) {
-        calcularTotal();
-      }
-    }
- 
-    // Formatear fecha
-    function formatDate(dateStr) {
-      if (!dateStr) return 'N/A';
-      const d = new Date(dateStr + 'T00:00:00');
-      return d.toLocaleDateString('es-CO');
-    }
- 
-    // Calcular total
-    function calcularTotal() {
-      let total = 0;
-      let facturasSeleccionadas = [];
-      let fechasVencimiento = [];
-      let valoresAplicados = [];
-      let facturasData = [];
-     
-      document.querySelectorAll(".factura-row").forEach(row => {
-        const checkbox = row.querySelector(".factura-checkbox");
-        const valorInput = row.querySelector(".valor-aplicar");
-        const fechaVencInput = row.querySelector(".fecha-venc");
-       
-        if (checkbox && checkbox.checked && valorInput && valorInput.value) {
-          const valor = parseFloat(valorInput.value) || 0;
-         
-          if (valor > 0) {
-            total += valor;
-            facturasSeleccionadas.push(row.dataset.consecutivo);
-            valoresAplicados.push(valor.toFixed(2));
-           
-            const fechaVenc = fechaVencInput && fechaVencInput.value ? fechaVencInput.value : '';
-            if (fechaVenc) {
-              fechasVencimiento.push(fechaVenc);
+            if (window.history.replaceState) {
+              const url = new URL(window.location);
+              url.search = '';
+              window.history.replaceState({}, document.title, url);
             }
-           
-            // Agregar a array de objetos para JSON
-            facturasData.push({
-              consecutivo: row.dataset.consecutivo,
-              valor: valor.toFixed(2),
-              fechaVencimiento: fechaVenc
-            });
           }
-        }
-      });
-     
-      document.getElementById("valorTotal").value = total.toFixed(2);
-      document.getElementById("numeroFactura").value = facturasSeleccionadas.join(', ');
-      document.getElementById("valor").value = valoresAplicados.join(', ');
-      document.getElementById("fechaVencimiento").value = fechasVencimiento.join(', ');
-      document.getElementById("facturasData").value = JSON.stringify(facturasData);
-    }
- 
-    // Modo agregar/editar
-    document.addEventListener("DOMContentLoaded", function() {
-      const id = document.getElementById("txtId").value;
-      const btnAgregar = document.getElementById("btnAgregar");
-      const btnModificar = document.getElementById("btnModificar");
-      const btnEliminar = document.getElementById("btnEliminar");
-      const btnCancelar = document.getElementById("btnCancelar");
-      const form = document.getElementById("formComprobanteEgreso");
- 
-      function modoAgregar() {
-        btnAgregar.style.display = "inline-block";
-        btnModificar.style.display = "none";
-        btnEliminar.style.display = "none";
-        btnCancelar.style.display = "none";
- 
-        form.querySelectorAll("input, select, textarea").forEach(el => {
-          if (el.type === "checkbox") {
-            el.checked = false;
-          } else if (el.id !== "consecutivo" && el.type !== "hidden") {
-            el.value = "";
+
+          if (id && id.trim() !== "") {
+            btnAgregar.style.display = "none";
+            btnModificar.style.display = "inline-block";
+            btnEliminar.style.display = "inline-block";
+            btnCancelar.style.display = "inline-block";
+          } else {
+            modoAgregar();
           }
-        });
- 
-        document.getElementById("txtId").value = "";
-        document.getElementById("facturasBody").innerHTML = '<tr><td colspan="6" class="text-center" style="padding: 30px;"><i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>Seleccione un proveedor y cargue las facturas pendientes</td></tr>';
-        modoEdicion = false;
-      }
- 
-      if (id && id.trim() !== "") {
-        btnAgregar.style.display = "none";
-        btnModificar.style.display = "inline-block";
-        btnEliminar.style.display = "inline-block";
-        btnCancelar.style.display = "inline-block";
-        modoEdicion = true;
-       
-        // Auto-cargar facturas si hay identificación
-        const identificacion = document.getElementById("identificacion").value;
-        if (identificacion) {
-          setTimeout(() => {
-            document.getElementById("btnCargarFacturas").click();
-          }, 500);
-        }
-      } else {
-        modoAgregar();
-      }
- 
-      btnCancelar.addEventListener("click", function(e) {
-        e.preventDefault();
-        window.location.href = window.location.pathname;
-      });
-    });
- 
-    // Validación antes de enviar
-    document.getElementById("formComprobanteEgreso").addEventListener("submit", function(e) {
-      const accion = e.submitter?.value;
-     
-      if (accion === "btnAgregar" || accion === "btnModificar") {
-        const facturasData = document.getElementById("facturasData").value;
-        const valorTotal = document.getElementById("valorTotal").value;
-       
-        if (!facturasData || facturasData === "[]") {
-          e.preventDefault();
-          Swal.fire({
-            icon: 'warning',
-            title: 'Atención',
-            text: 'Debe seleccionar al menos una factura y asignar un valor',
-            confirmButtonColor: '#3085d6'
-          });
-          return false;
-        }
-       
-        if (!valorTotal || parseFloat(valorTotal) <= 0) {
-          e.preventDefault();
-          Swal.fire({
-            icon: 'warning',
-            title: 'Atención',
-            text: 'El valor total debe ser mayor a cero',
-            confirmButtonColor: '#3085d6'
-          });
-          return false;
-        }
-      }
-    });
- 
-    // Confirmaciones
-    document.addEventListener("DOMContentLoaded", () => {
-      const forms = document.querySelectorAll("form");
- 
-      forms.forEach((form) => {
-        form.addEventListener("submit", function (e) {
-          const boton = e.submitter;
-          const accion = boton?.value;
- 
-          if (accion === "btnModificar" || accion === "btnEliminar") {
+
+          btnCancelar.addEventListener("click", function(e) {
             e.preventDefault();
- 
-            let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar comprobante?";
-            let texto = accion === "btnModificar"
-              ? "Se actualizarán los datos de este comprobante de egreso."
-              : "Esta acción eliminará el comprobante y sus detalles permanentemente.";
- 
+            
             Swal.fire({
-              title: titulo,
-              text: texto,
-              icon: "warning",
+              title: '¿Cancelar edición?',
+              text: "Se perderán los cambios no guardados",
+              icon: 'warning',
               showCancelButton: true,
-              confirmButtonText: "Sí, continuar",
-              cancelButtonText: "Cancelar",
-              confirmButtonColor: accion === "btnModificar" ? "#ffc107" : "#d33",
-              cancelButtonColor: "#6c757d",
+              confirmButtonText: 'Sí, cancelar',
+              cancelButtonText: 'No',
+              confirmButtonColor: '#6c757d',
+              cancelButtonColor: '#3085d6'
             }).then((result) => {
               if (result.isConfirmed) {
-                let inputAccion = form.querySelector("input[name='accionOculta']");
-                if (!inputAccion) {
-                  inputAccion = document.createElement("input");
-                  inputAccion.type = "hidden";
-                  inputAccion.name = "accion";
-                  form.appendChild(inputAccion);
-                }
-                inputAccion.value = accion;
-                form.submit();
+                modoAgregar();
               }
             });
-          }
+          });
         });
-      });
-    });
-  </script>
- 
-  <!-- Vendor JS -->
+
+        function removeRowSafe(btn) {
+          const rows = document.querySelectorAll("#product-table tr");
+          if (rows.length > 1) {
+            $(btn.closest("tr")).find('.cuenta-select').select2('destroy');
+            btn.closest("tr").remove();
+            calcularTotales();
+          } else {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Atención',
+              text: 'Debe haber al menos una fila',
+              confirmButtonColor: '#3085d6'
+            });
+          }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+          const forms = document.querySelectorAll("form");
+
+          forms.forEach((form) => {
+            form.addEventListener("submit", function (e) {
+              const boton = e.submitter;
+              const accion = boton?.value;
+
+              if (accion === "btnModificar" || accion === "btnEliminar") {
+                e.preventDefault();
+
+                let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar registro?";
+                let texto = accion === "btnModificar"
+                  ? "Se actualizarán los datos de este comprobante contable."
+                  : "Esta acción eliminará el registro permanentemente.";
+
+                Swal.fire({
+                  title: titulo,
+                  text: texto,
+                  icon: "warning",
+                  showCancelButton: true,
+                  confirmButtonText: "Sí, continuar",
+                  cancelButtonText: "Cancelar",
+                  confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+                  cancelButtonColor: "#6c757d",
+                }).then((result) => {
+                  if (result.isConfirmed) {
+                    let inputAccion = form.querySelector("input[name='accionOculta']");
+                    if (!inputAccion) {
+                      inputAccion = document.createElement("input");
+                      inputAccion.type = "hidden";
+                      inputAccion.name = "accion";
+                      form.appendChild(inputAccion);
+                    }
+                    inputAccion.value = accion;
+
+                    form.submit();
+                  }
+                });
+              }
+            });
+          });
+        });
+
+        document.getElementById("formComprobanteContable").addEventListener("submit", function(e) {
+          const rows = document.querySelectorAll("#product-table tr");
+          let detalles = [];
+
+          rows.forEach(row => {
+              const $selectCuenta = $(row).find("[name='cuentaContable']");
+              const cuenta = $selectCuenta.val() || "";
+              
+              const terceroCedula = row.querySelector("[name='terceroCedula']")?.value || "";
+              const terceroNombre = row.querySelector("[name='terceroNombre']")?.value || "";
+              
+              const descripcion = row.querySelector("[name='descripcionCuenta']")?.value || "";
+              const detalle = row.querySelector("[name='detalle']")?.value || "";
+              const debito = row.querySelector("[name='valorDebito']")?.value || "0";
+              const credito = row.querySelector("[name='valorCredito']")?.value || "0";
+
+              if (cuenta || descripcion || terceroCedula || terceroNombre || detalle) {
+                  detalles.push({
+                    cuentaContable: cuenta, 
+                    descripcionCuenta: descripcion, 
+                    terceroCedula: terceroCedula, 
+                    terceroNombre: terceroNombre, 
+                    detalle: detalle, 
+                    valorDebito: debito, 
+                    valorCredito: credito
+                  });
+              }
+          });
+
+          const inputDetalles = document.createElement("input");
+          inputDetalles.type = "hidden";
+          inputDetalles.name = "detalles";
+          inputDetalles.value = JSON.stringify(detalles);
+
+          this.appendChild(inputDetalles);
+        });
+
+        function calcularTotales() {
+          let sumaDebito = 0;
+          let sumaCredito = 0;
+
+          document.querySelectorAll("#product-table tr").forEach(row => {
+            const debito = parseFloat(row.querySelector(".debito")?.value || 0);
+            const credito = parseFloat(row.querySelector(".credito")?.value || 0);
+
+            sumaDebito += debito;
+            sumaCredito += credito;
+          });
+
+          document.querySelector("#sumaDebito").value = sumaDebito.toFixed(2);
+          document.querySelector("#sumaCredito").value = sumaCredito.toFixed(2);
+          document.querySelector("#diferencia").value = (sumaDebito - sumaCredito).toFixed(2);
+        }
+
+        // Establecer fecha actual al cargar la página si está vacía
+        window.addEventListener('DOMContentLoaded', function() {
+          const fechaInput = document.getElementById('fecha');
+          const txtId = document.getElementById('txtId').value;
+         
+          // Solo establecer fecha actual si NO estamos editando
+          if (!txtId || txtId.trim() === "") {
+            // CORREGIDO: Obtener fecha local de Colombia (GMT-5)
+            const hoy = new Date();
+            const year = hoy.getFullYear();
+            const month = String(hoy.getMonth() + 1).padStart(2, '0');
+            const day = String(hoy.getDate()).padStart(2, '0');
+            const fechaLocal = `${year}-${month}-${day}`;
+           
+            fechaInput.value = fechaLocal;
+            fechaInput.setAttribute('max', fechaLocal);
+          }
+        });  
+
+        </script>
+        <br>
+      </div>
+    </section> <!-- End Services Section -->
+
+    <!-- ======= Footer ======= -->
+    <footer id="footer" class="footer-minimalista">
+      <p>Universidad de Santander - Ingeniería de Software</p>
+      <p>Todos los derechos reservados © 2025</p>
+      <p>Creado por iniciativa del programa de Contaduría Pública</p>
+    </footer><!-- End Footer -->
+
+  <div id="preloader"></div>
+  <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
+
+  <!-- Vendor JS Files -->
   <script src="assets/vendor/aos/aos.js"></script>
   <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="assets/vendor/glightbox/js/glightbox.min.js"></script>
+  <script src="assets/vendor/isotope-layout/isotope.pkgd.min.js"></script>
+  <script src="assets/vendor/swiper/swiper-bundle.min.js"></script>
+  <script src="assets/vendor/php-email-form/validate.js"></script>
+
+  <!-- Template Main JS File -->
   <script src="assets/js/main.js"></script>
- 
+
 </body>
+
 </html>
