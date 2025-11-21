@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             'nombre' => '',
             'totalFacturado' => 0,
             'valorAnticipos' => 0,
+            'abonosRealizados' => 0,
             'saldoCobrar' => 0
         ];
 
@@ -39,22 +40,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $response['totalFacturado'] = floatval($rowCartera['totalFacturado']);
             }
 
-            // 2. VALOR ANTICIPOS: Suma de pagos aplicados (de detalle_recibo_caja)
-            $stmtAnticipos = $pdo->prepare("
-                SELECT COALESCE(SUM(det.valorAplicado), 0) AS valorAnticipos
+            // 2. VALOR ANTICIPOS: De la cuenta 2805 (valorCredito - valorDebito)
+            $stmtAnticipos2805 = $pdo->prepare("
+                SELECT 
+                    COALESCE(SUM(valorCredito) - SUM(valorDebito), 0) AS valorAnticipos
+                FROM detallecomprobantecontable
+                WHERE cuentaContable LIKE '2805%'
+                AND tercero LIKE CONCAT(?, ' -%')
+            ");
+            $stmtAnticipos2805->execute([$cedula]);
+            $rowAnticipos2805 = $stmtAnticipos2805->fetch(PDO::FETCH_ASSOC);
+
+            if ($rowAnticipos2805) {
+                $response['valorAnticipos'] = floatval($rowAnticipos2805['valorAnticipos']);
+            }
+
+            // 3. ABONOS REALIZADOS: Suma de pagos aplicados (de detalle_recibo_caja)
+            $stmtAbonos = $pdo->prepare("
+                SELECT COALESCE(SUM(det.valorAplicado), 0) AS abonosRealizados
                 FROM detalle_recibo_caja det
                 INNER JOIN docrecibodecaja drc ON det.idRecibo = drc.id
                 WHERE drc.identificacion = ?
             ");
-            $stmtAnticipos->execute([$cedula]);
-            $rowAnticipos = $stmtAnticipos->fetch(PDO::FETCH_ASSOC);
+            $stmtAbonos->execute([$cedula]);
+            $rowAbonos = $stmtAbonos->fetch(PDO::FETCH_ASSOC);
 
-            if ($rowAnticipos) {
-                $response['valorAnticipos'] = floatval($rowAnticipos['valorAnticipos']);
+            if ($rowAbonos) {
+                $response['abonosRealizados'] = floatval($rowAbonos['abonosRealizados']);
             }
 
-            // 3. SALDO POR COBRAR = Total Facturado - Valor Anticipos (Pagos)
-            $response['saldoCobrar'] = $response['totalFacturado'] - $response['valorAnticipos'];
+            // 4. SALDO POR COBRAR = Total Facturado - Valor Anticipos - Abonos Realizados
+            $response['saldoCobrar'] = $response['totalFacturado'] - $response['valorAnticipos'] - $response['abonosRealizados'];
         }
 
         echo json_encode($response);
@@ -96,7 +112,10 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
                 "identificacion" => $cliente['identificacion']
             ]);
         } else {
-            echo json_encode(["nombre" => "No encontrado"]);
+            echo json_encode([
+                "nombre" => "",
+                "identificacion" => ""
+            ]);
         }
     } catch (Exception $e) {
         echo json_encode(["error" => $e->getMessage()]);
@@ -255,6 +274,7 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
                   <th>Nombre del Cliente</th>
                   <th>Total Facturado</th>
                   <th>Abonos Realizados</th>
+                  <th>Valor Anticipos</th>
                   <th>Saldo por Cobrar</th>
                   <th>Acciones</th>
                 </tr>
@@ -266,6 +286,7 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
                 <tr class="total-row">
                   <th colspan="2">TOTAL</th>
                   <th id="totalFacturadoSum">0.00</th>
+                  <th id="totalAnticiposSum">0.00</th>
                   <th id="totalAnticiposSum">0.00</th>
                   <th id="totalSaldoSum">0.00</th>
                   <th></th>
@@ -319,56 +340,78 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
     const inputNombre = document.getElementById("nombre");
 
     // Búsqueda por identificación
-    inputCedula.addEventListener("input", function () {
-      const valor = this.value.trim();
-      
-      if (valor.length === 0) {
-        inputNombre.value = '';
-        return;
-      }
 
-      if (valor.length > 0) {
-        fetch("", {
-          method: "POST",
-          body: new URLSearchParams({ identificacion: valor, es_ajax: 'cliente' }),
-          headers: { "Content-Type": "application/x-www-form-urlencoded" }
-        })
-        .then(res => res.json())
-        .then(data => {
-          inputNombre.value = data.nombre || "No encontrado";
+// Variable para el timeout del debounce
+let timeoutBusqueda = null;
+
+// Búsqueda por identificación con debounce
+inputCedula.addEventListener("input", function () {
+  const valor = this.value.trim();
+  
+  // Limpiar el timeout anterior
+  clearTimeout(timeoutBusqueda);
+  
+  if (valor.length === 0) {
+    inputNombre.value = '';
+    return;
+  }
+
+  // Solo buscar si tiene al menos 6 dígitos (ajusta según tus necesidades)
+  if (valor.length >= 4) {
+    // Esperar 800ms después de que el usuario deje de escribir
+    timeoutBusqueda = setTimeout(() => {
+      fetch("", {
+        method: "POST",
+        body: new URLSearchParams({ identificacion: valor, es_ajax: 'cliente' }),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" }
+      })
+      .then(res => res.json())
+      .then(data => {
+        // Si encuentra el cliente, muestra el nombre
+        if (data.nombre && data.nombre !== "No encontrado" && data.nombre !== "") {
+          inputNombre.value = data.nombre;
           if (data.identificacion) {
             obtenerDatosCartera(data.identificacion);
           }
-        })
-        .catch(console.error);
-      }
-    });
+        } else {
+          // Si no encuentra, deja el campo vacío y llama a obtenerDatosCartera
+          inputNombre.value = '';
+          obtenerDatosCartera(valor);
+        }
+      })
+      .catch(console.error);
+    }, 200); // Espera 800 milisegundos
+  }
+});
 
-    // Búsqueda por nombre
-    inputNombre.addEventListener("input", function () {
-      const valor = this.value.trim();
-      
-      if (valor.length >= 3) {
-        fetch("", {
-          method: "POST",
-          body: new URLSearchParams({ nombreCliente: valor, es_ajax: 'cliente' }),
-          headers: { "Content-Type": "application/x-www-form-urlencoded" }
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (data.identificacion) {
-            inputCedula.value = data.identificacion;
-            obtenerDatosCartera(data.identificacion);
-          }
-        })
-        .catch(console.error);
-      }
-    });
-
-    // Función para obtener datos de cartera y agregar a la tabla
-// Reemplaza la función obtenerDatosCartera() existente con esta versión mejorada:
-
-// Reemplaza la función obtenerDatosCartera() existente con esta versión mejorada:
+// Búsqueda por nombre con debounce
+inputNombre.addEventListener("input", function () {
+  const valor = this.value.trim();
+  
+  // Limpiar el timeout anterior
+  clearTimeout(timeoutBusqueda);
+  
+  if (valor.length >= 4) {
+    // Esperar 800ms después de que el usuario deje de escribir
+    timeoutBusqueda = setTimeout(() => {
+      fetch("", {
+        method: "POST",
+        body: new URLSearchParams({ nombreCliente: valor, es_ajax: 'cliente' }),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.identificacion && data.nombre && data.nombre !== "No encontrado" && data.nombre !== "") {
+          inputCedula.value = data.identificacion;
+          obtenerDatosCartera(data.identificacion);
+        }
+        // Si no encuentra, no hacer nada (no mostrar alerta aún)
+      })
+      .catch(console.error);
+    }, 200); // Espera 800 milisegundos
+  }
+});
+ // Función para obtener datos de cartera y agregar a la tabla
 
 function obtenerDatosCartera(cedula) {
   // Verificar si el cliente ya está en la tabla
@@ -405,6 +448,7 @@ function obtenerDatosCartera(cedula) {
     // Validar que los datos sean números válidos
     const totalFacturado = parseFloat(data.totalFacturado) || 0;
     const valorAnticipos = parseFloat(data.valorAnticipos) || 0;
+    const abonosRealizados = parseFloat(data.abonosRealizados) || 0;
     const saldoCobrar = parseFloat(data.saldoCobrar) || 0;
 
     // *** VALIDACIÓN 1: Cliente no encontrado en la base de datos ***
@@ -412,16 +456,17 @@ function obtenerDatosCartera(cedula) {
       Swal.fire({
         icon: 'warning',
         title: 'Cliente no encontrado',
-        text: 'No se encontraron datos para este cliente en el sistema'
+        text: 'No se encontraron datos para este cliente en el sistema',
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#3085d6'
       });
-      // Limpiar campos
       inputCedula.value = '';
       inputNombre.value = '';
       return;
     }
 
     // *** VALIDACIÓN 2: Cliente existe pero no tiene facturas de venta ***
-    if (totalFacturado === 0 && valorAnticipos === 0) {
+    if (totalFacturado === 0 && valorAnticipos === 0 && abonosRealizados === 0) {
       Swal.fire({
         icon: 'info',
         title: 'Sin facturas registradas',
@@ -434,19 +479,14 @@ function obtenerDatosCartera(cedula) {
         width: '500px'
       });
       
-      // Limpiar campos de búsqueda
       inputCedula.value = '';
       inputNombre.value = '';
       return;
     }
 
-    // Agregar cliente al array
+    // Si pasa todas las validaciones, agregar el cliente
     clientesAgregados.push(cedula);
-
-    // Agregar fila a la tabla
-    agregarFilaCliente(cedula, data.nombre, totalFacturado, valorAnticipos, saldoCobrar);
-
-    // Actualizar totales
+    agregarFilaCliente(cedula, data.nombre, totalFacturado, valorAnticipos, abonosRealizados, saldoCobrar);
     actualizarTotales();
 
     // Limpiar campos de búsqueda
@@ -471,121 +511,55 @@ function obtenerDatosCartera(cedula) {
     });
   });
 }
-    // Función para agregar una fila a la tabla
-    function agregarFilaCliente(cedula, nombre, totalFacturado, valorAnticipos, saldoCobrar) {
-      const tbody = document.getElementById('tablaClientes');
-      const fila = document.createElement('tr');
-      fila.setAttribute('data-cedula', cedula);
-      
-      fila.innerHTML = `
-        <td>${cedula}</td>
-        <td>${nombre}</td>
-        <td class="total-facturado">${formatearMoneda(totalFacturado)}</td>
-        <td class="valor-anticipos">${formatearMoneda(valorAnticipos)}</td>
-        <td class="saldo-cobrar">${formatearMoneda(saldoCobrar)}</td>
-        <td>
-          <button type="button" class="btn-eliminar" onclick="eliminarFila('${cedula}')">
-            <i class="fas fa-trash"></i> Eliminar
-          </button>
-        </td>
-      `;
-      
-      tbody.appendChild(fila);
-    }
 
-    // Función para eliminar una fila
-    function eliminarFila(cedula) {
-      Swal.fire({
-        title: '¿Está seguro?',
-        text: "¿Desea eliminar este cliente de la tabla?",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33',
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar'
-      }).then((result) => {
-        if (result.isConfirmed) {
-          // Eliminar del array
-          const index = clientesAgregados.indexOf(cedula);
-          if (index > -1) {
-            clientesAgregados.splice(index, 1);
-          }
+// Función para agregar una fila a la tabla
+function agregarFilaCliente(cedula, nombre, totalFacturado, valorAnticipos, abonosRealizados, saldoCobrar) {
+  const tbody = document.getElementById('tablaClientes');
+  const fila = document.createElement('tr');
+  fila.setAttribute('data-cedula', cedula);
+  
+  fila.innerHTML = `
+    <td>${cedula}</td>
+    <td>${nombre}</td>
+    <td class="total-facturado">${formatearMoneda(totalFacturado)}</td>
+    <td class="valor-anticipos">${formatearMoneda(valorAnticipos)}</td>
+    <td class="abonos-realizados">${formatearMoneda(abonosRealizados)}</td>
+    <td class="saldo-cobrar">${formatearMoneda(saldoCobrar)}</td>
+    <td>
+      <button type="button" class="btn-eliminar" onclick="eliminarFila('${cedula}')">
+        <i class="fas fa-trash"></i> Eliminar
+      </button>
+    </td>
+  `;
+  
+  tbody.appendChild(fila);
+}
 
-          // Eliminar fila del DOM
-          const fila = document.querySelector(`tr[data-cedula="${cedula}"]`);
-          if (fila) {
-            fila.remove();
-          }
+// Función para actualizar totales
+function actualizarTotales() {
+  let totalFacturado = 0;
+  let totalAnticipos = 0;
+  let totalAbonos = 0;
+  let totalSaldo = 0;
 
-          // Actualizar totales
-          actualizarTotales();
+  const filas = document.querySelectorAll('#tablaClientes tr');
+  filas.forEach(fila => {
+    const facturado = parseFloat(fila.querySelector('.total-facturado').textContent.replace(/,/g, '')) || 0;
+    const anticipos = parseFloat(fila.querySelector('.valor-anticipos').textContent.replace(/,/g, '')) || 0;
+    const abonos = parseFloat(fila.querySelector('.abonos-realizados').textContent.replace(/,/g, '')) || 0;
+    const saldo = parseFloat(fila.querySelector('.saldo-cobrar').textContent.replace(/,/g, '')) || 0;
 
-          Swal.fire(
-            'Eliminado',
-            'El cliente ha sido eliminado de la tabla',
-            'success'
-          );
-        }
-      });
-    }
+    totalFacturado += facturado;
+    totalAnticipos += anticipos;
+    totalAbonos += abonos;
+    totalSaldo += saldo;
+  });
 
-    // Función para limpiar toda la tabla
-    function limpiarTabla() {
-      if (clientesAgregados.length === 0) {
-        Swal.fire({
-          icon: 'info',
-          title: 'Tabla vacía',
-          text: 'No hay clientes en la tabla para limpiar'
-        });
-        return;
-      }
-
-      Swal.fire({
-        title: '¿Está seguro?',
-        text: "Se eliminarán todos los clientes de la tabla",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33',
-        confirmButtonText: 'Sí, limpiar',
-        cancelButtonText: 'Cancelar'
-      }).then((result) => {
-        if (result.isConfirmed) {
-          clientesAgregados = [];
-          document.getElementById('tablaClientes').innerHTML = '';
-          actualizarTotales();
-          
-          Swal.fire(
-            'Limpiado',
-            'La tabla ha sido limpiada',
-            'success'
-          );
-        }
-      });
-    }
-
-    // Función para actualizar totales
-    function actualizarTotales() {
-      let totalFacturado = 0;
-      let totalAnticipos = 0;
-      let totalSaldo = 0;
-
-      const filas = document.querySelectorAll('#tablaClientes tr');
-      filas.forEach(fila => {
-        const facturado = parseFloat(fila.querySelector('.total-facturado').textContent.replace(/,/g, '')) || 0;
-        const anticipos = parseFloat(fila.querySelector('.valor-anticipos').textContent.replace(/,/g, '')) || 0;
-        const saldo = parseFloat(fila.querySelector('.saldo-cobrar').textContent.replace(/,/g, '')) || 0;
-
-        totalFacturado += facturado;
-        totalAnticipos += anticipos;
-        totalSaldo += saldo;
-      });
-
-      document.getElementById('totalFacturadoSum').textContent = formatearMoneda(totalFacturado);
-      document.getElementById('totalAnticiposSum').textContent = formatearMoneda(totalAnticipos);
-      document.getElementById('totalSaldoSum').textContent = formatearMoneda(totalSaldo);
-    }
+  document.getElementById('totalFacturadoSum').textContent = formatearMoneda(totalFacturado);
+  document.getElementById('totalAnticiposSum').textContent = formatearMoneda(totalAnticipos);
+  document.getElementById('totalAbonosSum').textContent = formatearMoneda(totalAbonos);
+  document.getElementById('totalSaldoSum').textContent = formatearMoneda(totalSaldo);
+}
 
     // Función para formatear valores monetarios
     function formatearMoneda(valor) {
@@ -595,129 +569,135 @@ function obtenerDatosCartera(cedula) {
       return parseFloat(valor).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     }
 
-  // Función para generar PDF
+    // Función para generar PDF
   function generarPDF() {
-      // Verificar que haya clientes en la tabla
-      if (clientesAgregados.length === 0) {
-          Swal.fire({
-              icon: 'warning',
-              title: 'Tabla vacía',
-              text: 'No hay clientes en la tabla para generar el PDF'
-          });
-          return;
-      }
-
-      // Obtener fecha de corte
-      const fechaCorte = document.getElementById('fecha').value;
-      
-      // Preparar arrays para enviar
-      const identificaciones = [];
-      const nombres = [];
-      const totalesFacturado = [];
-      const valoresAnticipos = [];
-      const saldosCobrar = [];
-      
-      let totalFacturado = 0;
-      let totalAnticipos = 0;
-      let totalSaldo = 0;
-
-      // Recorrer todas las filas de la tabla
-      const filas = document.querySelectorAll('#tablaClientes tr');
-      filas.forEach(fila => {
-          const cedula = fila.querySelector('td:nth-child(1)').textContent;
-          const nombre = fila.querySelector('td:nth-child(2)').textContent;
-          const facturado = fila.querySelector('.total-facturado').textContent;
-          const anticipos = fila.querySelector('.valor-anticipos').textContent;
-          const saldo = fila.querySelector('.saldo-cobrar').textContent;
-
-          identificaciones.push(cedula);
-          nombres.push(nombre);
-          totalesFacturado.push(facturado);
-          valoresAnticipos.push(anticipos);
-          saldosCobrar.push(saldo);
-
-          // Acumular totales (removiendo formato)
-          totalFacturado += parseFloat(facturado.replace(/,/g, '')) || 0;
-          totalAnticipos += parseFloat(anticipos.replace(/,/g, '')) || 0;
-          totalSaldo += parseFloat(saldo.replace(/,/g, '')) || 0;
-      });
-
-      // Crear el formulario dinámicamente
-      const form = document.getElementById('formPdf');
-      form.innerHTML = ''; // Limpiar contenido previo
-
-      // Agregar campos para cada cliente
-      identificaciones.forEach((id, index) => {
-          const inputId = document.createElement('input');
-          inputId.type = 'hidden';
-          inputId.name = 'identificaciones[]';
-          inputId.value = identificaciones[index];
-          form.appendChild(inputId);
-
-          const inputNombre = document.createElement('input');
-          inputNombre.type = 'hidden';
-          inputNombre.name = 'nombres[]';
-          inputNombre.value = nombres[index];
-          form.appendChild(inputNombre);
-
-          const inputFacturado = document.createElement('input');
-          inputFacturado.type = 'hidden';
-          inputFacturado.name = 'totalFacturado[]';
-          inputFacturado.value = totalesFacturado[index];
-          form.appendChild(inputFacturado);
-
-          const inputAnticipos = document.createElement('input');
-          inputAnticipos.type = 'hidden';
-          inputAnticipos.name = 'abonosAnticipos[]';
-          inputAnticipos.value = valoresAnticipos[index];
-          form.appendChild(inputAnticipos);
-
-          const inputSaldo = document.createElement('input');
-          inputSaldo.type = 'hidden';
-          inputSaldo.name = 'saldoCobrar[]';
-          inputSaldo.value = saldosCobrar[index];
-          form.appendChild(inputSaldo);
-      });
-
-      // Agregar totales
-      const inputTotalFacturado = document.createElement('input');
-      inputTotalFacturado.type = 'hidden';
-      inputTotalFacturado.name = 'totalGeneralFacturado';
-      inputTotalFacturado.value = formatearMoneda(totalFacturado);
-      form.appendChild(inputTotalFacturado);
-
-      const inputTotalAnticipos = document.createElement('input');
-      inputTotalAnticipos.type = 'hidden';
-      inputTotalAnticipos.name = 'totalGeneralAbonos';
-      inputTotalAnticipos.value = formatearMoneda(totalAnticipos);
-      form.appendChild(inputTotalAnticipos);
-
-      const inputTotalSaldo = document.createElement('input');
-      inputTotalSaldo.type = 'hidden';
-      inputTotalSaldo.name = 'totalGeneralSaldo';
-      inputTotalSaldo.value = formatearMoneda(totalSaldo);
-      form.appendChild(inputTotalSaldo);
-
-      // Agregar fecha
-      const inputFecha = document.createElement('input');
-      inputFecha.type = 'hidden';
-      inputFecha.name = 'fechaCorte';
-      inputFecha.value = fechaCorte;
-      form.appendChild(inputFecha);
-
-      // Enviar formulario
-      form.submit();
-
-      // Mostrar mensaje de éxito
+    if (clientesAgregados.length === 0) {
       Swal.fire({
-          icon: 'success',
-          title: 'PDF generado',
-          text: 'El PDF se está generando...',
-          timer: 2000,
-          showConfirmButton: false
+        icon: 'warning',
+        title: 'Tabla vacía',
+        text: 'No hay clientes en la tabla para generar el PDF'
       });
-  }
+      return;
+    }
 
+    const fechaCorte = document.getElementById('fecha').value;
+    
+    const identificaciones = [];
+    const nombres = [];
+    const totalesFacturado = [];
+    const valoresAnticipos = [];
+    const abonosRealizados = [];
+    const saldosCobrar = [];
+    
+    let totalFacturado = 0;
+    let totalAnticipos = 0;
+    let totalAbonos = 0;
+    let totalSaldo = 0;
+
+    const filas = document.querySelectorAll('#tablaClientes tr');
+    filas.forEach(fila => {
+      const cedula = fila.querySelector('td:nth-child(1)').textContent;
+      const nombre = fila.querySelector('td:nth-child(2)').textContent;
+      const facturado = fila.querySelector('.total-facturado').textContent;
+      const anticipos = fila.querySelector('.valor-anticipos').textContent;
+      const abonos = fila.querySelector('.abonos-realizados').textContent;
+      const saldo = fila.querySelector('.saldo-cobrar').textContent;
+
+      identificaciones.push(cedula);
+      nombres.push(nombre);
+      totalesFacturado.push(facturado);
+      valoresAnticipos.push(anticipos);
+      abonosRealizados.push(abonos);
+      saldosCobrar.push(saldo);
+
+      totalFacturado += parseFloat(facturado.replace(/,/g, '')) || 0;
+      totalAnticipos += parseFloat(anticipos.replace(/,/g, '')) || 0;
+      totalAbonos += parseFloat(abonos.replace(/,/g, '')) || 0;
+      totalSaldo += parseFloat(saldo.replace(/,/g, '')) || 0;
+    });
+
+    const form = document.getElementById('formPdf');
+    form.innerHTML = '';
+
+    identificaciones.forEach((id, index) => {
+      const inputId = document.createElement('input');
+      inputId.type = 'hidden';
+      inputId.name = 'identificaciones[]';
+      inputId.value = identificaciones[index];
+      form.appendChild(inputId);
+
+      const inputNombre = document.createElement('input');
+      inputNombre.type = 'hidden';
+      inputNombre.name = 'nombres[]';
+      inputNombre.value = nombres[index];
+      form.appendChild(inputNombre);
+
+      const inputFacturado = document.createElement('input');
+      inputFacturado.type = 'hidden';
+      inputFacturado.name = 'totalFacturado[]';
+      inputFacturado.value = totalesFacturado[index];
+      form.appendChild(inputFacturado);
+
+      const inputAnticipos = document.createElement('input');
+      inputAnticipos.type = 'hidden';
+      inputAnticipos.name = 'valorAnticipos[]';
+      inputAnticipos.value = valoresAnticipos[index];
+      form.appendChild(inputAnticipos);
+
+      const inputAbonos = document.createElement('input');
+      inputAbonos.type = 'hidden';
+      inputAbonos.name = 'abonosRealizados[]';
+      inputAbonos.value = abonosRealizados[index];
+      form.appendChild(inputAbonos);
+
+      const inputSaldo = document.createElement('input');
+      inputSaldo.type = 'hidden';
+      inputSaldo.name = 'saldoCobrar[]';
+      inputSaldo.value = saldosCobrar[index];
+      form.appendChild(inputSaldo);
+    });
+
+    // Agregar totales
+    const inputTotalFacturado = document.createElement('input');
+    inputTotalFacturado.type = 'hidden';
+    inputTotalFacturado.name = 'totalGeneralFacturado';
+    inputTotalFacturado.value = formatearMoneda(totalFacturado);
+    form.appendChild(inputTotalFacturado);
+
+    const inputTotalAnticipos = document.createElement('input');
+    inputTotalAnticipos.type = 'hidden';
+    inputTotalAnticipos.name = 'totalGeneralAnticipos';
+    inputTotalAnticipos.value = formatearMoneda(totalAnticipos);
+    form.appendChild(inputTotalAnticipos);
+
+    const inputTotalAbonos = document.createElement('input');
+    inputTotalAbonos.type = 'hidden';
+    inputTotalAbonos.name = 'totalGeneralAbonos';
+    inputTotalAbonos.value = formatearMoneda(totalAbonos);
+    form.appendChild(inputTotalAbonos);
+
+    const inputTotalSaldo = document.createElement('input');
+    inputTotalSaldo.type = 'hidden';
+    inputTotalSaldo.name = 'totalGeneralSaldo';
+    inputTotalSaldo.value = formatearMoneda(totalSaldo);
+    form.appendChild(inputTotalSaldo);
+
+    const inputFecha = document.createElement('input');
+    inputFecha.type = 'hidden';
+    inputFecha.name = 'fechaCorte';
+    inputFecha.value = fechaCorte;
+    form.appendChild(inputFecha);
+
+    form.submit();
+
+    Swal.fire({
+      icon: 'success',
+      title: 'PDF generado',
+      text: 'El PDF se está generando...',
+      timer: 2000,
+      showConfirmButton: false
+    });
+  }
 
   </script>
 
