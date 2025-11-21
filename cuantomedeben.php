@@ -40,10 +40,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $response['totalFacturado'] = floatval($rowCartera['totalFacturado']);
             }
 
-            // 2. VALOR ANTICIPOS: De la cuenta 2805 (valorCredito - valorDebito)
+            // 2. VALOR ANTICIPOS: Solo valorCredito de la cuenta 2805 (anticipos recibidos)
             $stmtAnticipos2805 = $pdo->prepare("
                 SELECT 
-                    COALESCE(SUM(valorCredito) - SUM(valorDebito), 0) AS valorAnticipos
+                    COALESCE(SUM(valorCredito), 0) AS valorAnticipos
                 FROM detallecomprobantecontable
                 WHERE cuentaContable LIKE '2805%'
                 AND tercero LIKE CONCAT(?, ' -%')
@@ -56,13 +56,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
 
             // 3. ABONOS REALIZADOS: Suma de pagos aplicados (de detalle_recibo_caja)
-            $stmtAbonos = $pdo->prepare("
-                SELECT COALESCE(SUM(det.valorAplicado), 0) AS abonosRealizados
-                FROM detalle_recibo_caja det
-                INNER JOIN docrecibodecaja drc ON det.idRecibo = drc.id
-                WHERE drc.identificacion = ?
-            ");
-            $stmtAbonos->execute([$cedula]);
+              $stmtAbonos = $pdo->prepare("
+                  SELECT COALESCE(SUM(det.valorAplicado), 0) AS abonosRealizados
+                  FROM detalle_recibo_caja det
+                  INNER JOIN docrecibodecaja drc ON det.idRecibo = drc.id
+                  WHERE CAST(drc.identificacion AS CHAR) = ?
+              ");
+              $stmtAbonos->execute([$cedula]);
             $rowAbonos = $stmtAbonos->fetch(PDO::FETCH_ASSOC);
 
             if ($rowAbonos) {
@@ -273,8 +273,8 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
                   <th>Identificación</th>
                   <th>Nombre del Cliente</th>
                   <th>Total Facturado</th>
-                  <th>Abonos Realizados</th>
                   <th>Valor Anticipos</th>
+                  <th>Abonos Realizados</th>
                   <th>Saldo por Cobrar</th>
                   <th>Acciones</th>
                 </tr>
@@ -287,7 +287,7 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
                   <th colspan="2">TOTAL</th>
                   <th id="totalFacturadoSum">0.00</th>
                   <th id="totalAnticiposSum">0.00</th>
-                  <th id="totalAnticiposSum">0.00</th>
+                  <th id="totalAbonosSum">0.00</th>
                   <th id="totalSaldoSum">0.00</th>
                   <th></th>
                 </tr>
@@ -534,6 +534,79 @@ function agregarFilaCliente(cedula, nombre, totalFacturado, valorAnticipos, abon
   
   tbody.appendChild(fila);
 }
+
+// Función para eliminar una fila
+function eliminarFila(cedula) {
+  Swal.fire({
+    title: '¿Está seguro?',
+    text: "¿Desea eliminar este cliente de la tabla?",
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#3085d6',
+    cancelButtonColor: '#d33',
+    confirmButtonText: 'Sí, eliminar',
+    cancelButtonText: 'Cancelar'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      // Eliminar del array
+      const index = clientesAgregados.indexOf(cedula);
+      if (index > -1) {
+        clientesAgregados.splice(index, 1);
+      }
+
+      // Eliminar fila del DOM
+      const fila = document.querySelector(`tr[data-cedula="${cedula}"]`);
+      if (fila) {
+        fila.remove();
+      }
+
+      // Actualizar totales
+      actualizarTotales();
+
+      Swal.fire(
+        'Eliminado',
+        'El cliente ha sido eliminado de la tabla',
+        'success'
+      );
+    }
+  });
+}
+
+// Función para limpiar toda la tabla
+function limpiarTabla() {
+  if (clientesAgregados.length === 0) {
+    Swal.fire({
+      icon: 'info',
+      title: 'Tabla vacía',
+      text: 'No hay clientes en la tabla para limpiar'
+    });
+    return;
+  }
+
+  Swal.fire({
+    title: '¿Está seguro?',
+    text: "Se eliminarán todos los clientes de la tabla",
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#3085d6',
+    cancelButtonColor: '#d33',
+    confirmButtonText: 'Sí, limpiar',
+    cancelButtonText: 'Cancelar'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      clientesAgregados = [];
+      document.getElementById('tablaClientes').innerHTML = '';
+      actualizarTotales();
+      
+      Swal.fire(
+        'Limpiado',
+        'La tabla ha sido limpiada',
+        'success'
+      );
+    }
+  });
+}
+
 
 // Función para actualizar totales
 function actualizarTotales() {
