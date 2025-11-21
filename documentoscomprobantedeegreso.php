@@ -118,10 +118,7 @@ function actualizarSaldosFacturasCompra($pdo, $facturasData) {
             $stmt = $pdo->prepare("
                 SELECT
                     CAST(valorTotal AS DECIMAL(10,2)) as valorTotal,
-                    CASE
-                        WHEN saldoReal IS NULL THEN CAST(valorTotal AS DECIMAL(10,2))
-                        ELSE CAST(saldoReal AS DECIMAL(10,2))
-                    END as saldoReal
+                    saldoReal
                 FROM facturac
                 WHERE numeroFactura = :numeroFactura
             ");
@@ -130,7 +127,8 @@ function actualizarSaldosFacturasCompra($pdo, $facturasData) {
            
             if ($factura) {
                 // Calcular nuevo saldo
-                $nuevoSaldo = $factura['saldoReal'] - floatval($facturaData['valor']);
+                $saldoActual = $factura['saldoReal'] ?? $factura['valorTotal'];
+                $nuevoSaldo = floatval($saldoActual) - floatval($facturaData['valor']);
                
                 // Actualizar saldo en la factura
                 $stmtUpdate = $pdo->prepare("
@@ -149,7 +147,7 @@ function actualizarSaldosFacturasCompra($pdo, $facturasData) {
 
 // Función para restaurar saldos cuando se elimina o modifica un comprobante
 function restaurarSaldosFacturasCompra($pdo, $idComprobante) {
-    // Obtener los detalles del comprobante que se va a eliminar/modificar
+    // Obtener los detalles del comprobante
     $stmt = $pdo->prepare("
         SELECT consecutivoFactura, valorAplicado
         FROM detalle_comprobante_egreso
@@ -158,20 +156,34 @@ function restaurarSaldosFacturasCompra($pdo, $idComprobante) {
     $stmt->execute([':idComprobante' => $idComprobante]);
     $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
    
-    // Restaurar saldos
+    // Restaurar saldos con validación
     foreach ($detalles as $detalle) {
-        $stmtUpdate = $pdo->prepare("
-            UPDATE facturac
-            SET saldoReal = CASE
-                WHEN saldoReal IS NULL THEN CAST(valorTotal AS DECIMAL(10,2)) + :valor
-                ELSE CAST(saldoReal AS DECIMAL(10,2)) + :valor
-            END
+        // Primero verificar si la factura existe
+        $stmtCheck = $pdo->prepare("
+            SELECT id, valorTotal, saldoReal 
+            FROM facturac 
             WHERE numeroFactura = :numeroFactura
         ");
-        $stmtUpdate->execute([
-            ':valor' => $detalle['valorAplicado'],
-            ':numeroFactura' => $detalle['consecutivoFactura']
-        ]);
+        $stmtCheck->execute([':numeroFactura' => $detalle['consecutivoFactura']]);
+        $factura = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+        
+        if ($factura) {
+            // Calcular el nuevo saldo
+            $saldoActual = $factura['saldoReal'] ?? $factura['valorTotal'];
+            $nuevoSaldo = floatval($saldoActual) + floatval($detalle['valorAplicado']);
+           
+            // Actualizar el saldo
+            $stmtUpdate = $pdo->prepare("
+                UPDATE facturac
+                SET saldoReal = :nuevoSaldo
+                WHERE numeroFactura = :numeroFactura
+            ");
+            $stmtUpdate->execute([
+                ':nuevoSaldo' => $nuevoSaldo,
+                ':numeroFactura' => $detalle['consecutivoFactura']
+            ]);
+        }
+        // Si no existe, continuar con la eliminación sin error
     }
 }
 
@@ -365,25 +377,27 @@ switch($accion) {
     case "btnEliminar":
         try {
             $pdo->beginTransaction();
-           
+          
             // Eliminar asientos contables
             $libroDiario->eliminarMovimientos('comprobante_egreso', $txtId);
-           
+          
             // Restaurar saldos antes de eliminar
             restaurarSaldosFacturasCompra($pdo, $txtId);
-           
+          
             // Eliminar comprobante (cascade eliminará los detalles)
             $sentencia = $pdo->prepare("DELETE FROM doccomprobanteegreso WHERE id = :id");
             $sentencia->bindParam(':id', $txtId);
             $sentencia->execute();
-           
+          
             $pdo->commit();
             header("Location: " . $_SERVER['PHP_SELF'] . "?msg=eliminado");
             exit();
-           
+          
         } catch (Exception $e) {
             $pdo->rollBack();
-            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=error&detalle=" . urlencode($e->getMessage()));
+            // Mostrar error detallado
+            error_log("Error al eliminar comprobante: " . $e->getMessage());
+            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=error&detalle=" . urlencode($e->getMessage() . " - Detalles: " . $e->getTraceAsString()));
             exit();
         }
         break;
@@ -575,15 +589,33 @@ document.addEventListener("DOMContentLoaded", () => {
     }
    
     .badge {
-      padding: 5px 10px;
-      border-radius: 4px;
-      font-size: 12px;
-      font-weight: 600;
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+        color: white;
     }
-   
+
+    .badge-success {
+        background: #198754;
+    }
+
+    .badge-warning {
+        background: #ffc107;
+        color: #000;
+    }
+
+    .badge-orange {
+        background: #fd7e14;
+    }
+
+    .badge-danger {
+        background: #dc3545;
+    }
+
     .badge-info {
-      background: #0dcaf0;
-      color: #000;
+        background: #0dcaf0;
+        color: #000;
     }
    
     .info-box {
