@@ -489,581 +489,416 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
         
         <script>
-        function initCuentaSelect($select) {
-          $select.select2({
-            placeholder: "Buscar cuenta contable...",
-            allowClear: true,
-            width: '100%',
-            ajax: {
-              url: 'obtener_cuentas_comprobantecontable.php',
-              dataType: 'json',
-              delay: 250,
-              data: function (params) {
-                return {
-                  search: params.term || ''
-                };
-              },
-              processResults: function (data) {
-                return {
-                  results: data.map(function (cuenta) {
-                    return { 
-                      id: cuenta.valor, 
-                      text: cuenta.texto,
-                      descripcion: cuenta.descripcion
-                    };
-                  })
-                };
-              },
-              cache: true
-            }
-          });
-          
-          $select.on('select2:select', function (e) {
-            const data = e.params.data;
-            const row = $(this).closest('tr');
-            
-            if (data.descripcion) {
-              row.find('input[name="descripcionCuenta"]').val(data.descripcion);
-            } else {
-              const textoCompleto = data.text;
-              const partes = textoCompleto.split('-');
-              if (partes.length > 1) {
-                row.find('input[name="descripcionCuenta"]').val(partes.slice(1).join('-').trim());
-              }
-            }
-          });
-        }
-
-        $(document).ready(function() {
-          $('.cuenta-select').each(function() {
-            initCuentaSelect($(this));
-          });
-          // Inicializar selects de terceros
-          $('.tercero-select').each(function() {
-              initTerceroSelect($(this));
-          });
-        });
-
-        // En la función initCuentaSelect, después de cargar la descripción:
-        $select.on('select2:select', function (e) {
-            const data = e.params.data;
-            const row = $(this).closest('tr');
-            
-            // Normalizar nombres específicos
-            let descripcion = data.descripcion || '';
-            if (data.id && data.id.startsWith('130505')) {
-                descripcion = 'Clientes Nacionales';
-            }
-            
-            row.find('input[name="descripcionCuenta"]').val(descripcion);
-        });
-
-        window.addEventListener('DOMContentLoaded', function() {
-            const txtId = document.getElementById("txtId").value;
-            
-            if (!txtId || txtId.trim() === "") {
-                fetch(window.location.pathname + "?get_consecutivo=1")
-                    .then(response => response.json())
-                    .then(data => {
-                        document.getElementById('consecutivo').value = data.consecutivo;
-                    })
-                    .catch(error => console.error('Error al obtener consecutivo:', error));
-            }
-        });
-
-        document.addEventListener("DOMContentLoaded", function () {
-          function calcularTotales() {
-            let sumaDebito = 0;
-            let sumaCredito = 0;
-
-            document.querySelectorAll("#product-table tr").forEach(row => {
-              const debito = parseFloat(row.querySelector(".debito")?.value.replace(/\./g, '').replace(',', '.') || 0);
-              const credito = parseFloat(row.querySelector(".credito")?.value.replace(/\./g, '').replace(',', '.') || 0);
-
-              sumaDebito += debito;
-              sumaCredito += credito;
-            });
-
-            const diferencia = sumaDebito - sumaCredito;
-
-            document.querySelector("#sumaDebito").value = sumaDebito.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            document.querySelector("#sumaCredito").value = sumaCredito.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            document.querySelector("#diferencia").value = diferencia.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          }
-
-          document.querySelector("#product-table").addEventListener("input", function (event) {
-            if (event.target.classList.contains("debito") || event.target.classList.contains("credito")) {
-              calcularTotales();
-            }
-          });
-
-          document.addEventListener('input', function(e) {
-            if (e.target.classList.contains('numero')) {
-              let valor = e.target.value.replace(/\D/g, '');
-              valor = valor.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-              e.target.value = valor;
-            }
-          });
-
-          // Autocompletar nombre del tercero cuando se escribe la cédula
-          document.querySelector("#product-table").addEventListener("blur", function(event) {
-            if (event.target.name === "terceroCedula") {
-              const cedula = event.target.value.trim();
-              const row = event.target.closest('tr');
-              const inputNombre = row.querySelector('input[name="terceroNombre"]');
-              
-              if (cedula && inputNombre) {
-                // Buscar el tercero por cédula
-                fetch('buscar_tercero_por_cedula.php?cedula=' + encodeURIComponent(cedula))
-                  .then(response => response.json())
-                  .then(data => {
-                    if (data.success) {
-                      inputNombre.value = data.nombre;
-                      inputNombre.style.backgroundColor = '#d4edda'; // Verde claro
-                      setTimeout(() => {
-                        inputNombre.style.backgroundColor = '';
-                      }, 1500);
-                    } else {
-                      inputNombre.value = '';
-                      inputNombre.placeholder = 'Tercero no encontrado';
-                      inputNombre.style.backgroundColor = '#f8d7da'; // Rojo claro
-                      setTimeout(() => {
-                        inputNombre.style.backgroundColor = '';
-                        inputNombre.placeholder = 'Nombre';
-                      }, 2000);
-                    }
-                  })
-                  .catch(error => {
-                    console.error('Error al buscar tercero:', error);
-                  });
-              }
-            }
-          }, true);
-
-          // Función para agregar fila (actualizada)
-          window.addRow = function() {
-            const tableBody = document.getElementById("product-table");
-            
-            const newRow = document.createElement("tr");
-            
-            newRow.innerHTML = `
-              <td>
-                <select name="cuentaContable" class="form-control cuenta-select" style="width: 100%;">
-                  <option value="">Buscar cuenta...</option>
-                </select>
-              </td>
-              <td><input type="text" name="descripcionCuenta" class="form-control" value=""></td>
-              <td>
-                <select name="terceroCedula" class="form-control tercero-select" style="width: 100%;">
-                  <option value="">Buscar por cédula...</option>
-                </select>
-              </td>
-              <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value="" readonly></td>
-              <td><input type="text" name="detalle" class="form-control" value=""></td>
-              <td><input type="text" step="0.01" name="valorDebito" class="form-control debito" placeholder="0.00" value=""></td>
-              <td><input type="text" step="0.01" name="valorCredito" class="form-control credito" placeholder="0.00" value=""></td>
-              <td>
-                <button type="button" class="btn-add" onclick="addRow()">+</button>
-                <button type="button" class="btn-remove" style="margin-left:10px; background-color:red; color:white; border:none; border-radius:4px; cursor:pointer;">-</button>
-              </td>
-            `;
-
-            const btnRemove = newRow.querySelector(".btn-remove");
-            btnRemove.onclick = function() {
-              const rows = tableBody.querySelectorAll("tr");
-              if (rows.length > 1) {
-                $(this.closest("tr")).find('.cuenta-select').select2('destroy');
-                $(this.closest("tr")).find('.tercero-select').select2('destroy');
-                this.closest("tr").remove();
-                calcularTotales();
-              } else {
-                Swal.fire({
-                  icon: 'warning',
-                  title: 'Atención',
-                  text: 'Debe haber al menos una fila',
-                  confirmButtonColor: '#3085d6'
-                });
-              }
+// ========== INICIALIZACIÓN DE SELECT2 CUENTAS ==========
+function initCuentaSelect($select) {
+  $select.select2({
+    placeholder: "Buscar cuenta contable...",
+    allowClear: true,
+    width: '100%',
+    ajax: {
+      url: 'obtener_cuentas_comprobantecontable.php',
+      dataType: 'json',
+      delay: 250,
+      data: function (params) {
+        return { search: params.term || '' };
+      },
+      processResults: function (data) {
+        return {
+          results: data.map(function (cuenta) {
+            return { 
+              id: cuenta.valor, 
+              text: cuenta.texto,
+              descripcion: cuenta.descripcion
             };
+          })
+        };
+      },
+      cache: true
+    }
+  });
+  
+  $select.on('select2:select', function (e) {
+    const data = e.params.data;
+    const row = $(this).closest('tr');
+    
+    let descripcion = data.descripcion || '';
+    if (data.id && data.id.startsWith('130505')) {
+      descripcion = 'Clientes Nacionales';
+    }
+    
+    row.find('input[name="descripcionCuenta"]').val(descripcion);
+  });
+}
 
-            tableBody.appendChild(newRow);
-            
-            // Inicializar los selects en la nueva fila
-            initCuentaSelect($(newRow).find('.cuenta-select'));
-            initTerceroSelect($(newRow).find('.tercero-select'));
-            
-            calcularTotales();
-          };
-
-          const firstRow = document.querySelector("#product-table tr");
-          if (firstRow && !firstRow.querySelector(".btn-remove")) {
-            const btn = document.createElement("button");
-            btn.textContent = "-";
-            btn.className = "btn-remove";
-            btn.style.marginLeft = "10px";
-            btn.style.backgroundColor = "red";
-            btn.style.color = "white";
-            btn.style.border = "none";
-            btn.style.borderRadius = "4px";
-            btn.style.cursor = "pointer";
-
-            btn.onclick = function() {
-              const rows = document.querySelectorAll("#product-table tr");
-              if (rows.length > 1) {
-                $(this.closest("tr")).find('.cuenta-select').select2('destroy');
-                this.closest("tr").remove();
-                calcularTotales();
-              } else {
-                Swal.fire({
-                  icon: 'warning',
-                  title: 'Atención',
-                  text: 'Debe haber al menos una fila',
-                  confirmButtonColor: '#3085d6'
-                });
-              }
+// ========== INICIALIZACIÓN DE SELECT2 TERCEROS ==========
+function initTerceroSelect($select) {
+  $select.select2({
+    placeholder: "Buscar por cédula o nombre...",
+    allowClear: true,
+    width: '100%',
+    minimumInputLength: 1,
+    language: {
+      inputTooShort: function() { return "Por favor ingrese al menos 1 carácter"; },
+      noResults: function() { return "No se encontraron resultados"; },
+      searching: function() { return "Buscando..."; },
+      errorLoading: function() { return "Error al cargar los resultados"; }
+    },
+    ajax: {
+      url: 'buscar_terceros_comprobante.php',
+      dataType: 'json',
+      delay: 250,
+      data: function (params) {
+        return { search: params.term || '' };
+      },
+      processResults: function (data) {
+        if (!Array.isArray(data)) {
+          console.error('Los datos no son un array:', data);
+          return { results: [] };
+        }
+        
+        return {
+          results: data.map(function (tercero) {
+            return { 
+              id: tercero.cedula,
+              text: tercero.cedula + ' - ' + tercero.nombre,
+              cedula: tercero.cedula,
+              nombre: tercero.nombre
             };
+          })
+        };
+      },
+      cache: true
+    }
+  });
+  
+  // Al seleccionar: mostrar solo la cédula
+  $select.on('select2:select', function (e) {
+    const data = e.params.data;
+    const row = $(this).closest('tr');
+    
+    // Crear nueva opción solo con cédula
+    const newOption = new Option(data.cedula, data.cedula, true, true);
+    $(this).empty().append(newOption).trigger('change');
+    
+    // Llenar nombre
+    row.find('input[name="terceroNombre"]').val(data.nombre || '');
+    
+    // Feedback visual
+    const nombreInput = row.find('input[name="terceroNombre"]');
+    nombreInput.css('background-color', '#d4edda');
+    setTimeout(() => nombreInput.css('background-color', ''), 1000);
+  });
 
-            const lastCell = firstRow.lastElementChild;
-            lastCell.appendChild(btn);
-          }
-        });
+  $select.on('select2:clear', function (e) {
+    $(this).closest('tr').find('input[name="terceroNombre"]').val('');
+  });
+}
 
-        document.addEventListener("DOMContentLoaded", function() {
-          const id = document.getElementById("txtId").value;
-          const btnAgregar = document.getElementById("btnAgregar");
-          const btnModificar = document.getElementById("btnModificar");
-          const btnEliminar = document.getElementById("btnEliminar");
-          const btnCancelar = document.getElementById("btnCancelar");
+// ========== CALCULAR TOTALES ==========
+function calcularTotales() {
+  let sumaDebito = 0;
+  let sumaCredito = 0;
 
-          // Función para modo agregar (actualizada)
-          function modoAgregar() {
-            const btnAgregar = document.getElementById("btnAgregar");
-            const btnModificar = document.getElementById("btnModificar");
-            const btnEliminar = document.getElementById("btnEliminar");
-            const btnCancelar = document.getElementById("btnCancelar");
+  document.querySelectorAll("#product-table tr").forEach(row => {
+    const debito = parseFloat(row.querySelector(".debito")?.value.replace(/\./g, '').replace(',', '.') || 0);
+    const credito = parseFloat(row.querySelector(".credito")?.value.replace(/\./g, '').replace(',', '.') || 0);
+    sumaDebito += debito;
+    sumaCredito += credito;
+  });
 
-            btnAgregar.style.display = "inline-block";
-            btnModificar.style.display = "none";
-            btnEliminar.style.display = "none";
-            btnCancelar.style.display = "none";
+  const diferencia = sumaDebito - sumaCredito;
+  document.querySelector("#sumaDebito").value = sumaDebito.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  document.querySelector("#sumaCredito").value = sumaCredito.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  document.querySelector("#diferencia").value = diferencia.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
-            document.getElementById("txtId").value = "";
-            document.getElementById("fecha").value = new Date().toISOString().split('T')[0];
-            document.getElementById("consecutivo").value = "";
-            document.getElementById("observaciones").value = "";
+// ========== AGREGAR FILA ==========
+window.addRow = function() {
+  const tableBody = document.getElementById("product-table");
+  const newRow = document.createElement("tr");
+  
+  newRow.innerHTML = `
+    <td>
+      <select name="cuentaContable" class="form-control cuenta-select" style="width: 100%;">
+        <option value="">Buscar cuenta...</option>
+      </select>
+    </td>
+    <td><input type="text" name="descripcionCuenta" class="form-control" value=""></td>
+    <td>
+      <select name="terceroCedula" class="form-control tercero-select" style="width: 100%;">
+        <option value="">Buscar por cédula...</option>
+      </select>
+    </td>
+    <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value="" readonly></td>
+    <td><input type="text" name="detalle" class="form-control" value=""></td>
+    <td><input type="text" step="0.01" name="valorDebito" class="form-control debito" placeholder="0.00" value=""></td>
+    <td><input type="text" step="0.01" name="valorCredito" class="form-control credito" placeholder="0.00" value=""></td>
+    <td>
+      <button type="button" class="btn-add" onclick="addRow()">+</button>
+      <button type="button" class="btn-remove" style="margin-left:10px; background-color:red; color:white; border:none; border-radius:4px; cursor:pointer;">-</button>
+    </td>
+  `;
 
-            const tableBody = document.getElementById("product-table");
-            tableBody.innerHTML = `
-              <tr>
-                <td>
-                  <select name="cuentaContable" class="form-control cuenta-select" style="width: 100%;">
-                    <option value="">Buscar cuenta...</option>
-                  </select>
-                </td>
-                <td><input type="text" name="descripcionCuenta" class="form-control" value=""></td>
-                <td>
-                  <select name="terceroCedula" class="form-control tercero-select" style="width: 100%;">
-                    <option value="">Buscar por cédula...</option>
-                  </select>
-                </td>
-                <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value="" readonly></td>
-                <td><input type="text" name="detalle" class="form-control" value=""></td>
-                <td><input type="number" step="0.01" name="valorDebito" class="form-control debito" placeholder="0.00" value=""></td>
-                <td><input type="number" step="0.01" name="valorCredito" class="form-control credito" placeholder="0.00" value=""></td>
-                <td>
-                  <button type="button" class="btn-add" onclick="addRow()">+</button>
-                  <button type="button" class="btn-remove" style="margin-left:10px; background-color:red; color:white; border:none; border-radius:4px; cursor:pointer;" onclick="removeRowSafe(this)">-</button>
-                </td>
-              </tr>
-            `;
-            
-            // Inicializar ambos selects
-            initCuentaSelect($('.cuenta-select'));
-            initTerceroSelect($('.tercero-select'));
+  newRow.querySelector(".btn-remove").onclick = function() {
+    const rows = tableBody.querySelectorAll("tr");
+    if (rows.length > 1) {
+      $(this.closest("tr")).find('.cuenta-select').select2('destroy');
+      $(this.closest("tr")).find('.tercero-select').select2('destroy');
+      this.closest("tr").remove();
+      calcularTotales();
+    } else {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Atención',
+        text: 'Debe haber al menos una fila',
+        confirmButtonColor: '#3085d6'
+      });
+    }
+  };
 
-            fetch(window.location.pathname + "?get_consecutivo=1")
-              .then(response => response.json())
-              .then(data => {
-                document.getElementById('consecutivo').value = data.consecutivo;
-              });
+  tableBody.appendChild(newRow);
+  initCuentaSelect($(newRow).find('.cuenta-select'));
+  initTerceroSelect($(newRow).find('.tercero-select'));
+  calcularTotales();
+};
 
-            if (window.history.replaceState) {
-              const url = new URL(window.location);
-              url.search = '';
-              window.history.replaceState({}, document.title, url);
+// ========== REMOVER FILA SEGURO ==========
+function removeRowSafe(btn) {
+  const rows = document.querySelectorAll("#product-table tr");
+  if (rows.length > 1) {
+    $(btn.closest("tr")).find('.cuenta-select').select2('destroy');
+    $(btn.closest("tr")).find('.tercero-select').select2('destroy');
+    btn.closest("tr").remove();
+    calcularTotales();
+  } else {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Atención',
+      text: 'Debe haber al menos una fila',
+      confirmButtonColor: '#3085d6'
+    });
+  }
+}
+
+// ========== MODO AGREGAR ==========
+function modoAgregar() {
+  document.getElementById("btnAgregar").style.display = "inline-block";
+  document.getElementById("btnModificar").style.display = "none";
+  document.getElementById("btnEliminar").style.display = "none";
+  document.getElementById("btnCancelar").style.display = "none";
+
+  document.getElementById("txtId").value = "";
+  document.getElementById("fecha").value = new Date().toISOString().split('T')[0];
+  document.getElementById("consecutivo").value = "";
+  document.getElementById("observaciones").value = "";
+
+  const tableBody = document.getElementById("product-table");
+  tableBody.innerHTML = `
+    <tr>
+      <td>
+        <select name="cuentaContable" class="form-control cuenta-select" style="width: 100%;">
+          <option value="">Buscar cuenta...</option>
+        </select>
+      </td>
+      <td><input type="text" name="descripcionCuenta" class="form-control" value=""></td>
+      <td>
+        <select name="terceroCedula" class="form-control tercero-select" style="width: 100%;">
+          <option value="">Buscar por cédula...</option>
+        </select>
+      </td>
+      <td><input type="text" name="terceroNombre" class="form-control" placeholder="Nombre" value="" readonly></td>
+      <td><input type="text" name="detalle" class="form-control" value=""></td>
+      <td><input type="text" step="0.01" name="valorDebito" class="form-control debito" placeholder="0.00" value=""></td>
+      <td><input type="text" step="0.01" name="valorCredito" class="form-control credito" placeholder="0.00" value=""></td>
+      <td>
+        <button type="button" class="btn-add" onclick="addRow()">+</button>
+        <button type="button" class="btn-remove" style="margin-left:10px; background-color:red; color:white; border:none; border-radius:4px; cursor:pointer;" onclick="removeRowSafe(this)">-</button>
+      </td>
+    </tr>
+  `;
+  
+  initCuentaSelect($('.cuenta-select'));
+  initTerceroSelect($('.tercero-select'));
+
+  // OBTENER CONSECUTIVO
+  fetch(window.location.pathname + "?get_consecutivo=1")
+    .then(response => response.json())
+    .then(data => {
+      document.getElementById('consecutivo').value = data.consecutivo;
+    })
+    .catch(error => console.error('Error al obtener consecutivo:', error));
+
+  if (window.history.replaceState) {
+    const url = new URL(window.location);
+    url.search = '';
+    window.history.replaceState({}, document.title, url);
+  }
+}
+
+// ========== DOCUMENT READY - SOLO UNA VEZ ==========
+$(document).ready(function() {
+  // Inicializar selects existentes
+  $('.cuenta-select').each(function() {
+    initCuentaSelect($(this));
+  });
+  
+  $('.tercero-select').each(function() {
+    initTerceroSelect($(this));
+  });
+
+  // Configurar modos de edición
+  const id = document.getElementById("txtId").value;
+  if (id && id.trim() !== "") {
+    document.getElementById("btnAgregar").style.display = "none";
+    document.getElementById("btnModificar").style.display = "inline-block";
+    document.getElementById("btnEliminar").style.display = "inline-block";
+    document.getElementById("btnCancelar").style.display = "inline-block";
+  } else {
+    modoAgregar();
+  }
+
+  // Botón cancelar
+  document.getElementById("btnCancelar").addEventListener("click", function(e) {
+    e.preventDefault();
+    Swal.fire({
+      title: '¿Cancelar edición?',
+      text: "Se perderán los cambios no guardados",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, cancelar',
+      cancelButtonText: 'No',
+      confirmButtonColor: '#6c757d',
+      cancelButtonColor: '#3085d6'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        modoAgregar();
+      }
+    });
+  });
+
+  // Agregar botón eliminar a primera fila si no existe
+  const firstRow = document.querySelector("#product-table tr");
+  if (firstRow && !firstRow.querySelector(".btn-remove")) {
+    const btn = document.createElement("button");
+    btn.textContent = "-";
+    btn.className = "btn-remove";
+    btn.style.cssText = "margin-left:10px; background-color:red; color:white; border:none; border-radius:4px; cursor:pointer;";
+    btn.onclick = function() { removeRowSafe(this); };
+    firstRow.lastElementChild.appendChild(btn);
+  }
+
+  // Event listener para calcular totales
+  document.querySelector("#product-table").addEventListener("input", function (event) {
+    if (event.target.classList.contains("debito") || event.target.classList.contains("credito")) {
+      calcularTotales();
+    }
+  });
+
+  // Confirmación para modificar/eliminar
+  document.querySelectorAll("form").forEach((form) => {
+    form.addEventListener("submit", function (e) {
+      const boton = e.submitter;
+      const accion = boton?.value;
+
+      if (accion === "btnModificar" || accion === "btnEliminar") {
+        e.preventDefault();
+
+        let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar registro?";
+        let texto = accion === "btnModificar"
+          ? "Se actualizarán los datos de este comprobante contable."
+          : "Esta acción eliminará el registro permanentemente.";
+
+        Swal.fire({
+          title: titulo,
+          text: texto,
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonText: "Sí, continuar",
+          cancelButtonText: "Cancelar",
+          confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+          cancelButtonColor: "#6c757d",
+        }).then((result) => {
+          if (result.isConfirmed) {
+            let inputAccion = form.querySelector("input[name='accionOculta']");
+            if (!inputAccion) {
+              inputAccion = document.createElement("input");
+              inputAccion.type = "hidden";
+              inputAccion.name = "accion";
+              form.appendChild(inputAccion);
             }
+            inputAccion.value = accion;
+            form.submit();
           }
-
-          if (id && id.trim() !== "") {
-            btnAgregar.style.display = "none";
-            btnModificar.style.display = "inline-block";
-            btnEliminar.style.display = "inline-block";
-            btnCancelar.style.display = "inline-block";
-          } else {
-            modoAgregar();
-          }
-
-          btnCancelar.addEventListener("click", function(e) {
-            e.preventDefault();
-            
-            Swal.fire({
-              title: '¿Cancelar edición?',
-              text: "Se perderán los cambios no guardados",
-              icon: 'warning',
-              showCancelButton: true,
-              confirmButtonText: 'Sí, cancelar',
-              cancelButtonText: 'No',
-              confirmButtonColor: '#6c757d',
-              cancelButtonColor: '#3085d6'
-            }).then((result) => {
-              if (result.isConfirmed) {
-                modoAgregar();
-              }
-            });
-          });
         });
+      }
+    });
+  });
+});
 
-        function removeRowSafe(btn) {
-          const rows = document.querySelectorAll("#product-table tr");
-          if (rows.length > 1) {
-            $(btn.closest("tr")).find('.cuenta-select').select2('destroy');
-            $(btn.closest("tr")).find('.tercero-select').select2('destroy'); // <- AGREGAR ESTA LÍNEA
-            btn.closest("tr").remove();
-            calcularTotales();
-          } else {
-            Swal.fire({
-              icon: 'warning',
-              title: 'Atención',
-              text: 'Debe haber al menos una fila',
-              confirmButtonColor: '#3085d6'
-            });
-          }
-        }
+// ========== ENVÍO DEL FORMULARIO ==========
+document.getElementById("formComprobanteContable").addEventListener("submit", function(e) {
+  const rows = document.querySelectorAll("#product-table tr");
+  let detalles = [];
 
-        document.addEventListener("DOMContentLoaded", () => {
-          const forms = document.querySelectorAll("form");
+  rows.forEach(row => {
+    const $selectCuenta = $(row).find("[name='cuentaContable']");
+    const cuenta = $selectCuenta.val() || "";
+    
+    const $selectTercero = $(row).find("[name='terceroCedula']");
+    const terceroCedula = $selectTercero.val() || "";
+    const terceroNombre = row.querySelector("[name='terceroNombre']")?.value || "";
+    
+    const descripcion = row.querySelector("[name='descripcionCuenta']")?.value || "";
+    const detalle = row.querySelector("[name='detalle']")?.value || "";
+    const debito = row.querySelector("[name='valorDebito']")?.value || "0";
+    const credito = row.querySelector("[name='valorCredito']")?.value || "0";
 
-          forms.forEach((form) => {
-            form.addEventListener("submit", function (e) {
-              const boton = e.submitter;
-              const accion = boton?.value;
+    if (cuenta || descripcion || terceroCedula || terceroNombre || detalle) {
+      detalles.push({
+        cuentaContable: cuenta, 
+        descripcionCuenta: descripcion, 
+        terceroCedula: terceroCedula, 
+        terceroNombre: terceroNombre, 
+        detalle: detalle, 
+        valorDebito: debito, 
+        valorCredito: credito
+      });
+    }
+  });
 
-              if (accion === "btnModificar" || accion === "btnEliminar") {
-                e.preventDefault();
+  const inputDetalles = document.createElement("input");
+  inputDetalles.type = "hidden";
+  inputDetalles.name = "detalles";
+  inputDetalles.value = JSON.stringify(detalles);
+  this.appendChild(inputDetalles);
+});
 
-                let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar registro?";
-                let texto = accion === "btnModificar"
-                  ? "Se actualizarán los datos de este comprobante contable."
-                  : "Esta acción eliminará el registro permanentemente.";
-
-                Swal.fire({
-                  title: titulo,
-                  text: texto,
-                  icon: "warning",
-                  showCancelButton: true,
-                  confirmButtonText: "Sí, continuar",
-                  cancelButtonText: "Cancelar",
-                  confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
-                  cancelButtonColor: "#6c757d",
-                }).then((result) => {
-                  if (result.isConfirmed) {
-                    let inputAccion = form.querySelector("input[name='accionOculta']");
-                    if (!inputAccion) {
-                      inputAccion = document.createElement("input");
-                      inputAccion.type = "hidden";
-                      inputAccion.name = "accion";
-                      form.appendChild(inputAccion);
-                    }
-                    inputAccion.value = accion;
-
-                    form.submit();
-                  }
-                });
-              }
-            });
-          });
-        });
-
-        // Función para inicializar el select2 de terceros
-        function initTerceroSelect($select) {
-          $select.select2({
-            placeholder: "Buscar por cédula o nombre...",
-            allowClear: true,
-            width: '100%',
-            minimumInputLength: 1,
-            language: {
-              inputTooShort: function() {
-                return "Por favor ingrese al menos 1 carácter";
-              },
-              noResults: function() {
-                return "No se encontraron resultados";
-              },
-              searching: function() {
-                return "Buscando...";
-              },
-              errorLoading: function() {
-                return "Error al cargar los resultados";
-              }
-            },
-            ajax: {
-              url: 'buscar_terceros_comprobante.php',
-              dataType: 'json',
-              delay: 250,
-              data: function (params) {
-                return {
-                  search: params.term || ''
-                };
-              },
-              processResults: function (data) {
-                console.log('Datos recibidos:', data);
-                
-                if (!Array.isArray(data)) {
-                  console.error('Los datos no son un array:', data);
-                  return { results: [] };
-                }
-                
-                return {
-                  results: data.map(function (tercero) {
-                    return { 
-                      id: tercero.cedula,
-                      text: tercero.cedula + ' - ' + tercero.nombre,
-                      cedula: tercero.cedula,
-                      nombre: tercero.nombre
-                    };
-                  })
-                };
-              },
-              cache: true,
-              error: function(jqXHR, textStatus, errorThrown) {
-                console.error('Error en AJAX:', textStatus, errorThrown);
-                console.error('Respuesta del servidor:', jqXHR.responseText);
-              }
-            }
-          });
-          
-          // Evento cuando se selecciona un tercero
-          $select.on('select2:select', function (e) {
-            const data = e.params.data;
-            const row = $(this).closest('tr');
-            
-            // Crear una nueva opción con solo la cédula
-            const newOption = new Option(data.cedula, data.cedula, true, true);
-            
-            // Reemplazar la opción seleccionada
-            $(this).empty().append(newOption).trigger('change');
-            
-            // Llenar el campo de nombre automáticamente
-            row.find('input[name="terceroNombre"]').val(data.nombre || '');
-            
-            // Agregar feedback visual
-            const nombreInput = row.find('input[name="terceroNombre"]');
-            nombreInput.css('background-color', '#d4edda');
-            setTimeout(() => {
-              nombreInput.css('background-color', '');
-            }, 1000);
-            
-            console.log('Tercero seleccionado - Cédula:', data.cedula, 'Nombre:', data.nombre);
-          });
-
-          // Evento cuando se limpia la selección
-          $select.on('select2:clear', function (e) {
-            const row = $(this).closest('tr');
-            row.find('input[name="terceroNombre"]').val('');
-          });
-        }
-
-        // Inicializar todos los selects de terceros al cargar
-        $(document).ready(function() {
-          $('.tercero-select').each(function() {
-            initTerceroSelect($(this));
-          });
-        });
-
-        // Al enviar el formulario, obtener solo la cédula del select
-        document.getElementById("formComprobanteContable").addEventListener("submit", function(e) {
-          const rows = document.querySelectorAll("#product-table tr");
-          let detalles = [];
-
-          rows.forEach(row => {
-            const $selectCuenta = $(row).find("[name='cuentaContable']");
-            const cuenta = $selectCuenta.val() || "";
-            
-            // Obtener cédula del select
-            const $selectTercero = $(row).find("[name='terceroCedula']");
-            const terceroCedula = $selectTercero.val() || "";
-            
-            const terceroNombre = row.querySelector("[name='terceroNombre']")?.value || "";
-            
-            const descripcion = row.querySelector("[name='descripcionCuenta']")?.value || "";
-            const detalle = row.querySelector("[name='detalle']")?.value || "";
-            const debito = row.querySelector("[name='valorDebito']")?.value || "0";
-            const credito = row.querySelector("[name='valorCredito']")?.value || "0";
-
-            if (cuenta || descripcion || terceroCedula || terceroNombre || detalle) {
-              detalles.push({
-                cuentaContable: cuenta, 
-                descripcionCuenta: descripcion, 
-                terceroCedula: terceroCedula, 
-                terceroNombre: terceroNombre, 
-                detalle: detalle, 
-                valorDebito: debito, 
-                valorCredito: credito
-              });
-            }
-          });
-
-          const inputDetalles = document.createElement("input");
-          inputDetalles.type = "hidden";
-          inputDetalles.name = "detalles";
-          inputDetalles.value = JSON.stringify(detalles);
-
-          this.appendChild(inputDetalles);
-        });
-
-        // Inicializar al cargar la página
-        $(document).ready(function() {
-          $('.tercero-select').each(function() {
-            initTerceroSelect($(this));
-          });
-          
-          console.log('Select2 de terceros inicializado');
-        });
-
-        function calcularTotales() {
-          let sumaDebito = 0;
-          let sumaCredito = 0;
-
-          document.querySelectorAll("#product-table tr").forEach(row => {
-            const debito = parseFloat(row.querySelector(".debito")?.value || 0);
-            const credito = parseFloat(row.querySelector(".credito")?.value || 0);
-
-            sumaDebito += debito;
-            sumaCredito += credito;
-          });
-
-          document.querySelector("#sumaDebito").value = sumaDebito.toFixed(2);
-          document.querySelector("#sumaCredito").value = sumaCredito.toFixed(2);
-          document.querySelector("#diferencia").value = (sumaDebito - sumaCredito).toFixed(2);
-        }
-
-        // Establecer fecha actual al cargar la página si está vacía
-        window.addEventListener('DOMContentLoaded', function() {
-          const fechaInput = document.getElementById('fecha');
-          const txtId = document.getElementById('txtId').value;
-         
-          // Solo establecer fecha actual si NO estamos editando
-          if (!txtId || txtId.trim() === "") {
-            // CORREGIDO: Obtener fecha local de Colombia (GMT-5)
-            const hoy = new Date();
-            const year = hoy.getFullYear();
-            const month = String(hoy.getMonth() + 1).padStart(2, '0');
-            const day = String(hoy.getDate()).padStart(2, '0');
-            const fechaLocal = `${year}-${month}-${day}`;
-           
-            fechaInput.value = fechaLocal;
-            fechaInput.setAttribute('max', fechaLocal);
-          }
-        });  
+// ========== ESTABLECER FECHA ACTUAL ==========
+window.addEventListener('DOMContentLoaded', function() {
+  const fechaInput = document.getElementById('fecha');
+  const txtId = document.getElementById('txtId').value;
+ 
+  if (!txtId || txtId.trim() === "") {
+    const hoy = new Date();
+    const year = hoy.getFullYear();
+    const month = String(hoy.getMonth() + 1).padStart(2, '0');
+    const day = String(hoy.getDate()).padStart(2, '0');
+    const fechaLocal = `${year}-${month}-${day}`;
+   
+    fechaInput.value = fechaLocal;
+    fechaInput.setAttribute('max', fechaLocal);
+  }
+  
+  // OBTENER CONSECUTIVO AL INICIO
+  if (!txtId || txtId.trim() === "") {
+    fetch(window.location.pathname + "?get_consecutivo=1")
+      .then(response => response.json())
+      .then(data => {
+        document.getElementById('consecutivo').value = data.consecutivo;
+      })
+      .catch(error => console.error('Error al obtener consecutivo:', error));
+  }
+}); 
 
         </script>
         <br>
