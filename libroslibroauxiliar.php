@@ -32,6 +32,25 @@ $cuentas = $stmt_cuentas->fetchAll(PDO::FETCH_ASSOC);
 
 // ================== FUNCIÓN PARA OBTENER MOVIMIENTOS ==================
 function obtenerMovimientosCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $tercero = '') {
+    // Obtener el nombre correcto de la cuenta (siempre el más reciente o más común)
+    $sql_nombre = "SELECT nombre_cuenta 
+                   FROM libro_diario 
+                   WHERE codigo_cuenta = :cuenta 
+                   ORDER BY fecha_registro DESC 
+                   LIMIT 1";
+    $stmt_nombre = $pdo->prepare($sql_nombre);
+    $stmt_nombre->execute([':cuenta' => $codigo_cuenta]);
+    $nombre_cuenta = $stmt_nombre->fetch(PDO::FETCH_COLUMN);
+    
+    // Si no encontramos nombre, usar uno por defecto según el código
+    if (!$nombre_cuenta) {
+        if ($codigo_cuenta == '135515') {
+            $nombre_cuenta = 'Retención en la Fuente por Cobrar'; // Nombre correcto
+        } else {
+            $nombre_cuenta = 'Cuenta ' . $codigo_cuenta;
+        }
+    }
+
     // Naturaleza por primer dígito
     $naturaleza = substr($codigo_cuenta, 0, 1);
 
@@ -105,6 +124,7 @@ function obtenerMovimientosCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_has
     }
 
     return [
+        'nombre_cuenta_corregido' => $nombre_cuenta,
         'saldo_inicial' => $saldo_inicial,
         'movimientos' => $movimientos
     ];
@@ -446,7 +466,7 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
 
                             echo "<tr>
                                     <td>" . htmlspecialchars($cuenta['codigo_cuenta']) . "</td>
-                                    <td>" . htmlspecialchars($cuenta['nombre_cuenta']) . "</td>
+                                    <td>" . htmlspecialchars($datos['nombre_cuenta_corregido']) . "</td>
                                     <td>" . htmlspecialchars($tercero_id) . "</td>
                                     <td>" . htmlspecialchars($tercero_nombre) . "</td>
                                     <td>" . strtoupper(date('F d \D\E Y', strtotime($mov['fecha']))) . "</td>

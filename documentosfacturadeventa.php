@@ -27,6 +27,9 @@ $ivaTotal=(isset($_POST['ivaTotal']))?$_POST['ivaTotal']:"";
 $retenciones=(isset($_POST['retenciones']))?$_POST['retenciones']:"";
 $valorTotal=(isset($_POST['valorTotal']))?$_POST['valorTotal']:"";
 $observaciones=(isset($_POST['observaciones']))?$_POST['observaciones']:"";
+$selectRetencion=(isset($_POST['selectRetencion']))?$_POST['selectRetencion']:"";
+$numeroFactura=(isset($_POST['numeroFactura']))?$_POST['numeroFactura']:"";
+$fechaVencimiento=(isset($_POST['fechaVencimiento']))?$_POST['fechaVencimiento']:"";
 
 $accion=(isset($_POST['accion']))?$_POST['accion']:"";
 
@@ -39,25 +42,28 @@ switch($accion){
     try {
         $pdo->beginTransaction();
 
-        // Insertar factura (código existente)
-        $sentencia=$pdo->prepare("INSERT INTO facturav(identificacion,nombre,fecha,consecutivo,formaPago,subtotal,ivaTotal,retenciones,valorTotal,observaciones) 
-        VALUES (:identificacion,:nombre,:fecha,:consecutivo,:formaPago,:subtotal,:ivaTotal,:retenciones,:valorTotal,:observaciones)");
+        // Insertar factura (MODIFICADO: Se agregaron numero_factura y fecha_vencimiento)
+        $sentencia=$pdo->prepare("INSERT INTO facturav(identificacion,nombre,fecha,consecutivo,numero_factura,formaPago,fecha_vencimiento,subtotal,ivaTotal,retenciones,valorTotal,observaciones,retencion_tarifa) 
+        VALUES (:identificacion,:nombre,:fecha,:consecutivo,:numero_factura,:formaPago,:fecha_vencimiento,:subtotal,:ivaTotal,:retenciones,:valorTotal,:observaciones,:retencion_tarifa)");
         
         $sentencia->bindParam(':identificacion',$identificacion);
         $sentencia->bindParam(':nombre',$nombre);
         $sentencia->bindParam(':fecha',$fecha);
         $sentencia->bindParam(':consecutivo',$consecutivo);
+        $sentencia->bindParam(':numero_factura',$numeroFactura);
         $sentencia->bindParam(':formaPago',$formaPago);
+        $sentencia->bindParam(':fecha_vencimiento',$fechaVencimiento);
         $sentencia->bindParam(':subtotal',$subtotal);
         $sentencia->bindParam(':ivaTotal',$ivaTotal);
         $sentencia->bindParam(':retenciones',$retenciones);
         $sentencia->bindParam(':valorTotal',$valorTotal);
         $sentencia->bindParam(':observaciones',$observaciones);
+        $sentencia->bindParam(':retencion_tarifa',$selectRetencion);
         $sentencia->execute();
 
         $idFactura = $pdo->lastInsertId();
 
-        // Insertar detalles y actualizar inventario (código existente)
+        // Insertar detalles y actualizar inventario
         if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
             $sqlDetalle = "INSERT INTO factura_detalle 
                           (id_factura, codigoProducto, nombreProducto, cantidad, precio_unitario, iva, total)
@@ -98,7 +104,7 @@ switch($accion){
             }
         }
 
-        // NUEVO: Registrar en Libro Diario
+        // Registrar en Libro Diario (con retenciones)
         $libroDiario->registrarFacturaVenta($idFactura);
 
         $pdo->commit();
@@ -116,10 +122,10 @@ break;
     try {
         $pdo->beginTransaction();
 
-        // ✨ NUEVO: Eliminar asientos contables antiguos
+        // Eliminar asientos contables antiguos
         $libroDiario->eliminarMovimientos('factura_venta', $txtId);
 
-        // Obtener detalles antiguos para restaurar inventario (código existente)
+        // Obtener detalles antiguos para restaurar inventario
         $stmtOldDetails = $pdo->prepare("
             SELECT fd.codigoProducto, fd.cantidad, pi.tipoItem 
             FROM factura_detalle fd
@@ -129,7 +135,7 @@ break;
         $stmtOldDetails->execute([':id_factura' => $txtId]);
         $oldDetails = $stmtOldDetails->fetchAll(PDO::FETCH_ASSOC);
 
-        // Restaurar inventario (código existente)
+        // Restaurar inventario
         $restoreStock = $pdo->prepare("UPDATE productoinventarios SET cantidad = cantidad + :cantidad WHERE codigoProducto = :codigo");
         foreach ($oldDetails as $old) {
             if (strtolower($old['tipoItem']) === 'producto') {
@@ -140,39 +146,45 @@ break;
             }
         }
 
-        // Actualizar factura (código existente)
+        // Actualizar factura (MODIFICADO: Se agregaron numero_factura y fecha_vencimiento)
         $sentencia = $pdo->prepare("UPDATE facturav 
                                     SET identificacion = :identificacion,
                                         nombre = :nombre,
                                         fecha = :fecha,
                                         consecutivo = :consecutivo,
+                                        numero_factura = :numero_factura,
                                         formaPago = :formaPago,
+                                        fecha_vencimiento = :fecha_vencimiento,
                                         subtotal = :subtotal,
                                         ivaTotal = :ivaTotal,
                                         retenciones = :retenciones,
                                         valorTotal = :valorTotal,
-                                        observaciones = :observaciones
+                                        observaciones = :observaciones,
+                                        retencion_tarifa = :retencion_tarifa
                                     WHERE id = :id");
 
         $sentencia->bindParam(':identificacion', $identificacion);
         $sentencia->bindParam(':nombre', $nombre);
         $sentencia->bindParam(':fecha', $fecha);
         $sentencia->bindParam(':consecutivo', $consecutivo);
+        $sentencia->bindParam(':numero_factura', $numeroFactura);
         $sentencia->bindParam(':formaPago', $formaPago);
+        $sentencia->bindParam(':fecha_vencimiento', $fechaVencimiento);
         $sentencia->bindParam(':subtotal', $subtotal);
         $sentencia->bindParam(':ivaTotal', $ivaTotal);
         $sentencia->bindParam(':retenciones', $retenciones);
         $sentencia->bindParam(':valorTotal', $valorTotal);
         $sentencia->bindParam(':observaciones', $observaciones);
+        $sentencia->bindParam(':retencion_tarifa', $selectRetencion);
         $sentencia->bindParam(':id', $txtId);
         $sentencia->execute();
 
-        // Eliminar detalles antiguos (código existente)
+        // Eliminar detalles antiguos
         $deleteDetalle = $pdo->prepare("DELETE FROM factura_detalle WHERE id_factura = :id_factura");
         $deleteDetalle->bindParam(':id_factura', $txtId);
         $deleteDetalle->execute();
 
-        // Insertar nuevos detalles (código existente)
+        // Insertar nuevos detalles
         if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
             $sqlDetalle = "INSERT INTO factura_detalle 
                           (id_factura, codigoProducto, nombreProducto, cantidad, precio_unitario, iva, total)
@@ -213,7 +225,7 @@ break;
             }
         }
 
-        // NUEVO: Registrar nuevos asientos contables
+        // Registrar nuevos asientos contables
         $libroDiario->registrarFacturaVenta($txtId);
 
         $pdo->commit();
@@ -231,10 +243,10 @@ break;
     try {
         $pdo->beginTransaction();
 
-        // ✨ NUEVO: Eliminar asientos contables
+        // Eliminar asientos contables
         $libroDiario->eliminarMovimientos('factura_venta', $txtId);
 
-        // Obtener detalles para restaurar inventario (código existente)
+        // Obtener detalles para restaurar inventario
         $stmtDetails = $pdo->prepare("
             SELECT fd.codigoProducto, fd.cantidad, pi.tipoItem 
             FROM factura_detalle fd
@@ -244,7 +256,7 @@ break;
         $stmtDetails->execute([':id_factura' => $txtId]);
         $details = $stmtDetails->fetchAll(PDO::FETCH_ASSOC);
 
-        // Restaurar inventario (código existente)
+        // Restaurar inventario
         $restoreStock = $pdo->prepare("UPDATE productoinventarios SET cantidad = cantidad + :cantidad WHERE codigoProducto = :codigo");
         foreach ($details as $detail) {
             if (strtolower($detail['tipoItem']) === 'producto') {
@@ -255,12 +267,12 @@ break;
             }
         }
 
-        // Eliminar detalles (código existente)
+        // Eliminar detalles
         $sentenciaDetalle = $pdo->prepare("DELETE FROM factura_detalle WHERE id_factura = :id");
         $sentenciaDetalle->bindParam(':id', $txtId);
         $sentenciaDetalle->execute();
 
-        // Eliminar factura (código existente)
+        // Eliminar factura
         $sentencia = $pdo->prepare("DELETE FROM facturav WHERE id = :id");
         $sentencia->bindParam(':id', $txtId);
         $sentencia->execute();
@@ -288,12 +300,15 @@ break;
           $nombre = $factura['nombre'];
           $fecha = $factura['fecha'];
           $consecutivo = $factura['consecutivo'];
+          $numeroFactura = $factura['numero_factura'] ?? ""; // NUEVO CAMPO
           $formaPago = $factura['formaPago'];
+          $fechaVencimiento = $factura['fecha_vencimiento'] ?? ""; // NUEVO CAMPO
           $subtotal = $factura['subtotal'];
           $ivaTotal = $factura['ivaTotal'];
           $retenciones = $factura['retenciones'];
           $valorTotal = $factura['valorTotal'];
           $observaciones = $factura['observaciones'];
+          $selectRetencion = $factura['retencion_tarifa'] ?? "";
       }
 
       // Cargar detalles asociados
@@ -349,28 +364,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['identificacion']) || 
     exit;
 }
 
-// Buscar producto por código o nombre (con verificación de stock y tipo)
-if (isset($_POST['codigoProducto']) || isset($_POST['nombreProducto'])) {
-    $codigo = trim($_POST['codigoProducto'] ?? '');
-    $nombre = trim($_POST['nombreProducto'] ?? '');
+// Buscar producto por código (para el select)
+if (isset($_POST['codigoProducto'])) {
+    $codigo = trim($_POST['codigoProducto']);
     $producto = null;
 
     if ($codigo !== '') {
-        $stmt = $pdo->prepare("SELECT codigoProducto, descripcionProducto, cantidad, tipoItem 
+        $stmt = $pdo->prepare("SELECT codigoProducto, descripcionProducto, cantidad, tipoItem, precioUnitario 
                                FROM productoinventarios 
                                WHERE codigoProducto = :codigo 
                                LIMIT 1");
         $stmt->bindParam(':codigo', $codigo, PDO::PARAM_STR);
-        $stmt->execute();
-        $producto = $stmt->fetch(PDO::FETCH_ASSOC);
-    } 
-    elseif ($nombre !== '') {
-        $likeNombre = "%$nombre%";
-        $stmt = $pdo->prepare("SELECT codigoProducto, descripcionProducto, cantidad, tipoItem 
-                               FROM productoinventarios 
-                               WHERE descripcionProducto LIKE :nombre 
-                               LIMIT 1");
-        $stmt->bindParam(':nombre', $likeNombre, PDO::PARAM_STR);
         $stmt->execute();
         $producto = $stmt->fetch(PDO::FETCH_ASSOC);
     }
@@ -379,7 +383,8 @@ if (isset($_POST['codigoProducto']) || isset($_POST['nombreProducto'])) {
         $response = [
             "codigoProducto" => $producto['codigoProducto'],
             "nombreProducto" => $producto['descripcionProducto'],
-            "tipoItem" => $producto['tipoItem']
+            "tipoItem" => $producto['tipoItem'],
+            "precioUnitario" => $producto['precioUnitario'] ?? 0
         ];
         
         // Solo mostrar stock si es producto (no servicio)
@@ -399,6 +404,18 @@ $mediosPago = [];
 $stmt = $pdo->query("SELECT metodoPago, cuentaContable FROM mediosdepago");
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $mediosPago[] = $row;
+}
+
+// Obtener impuestos de retención
+$impuestos = [];
+$stmt = $pdo->query("SELECT id, codigo, descripcion, tarifa, tipo FROM impuestos_retenciones WHERE activo = 1 ORDER BY tipo, tarifa");
+while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+    $impuestos[] = $row;
+}
+
+// Establecer fecha actual por defecto si no hay fecha
+if (empty($fecha)) {
+    $fecha = date('Y-m-d');
 }
 
 ?>
@@ -522,6 +539,23 @@ document.addEventListener("DOMContentLoaded", () => {
     .totals input {
       width: 160px;
     }
+    .btn-remove {
+      margin-left: 10px;
+      background-color: red;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      padding: 5px 10px;
+    }
+    .btn-add {
+      background-color: #0d6efd;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      padding: 5px 10px;
+    }
   </style>
 
 </head>
@@ -589,19 +623,26 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
           </div>
 
-          <!-- Fecha y Consecutivo -->
+          <!-- Fecha, Consecutivo y Número de Factura -->
           <div class="row g-3 mt-2">
-            <div class="col-md-4">
+            <div class="col-md-3">
               <label for="fecha" class="form-label fw-bold">Fecha del documento</label>
               <input type="date" class="form-control" id="fecha" name="fecha"
-                    value="<?php echo $fecha; ?>" required>
+                    value="<?php echo $fecha; ?>" required readonly>
             </div>
 
-            <div class="col-md-4">
+            <div class="col-md-3">
               <label for="consecutivo" class="form-label fw-bold">Consecutivo</label>
               <input type="text" class="form-control" id="consecutivo" name="consecutivo"
                     placeholder="Número consecutivo"
                     value="<?php echo $consecutivo; ?>" readonly>
+            </div>
+
+            <div class="col-md-3">
+              <label for="numeroFactura" class="form-label fw-bold">Número de Factura</label>
+              <input type="text" class="form-control" id="numeroFactura" name="numeroFactura"
+                    placeholder="Ej: FV-001"
+                    value="<?php echo $numeroFactura ?? ''; ?>">
             </div>
           </div>
 
@@ -610,39 +651,68 @@ document.addEventListener("DOMContentLoaded", () => {
             <table class="table-container">
               <thead class="table-primary text-center">
                 <tr>
-                  <th>Código del producto</th>
-                  <th>Nombre del producto</th>
-                  <th>Cantidad</th>
-                  <th>Precio Unitario</th>
-                  <th>IVA</th>
-                  <th>Valor Total</th>
-                  <th></th>
+                  <th width="20%">Código del producto</th>
+                  <th width="20%">Nombre del producto</th>
+                  <th width="10%">Cantidad</th>
+                  <th width="15%">Precio Unitario</th>
+                  <th width="12%">IVA</th>
+                  <th width="15%">Valor Total</th>
+                  <th width="5%">Acciones</th>
                 </tr>
               </thead>
               <tbody id="product-table">
                 <?php if (!empty($detalles)) : ?>
                   <?php foreach ($detalles as $detalle): ?>
-                      <tr>
-                          <td><input type="text" name="codigoProducto" class="form-control" value="<?= htmlspecialchars($detalle['codigoProducto']) ?>"></td>
-                          <td><input type="text" name="nombreProducto" class="form-control" value="<?= htmlspecialchars($detalle['nombreProducto']) ?>"></td>
-                          <td><input type="number" name="cantidad" class="form-control quantity" value="<?= htmlspecialchars($detalle['cantidad']) ?>"></td>
-                          <td><input type="number" name="precio" class="form-control unit-price" value="<?= htmlspecialchars($detalle['precio_unitario']) ?>"></td>
-                          <td><input type="number" name="iva" class="form-control iva" value="<?= htmlspecialchars($detalle['iva']) ?>" readonly></td>
-                          <td><input type="number" name="precioTotal" class="form-control total-price" value="<?= htmlspecialchars($detalle['total']) ?>" readonly></td>
-                          <td><button type="button" class="btn-add" onclick="addRow()">+</button></td>
-                      </tr>
+                    <tr>
+                      <td>
+                        <select name="codigoProducto" class="form-control select-producto" onchange="cargarProducto(this)">
+                          <option value="">Seleccionar producto</option>
+                          <!-- En la sección de detalles existentes -->
+                          <?php
+                          $productos = $pdo->query("SELECT codigoProducto, descripcionProducto FROM productoinventarios ORDER BY descripcionProducto");
+                          while ($prod = $productos->fetch(PDO::FETCH_ASSOC)) {
+                            $selected = ($prod['codigoProducto'] == $detalle['codigoProducto']) ? 'selected' : '';
+                            echo "<option value='{$prod['codigoProducto']}' data-nombre='{$prod['descripcionProducto']}' $selected>{$prod['codigoProducto']}</option>";
+                          }
+                          ?>
+                        </select>
+                      </td>
+                      <td><input type="text" name="nombreProducto" class="form-control" value="<?= htmlspecialchars($detalle['nombreProducto']) ?>" readonly></td>
+                      <td><input type="number" name="cantidad" class="form-control quantity" value="<?= htmlspecialchars($detalle['cantidad']) ?>"></td>
+                      <td><input type="number" name="precio" class="form-control unit-price" value="<?= htmlspecialchars($detalle['precio_unitario']) ?>"></td>
+                      <td><input type="number" name="iva" class="form-control iva" value="<?= htmlspecialchars($detalle['iva']) ?>" readonly></td>
+                      <td><input type="number" name="precioTotal" class="form-control total-price" value="<?= htmlspecialchars($detalle['total']) ?>" readonly></td>
+                      <td>
+                        <button type="button" class="btn-add" onclick="addRow()">+</button>
+                        <button type="button" class="btn-remove" onclick="removeRowSafe(this)">-</button>
+                      </td>
+                    </tr>
                   <?php endforeach; ?>
-              <?php else: // Si no hay detalles, imprime una fila vacía para el inicio ?>
+                <?php else: ?>
                   <tr>
-                      <td><input type="text" name="codigoProducto" class="form-control" value=""></td>
-                      <td><input type="text" name="nombreProducto" class="form-control" value=""></td>
-                      <td><input type="number" name="cantidad" class="form-control quantity" value=""></td>
-                      <td><input type="number" name="precio" class="form-control unit-price" value=""></td>
-                      <td><input type="number" name="iva" class="form-control iva" value="0.00" readonly></td>
-                      <td><input type="number" name="precioTotal" class="form-control total-price" value="0.00" readonly></td>
-                      <td><button type="button" class="btn-add" onclick="addRow()">+</button></td>
+                    <td>
+                      <select name="codigoProducto" class="form-control select-producto" onchange="cargarProducto(this)">
+                        <option value="">Seleccionar producto</option>
+                        <!-- En la sección de nueva fila -->
+                        <?php
+                        $productos = $pdo->query("SELECT codigoProducto, descripcionProducto FROM productoinventarios ORDER BY descripcionProducto");
+                        while ($prod = $productos->fetch(PDO::FETCH_ASSOC)) {
+                          echo "<option value='{$prod['codigoProducto']}' data-nombre='{$prod['descripcionProducto']}'>{$prod['codigoProducto']}</option>";
+                        }
+                        ?>
+                      </select>
+                    </td>
+                    <td><input type="text" name="nombreProducto" class="form-control" value="" readonly></td>
+                    <td><input type="number" name="cantidad" class="form-control quantity" value=""></td>
+                    <td><input type="number" name="precio" class="form-control unit-price" value=""></td>
+                    <td><input type="number" name="iva" class="form-control iva" value="0.00" readonly></td>
+                    <td><input type="number" name="precioTotal" class="form-control total-price" value="0.00" readonly></td>
+                    <td>
+                      <button type="button" class="btn-add" onclick="addRow()">+</button>
+                      <button type="button" class="btn-remove" onclick="removeRowSafe(this)">-</button>
+                    </td>
                   </tr>
-              <?php endif; ?>
+                <?php endif; ?>
               </tbody>
             </table>
           </div>
@@ -651,7 +721,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <div class="row g-3 mt-2">
             <div class="col-md-6">
               <label for="formaPago" class="form-label fw-bold">Forma de Pago*</label>
-              <select class="form-select" id="formaPago" name="formaPago" required>
+              <select class="form-select" id="formaPago" name="formaPago" required onchange="mostrarFechaVencimiento()">
                 <option value="">Seleccione una opción</option>
                 <?php foreach ($mediosPago as $medio): ?>
                   <option value="<?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>"
@@ -661,35 +731,56 @@ document.addEventListener("DOMContentLoaded", () => {
                 <?php endforeach; ?>
               </select>
             </div>
-          </div>
-  
-        <!-- Totales alineados a la derecha uno debajo del otro -->
-        <div class="col-md-3 ms-auto mt-3">
-          <div class="mb-2">
-            <label for="subtotal" class="form-label fw-bold">Subtotal</label>
-            <input type="text" id="subtotal" name="subtotal" class="form-control text-end" 
-                  value="<?php echo $subtotal ?? ''; ?>" readonly>
+            
+            <!-- Campo de Fecha de Vencimiento (oculto inicialmente) -->
+            <div class="col-md-6" id="fechaVencimientoContainer" style="display: none;">
+              <label for="fechaVencimiento" class="form-label fw-bold">Fecha de Vencimiento*</label>
+              <input type="date" class="form-control" id="fechaVencimiento" name="fechaVencimiento"
+                    value="<?php echo $fechaVencimiento ?? ''; ?>" min="<?php echo date('Y-m-d'); ?>">
+            </div>
+            
+            <!-- Selector de retención -->
+            <div class="col-md-6" id="retencionContainer">
+              <label for="selectRetencion" class="form-label fw-bold">Retención aplicable</label>
+              <select class="form-select" id="selectRetencion" name="selectRetencion">
+                <option value="">Seleccione una retención</option>
+                <?php foreach ($impuestos as $impuesto): ?>
+                  <option value="<?= $impuesto['tarifa'] ?>" 
+                    <?= ($selectRetencion == $impuesto['tarifa']) ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($impuesto['descripcion']) ?> (<?= $impuesto['tarifa'] ?>%)
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
           </div>
 
-          <div class="mb-2">
-            <label for="ivaTotal" class="form-label fw-bold">IVA</label>
-            <input type="text" id="ivaTotal" name="ivaTotal" class="form-control text-end" 
-                  value="<?php echo $ivaTotal ?? ''; ?>" readonly>
-          </div>
+          <!-- Totales alineados a la derecha uno debajo del otro -->
+          <div class="col-md-3 ms-auto mt-3">
+            <div class="mb-2">
+              <label for="subtotal" class="form-label fw-bold">Subtotal</label>
+              <input type="text" id="subtotal" name="subtotal" class="form-control text-end" 
+                    value="<?php echo $subtotal ?? '0.00'; ?>" readonly>
+            </div>
 
-          <div class="mb-2">
-            <label for="retenciones" class="form-label fw-bold">Retenciones</label>
-            <input type="text" id="retenciones" name="retenciones" class="form-control text-end" 
-                  value="<?php echo $retenciones ?? ''; ?>" readonly>
-          </div>
+            <div class="mb-2">
+              <label for="ivaTotal" class="form-label fw-bold">IVA</label>
+              <input type="text" id="ivaTotal" name="ivaTotal" class="form-control text-end" 
+                    value="<?php echo $ivaTotal ?? '0.00'; ?>" readonly>
+            </div>
 
-          <div class="mb-2">
-            <label for="valorTotal" class="form-label fw-bold">Valor Total</label>
-            <input type="text" id="valorTotal" name="valorTotal" 
-                  class="form-control text-end fw-bold border-2 border-primary" 
-                  value="<?php echo $valorTotal ?? ''; ?>" readonly>
+            <div class="mb-2">
+              <label for="retenciones" class="form-label fw-bold">Retenciones</label>
+              <input type="text" id="retenciones" name="retenciones" class="form-control text-end" 
+                    value="<?php echo $retenciones ?? '0.00'; ?>" readonly>
+            </div>
+
+            <div class="mb-2">
+              <label for="valorTotal" class="form-label fw-bold">Valor Total</label>
+              <input type="text" id="valorTotal" name="valorTotal" 
+                    class="form-control text-end fw-bold border-2 border-primary" 
+                    value="<?php echo $valorTotal ?? '0.00'; ?>" readonly>
+            </div>
           </div>
-        </div>
 
         <div class="mb-3">
           <label for="observaciones" class="form-label">Observaciones</label>
@@ -714,7 +805,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 <th>Nombre</th>
                 <th>Fecha</th>
                 <th>Consecutivo</th>
+                <th>N° Factura</th> <!-- NUEVA COLUMNA -->
                 <th>Forma Pago</th>
+                <th>Vencimiento</th> <!-- NUEVA COLUMNA -->
                 <th>Subtotal</th>
                 <th>Iva Total</th>
                 <th>Retenciones</th>
@@ -730,7 +823,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td><?php echo $usuario['nombre']; ?></td>
                 <td><?php echo $usuario['fecha']; ?></td>
                 <td><?php echo $usuario['consecutivo']; ?></td>
+                <td><?php echo $usuario['numero_factura'] ?? ''; ?></td> <!-- NUEVA COLUMNA -->
                 <td><?php echo $usuario['formaPago']; ?></td>
+                <td><?php echo $usuario['fecha_vencimiento'] ?? ''; ?></td> <!-- NUEVA COLUMNA -->
                 <td><?php echo $usuario['subtotal']; ?></td>
                 <td><?php echo $usuario['ivaTotal']; ?></td>
                 <td><?php echo $usuario['retenciones']; ?></td>
@@ -743,12 +838,15 @@ document.addEventListener("DOMContentLoaded", () => {
                     <input type="hidden" name="nombre" value="<?php echo $usuario['nombre']; ?>" >
                     <input type="hidden" name="fecha" value="<?php echo $usuario['fecha']; ?>" >
                     <input type="hidden" name="consecutivo" value="<?php echo $usuario['consecutivo']; ?>" >
+                    <input type="hidden" name="numeroFactura" value="<?php echo $usuario['numero_factura'] ?? ''; ?>" > <!-- NUEVO CAMPO -->
                     <input type="hidden" name="formaPago" value="<?php echo $usuario['formaPago']; ?>" >
+                    <input type="hidden" name="fechaVencimiento" value="<?php echo $usuario['fecha_vencimiento'] ?? ''; ?>" > <!-- NUEVO CAMPO -->
                     <input type="hidden" name="subtotal" value="<?php echo $usuario['subtotal']; ?>" >
                     <input type="hidden" name="ivaTotal" value="<?php echo $usuario['ivaTotal']; ?>" >
                     <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>" >
                     <input type="hidden" name="valorTotal" value="<?php echo $usuario['valorTotal']; ?>" >
                     <input type="hidden" name="observaciones" value="<?php echo $usuario['observaciones']; ?>" >
+                    <input type="hidden" name="selectRetencion" value="<?php echo $usuario['retencion_tarifa'] ?? ''; ?>" >
                     
                     <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info" title="Editar">
                       <i class="fas fa-edit"></i>
@@ -760,7 +858,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 </td>
               </tr>
             <?php } ?>
-            </tbody>
+          </tbody>
           </table>
         </div>  
       </div>
@@ -779,8 +877,17 @@ document.addEventListener("DOMContentLoaded", () => {
                     })
                     .catch(error => console.error('Error al obtener consecutivo:', error));
             }
+            
+            // Establecer fecha actual
+            const fechaInput = document.getElementById("fecha");
+            const hoy = new Date().toISOString().split('T')[0];
+            fechaInput.setAttribute('max', hoy);
+            if (!fechaInput.value) {
+                fechaInput.value = hoy;
+            }
         });
-        // Buscar el cliente solo si es tipo "cliente"
+
+        // Buscar el cliente
         const inputIdentificacion = document.getElementById("identificacion");
         const inputNombre = document.getElementById("nombre");
 
@@ -803,7 +910,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-        // Buscar por nombre (cuando escriba al menos 3 caracteres)
+        // Buscar por nombre
         inputNombre.addEventListener("input", function () {
             const valor = this.value.trim();
             if (valor.length >= 3) {
@@ -822,22 +929,95 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-        // Escucha todos los cambios en la tabla (delegación de eventos)
+        // Función para mostrar/ocultar fecha de vencimiento según forma de pago
+        function mostrarFechaVencimiento() {
+            const formaPagoSelect = document.getElementById('formaPago');
+            const fechaVencimientoContainer = document.getElementById('fechaVencimientoContainer');
+            const retencionContainer = document.getElementById('retencionContainer');
+            const fechaVencimientoInput = document.getElementById('fechaVencimiento');
+            
+            const formaPago = formaPagoSelect.value.toLowerCase();
+            const esCredito = formaPago.includes('credito') || formaPago.includes('crédito');
+            
+            if (esCredito) {
+                fechaVencimientoContainer.style.display = 'block';
+                retencionContainer.classList.remove('col-md-6');
+                retencionContainer.classList.add('col-md-12');
+                
+                // Establecer fecha mínima como hoy
+                const hoy = new Date().toISOString().split('T')[0];
+                fechaVencimientoInput.setAttribute('min', hoy);
+                
+                // Si no hay fecha establecida, poner 30 días desde hoy por defecto
+                if (!fechaVencimientoInput.value) {
+                    const fechaDefault = new Date();
+                    fechaDefault.setDate(fechaDefault.getDate() + 30);
+                    fechaVencimientoInput.value = fechaDefault.toISOString().split('T')[0];
+                }
+            } else {
+                fechaVencimientoContainer.style.display = 'none';
+                retencionContainer.classList.remove('col-md-12');
+                retencionContainer.classList.add('col-md-6');
+                fechaVencimientoInput.value = '';
+            }
+        }
+
+        // Ejecutar al cargar la página para verificar el estado inicial
+        document.addEventListener('DOMContentLoaded', function() {
+            mostrarFechaVencimiento();
+        });
+
+        // Función para cargar precio automáticamente
+        function cargarPrecioDesdeInventario(row) {
+            const codigoInput = row.querySelector('[name="codigoProducto"]');
+            const nombreInput = row.querySelector('[name="nombreProducto"]');
+            const precioInput = row.querySelector('.unit-price');
+            const codigo = codigoInput.value.trim();
+            
+            if (codigo) {
+                fetch("", {
+                    method: "POST",
+                    body: new URLSearchParams({ codigoProducto: codigo }),
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.precioUnitario && data.precioUnitario > 0) {
+                        precioInput.value = data.precioUnitario;
+                        if (data.nombreProducto && !nombreInput.value) {
+                            nombreInput.value = data.nombreProducto;
+                        }
+                        // Recalcular valores
+                        calcularValores();
+                    }
+                })
+                .catch(console.error);
+            }
+        }
+
+        // Escucha todos los cambios en la tabla
         document.querySelector("#product-table").addEventListener("input", function(e) {
           const target = e.target;
           const row = target.closest("tr");
 
           // Buscar por código
           if (target.name === "codigoProducto" && target.value.trim() !== "") {
-            fetch("", {
-              method: "POST",
-              body: new URLSearchParams({ codigoProducto: target.value }),
-              headers: { "Content-Type": "application/x-www-form-urlencoded" }
-            })
-            .then(res => res.json())
-            .then(data => {
-              row.querySelector('[name="nombreProducto"]').value = data.nombreProducto || "";
-            });
+              fetch("", {
+                  method: "POST",
+                  body: new URLSearchParams({ codigoProducto: target.value }),
+                  headers: { "Content-Type": "application/x-www-form-urlencoded" }
+              })
+              .then(res => res.json())
+              .then(data => {
+                  row.querySelector('[name="nombreProducto"]').value = data.nombreProducto || "";
+                  // Cargar precio automáticamente si existe
+                  if (data.precioUnitario && data.precioUnitario > 0) {
+                      const precioInput = row.querySelector('.unit-price');
+                      precioInput.value = data.precioUnitario;
+                      // Recalcular valores
+                      calcularValores();
+                  }
+              });
           }
 
           // Buscar por nombre
@@ -851,299 +1031,370 @@ document.addEventListener("DOMContentLoaded", () => {
             .then(data => {
               if (data.codigoProducto) {
                 row.querySelector('[name="codigoProducto"]').value = data.codigoProducto;
+                // Cargar precio automáticamente
+                if (data.precioUnitario && data.precioUnitario > 0) {
+                    const precioInput = row.querySelector('.unit-price');
+                    precioInput.value = data.precioUnitario;
+                    calcularValores();
+                }
               }
-            });
+            });            
           }
         });
 
-        document.addEventListener("DOMContentLoaded", function () {
-          function calcularValores() {
+        // Calcular Retenciones y Total
+        function calcularRetencionesYTotal() {
+            const subtotal = parseFloat(document.querySelector("#subtotal").value) || 0;
+            const ivaTotal = parseFloat(document.querySelector("#ivaTotal").value) || 0;
+            const selectRetencion = document.getElementById("selectRetencion");
+            const tarifaRetencion = parseFloat(selectRetencion.value) || 0;
+            
+            // Calcular retención (sobre el subtotal)
+            const retencion = subtotal * (tarifaRetencion / 100);
+            
+            // Calcular valor total (Subtotal + IVA - Retenciones)
+            const valorTotal = subtotal + ivaTotal - retencion;
+            
+            document.querySelector("#retenciones").value = retencion.toFixed(2);
+            document.querySelector("#valorTotal").value = valorTotal.toFixed(2);
+        }
+
+        // Función principal para calcular valores
+        function calcularValores() {
             let subtotal = 0;
             let ivaTotal = 0;
+            let totalGeneral = 0;
 
             document.querySelectorAll("#product-table tr").forEach(row => {
-              const cantidad = parseFloat(row.querySelector(".quantity")?.value || 0);
-              const precio = parseFloat(row.querySelector(".unit-price")?.value || 0);
-              const ivaField = row.querySelector(".iva");
-              const totalField = row.querySelector(".total-price");
+                const cantidad = parseFloat(row.querySelector(".quantity")?.value || 0);
+                const precio = parseFloat(row.querySelector(".unit-price")?.value || 0);
+                const ivaField = row.querySelector(".iva");
+                const totalField = row.querySelector(".total-price");
 
-              if (!ivaField || !totalField) return;
+                if (!ivaField || !totalField) return;
 
-              const total = cantidad * precio;
-              const iva = total * 0.19;
+                // Calcular subtotal (sin impuestos)
+                const subtotalLinea = cantidad * precio;
+                
+                // Calcular IVA
+                const iva = subtotalLinea * 0.19;
+                
+                // Calcular total (subtotal + IVA)
+                const total = subtotalLinea + iva;
 
-              ivaField.value = iva.toFixed(2);
-              totalField.value = total.toFixed(2);
+                ivaField.value = iva.toFixed(2);
+                totalField.value = total.toFixed(2);
 
-              subtotal += total;
-              ivaTotal += iva;
+                subtotal += subtotalLinea;
+                ivaTotal += iva;
+                totalGeneral += total;
             });
 
             document.querySelector("#subtotal").value = subtotal.toFixed(2);
             document.querySelector("#ivaTotal").value = ivaTotal.toFixed(2);
-            document.querySelector("#retenciones").value = "0.00";
-            document.querySelector("#valorTotal").value = (subtotal + ivaTotal).toFixed(2);
-          }
+            
+            // Llamar a la función de retenciones
+            calcularRetencionesYTotal();
+        }
 
-          // Escucha cambios en cantidad o precio
-          document.querySelector("#product-table").addEventListener("input", function (event) {
+        // Event listener para cambios en el selector de retención
+        document.getElementById("selectRetencion").addEventListener("change", calcularRetencionesYTotal);
+
+        // Event listener para cambios en cantidad o precio
+        document.querySelector("#product-table").addEventListener("input", function (event) {
             if (event.target.classList.contains("quantity") || event.target.classList.contains("unit-price")) {
-              calcularValores();
+                calcularValores();
             }
-          });
+        });
 
-          // Agregar nueva fila
-          window.addRow = function() {
+        // Función para cargar producto cuando se selecciona del dropdown
+        function cargarProducto(selectElement) {
+            const row = selectElement.closest('tr');
+            const selectedOption = selectElement.options[selectElement.selectedIndex];
+            const codigo = selectElement.value;
+            const nombre = selectedOption.getAttribute('data-nombre');
+            const nombreInput = row.querySelector('[name="nombreProducto"]');
+            const precioInput = row.querySelector('.unit-price');
+            
+            if (codigo && nombre) {
+                nombreInput.value = nombre;
+                
+                // Obtener precio desde la base de datos
+                fetch("", {
+                    method: "POST",
+                    body: new URLSearchParams({ codigoProducto: codigo }),
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.precioUnitario && data.precioUnitario > 0) {
+                        precioInput.value = data.precioUnitario;
+                    }
+                    // Recalcular valores
+                    calcularValores();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            } else {
+                nombreInput.value = "";
+                precioInput.value = "";
+            }
+        }
+
+        // Agregar nueva fila
+        window.addRow = function() {
             const tableBody = document.getElementById("product-table");
             const newRow = tableBody.firstElementChild.cloneNode(true);
 
             // Limpiar valores
             newRow.querySelectorAll("input").forEach(input => {
-              input.value = "";
-              input.removeAttribute("readonly");
-            });
-
-            // Agregar botón de eliminar si no existe
-            if (!newRow.querySelector(".btn-remove")) {
-              const btn = document.createElement("button");
-              btn.textContent = "-";
-              btn.className = "btn-remove";
-              btn.style.marginLeft = "10px";
-              btn.style.backgroundColor = "red";
-              btn.style.color = "white";
-              btn.style.border = "none";
-              btn.style.borderRadius = "4px";
-              btn.style.cursor = "pointer";
-
-              btn.onclick = function() {
-                const rows = tableBody.querySelectorAll("tr");
-                if (rows.length > 1) {
-                  this.closest("tr").remove();
-                } else {
-                  alert("Debe haber al menos una fila.");
+                if (!input.readOnly) {
+                    input.value = "";
                 }
-              };
-
-              // Suponiendo que el botón se agrega en la última celda
-              const lastCell = newRow.lastElementChild;
-              lastCell.appendChild(btn);
+            });
+            
+            // Resetear el select
+            const select = newRow.querySelector('.select-producto');
+            if (select) {
+                select.selectedIndex = 0;
             }
 
             tableBody.appendChild(newRow);
-          };
-
-          // Agregar botón “–” a la primera fila existente
-          document.addEventListener("DOMContentLoaded", function() {
-            const firstRow = document.querySelector("#product-table tr");
-            if (firstRow && !firstRow.querySelector(".btn-remove")) {
-              const btn = document.createElement("button");
-              btn.textContent = "-";
-              btn.className = "btn-remove";
-              btn.style.marginLeft = "10px";
-              btn.style.backgroundColor = "red";
-              btn.style.color = "white";
-              btn.style.border = "none";
-              btn.style.borderRadius = "10px";
-              btn.style.cursor = "pointer";
-
-              btn.onclick = function() {
-                const rows = document.querySelectorAll("#product-table tr");
-                if (rows.length > 1) {
-                  this.closest("tr").remove();
-                } else {
-                  alert("Debe haber al menos una fila.");
-                }
-              };
-
-              const lastCell = firstRow.lastElementChild;
-              lastCell.appendChild(btn);
-            }
-          });
-        });
-
-        // Script para alternar botones y manejar cancelar
-        document.addEventListener("DOMContentLoaded", function() {
-          const id = document.getElementById("txtId").value;
-          const btnAgregar = document.getElementById("btnAgregar");
-          const btnModificar = document.getElementById("btnModificar");
-          const btnEliminar = document.getElementById("btnEliminar");
-          const btnCancelar = document.getElementById("btnCancelar");
-          const form = document.getElementById("formFacturaVentas");
-
-          function modoAgregar() {
-            // Ocultar/mostrar botones
-            btnAgregar.style.display = "inline-block";
-            btnModificar.style.display = "none";
-            btnEliminar.style.display = "none";
-            btnCancelar.style.display = "none";
-
-            // Limpiar txtId
-            document.getElementById("txtId").value = "";
-
-            // Limpiar campos del formulario
-            document.getElementById("identificacion").value = "";
-            document.getElementById("nombre").value = "";
-            document.getElementById("fecha").value = "";
-            document.getElementById("consecutivo").value = "";
-            document.getElementById("formaPago").value = "";
-            document.getElementById("subtotal").value = "";
-            document.getElementById("ivaTotal").value = "";
-            document.getElementById("retenciones").value = "";
-            document.getElementById("valorTotal").value = "";
-            document.getElementById("observaciones").value = "";
-
-            // Limpiar la tabla de productos y dejar solo UNA fila vacía
-            const tableBody = document.getElementById("product-table");
-            tableBody.innerHTML = `
-              <tr>
-                <td><input type="text" name="codigoProducto" class="form-control" value=""></td>
-                <td><input type="text" name="nombreProducto" class="form-control" value=""></td>
-                <td><input type="number" name="cantidad" class="form-control quantity" value=""></td>
-                <td><input type="number" name="precio" class="form-control unit-price" value=""></td>
-                <td><input type="number" name="iva" class="form-control iva" value="0.00" readonly></td>
-                <td><input type="number" name="precioTotal" class="form-control total-price" value="0.00" readonly></td>
-                <td>
-                  <button type="button" class="btn-add" onclick="addRow()">+</button>
-                  <button type="button" class="btn-remove" style="margin-left:10px; background-color:red; color:white; border:none; border-radius:4px; cursor:pointer;" onclick="removeRowSafe(this)">-</button>
-                </td>
-              </tr>
-            `;
-
-            // Obtener nuevo consecutivo
-            fetch(window.location.pathname + "?get_consecutivo=1")
-              .then(response => response.json())
-              .then(data => {
-                document.getElementById('consecutivo').value = data.consecutivo;
-              })
-              .catch(error => console.error('Error al obtener consecutivo:', error));
-
-            // Limpiar parámetros de la URL
-            if (window.history.replaceState) {
-              const url = new URL(window.location);
-              url.search = ''; // Elimina todos los parámetros
-              window.history.replaceState({}, document.title, url);
-            }
-          }
-
-          // Estado inicial (modo modificar o agregar)
-          if (id && id.trim() !== "") {
-            btnAgregar.style.display = "none";
-            btnModificar.style.display = "inline-block";
-            btnEliminar.style.display = "inline-block";
-            btnCancelar.style.display = "inline-block";
-          } else {
-            modoAgregar();
-          }
-
-          // Evento cancelar
-          btnCancelar.addEventListener("click", function(e) {
-            e.preventDefault();
-            
-            // Mostrar confirmación
-            Swal.fire({
-              title: '¿Cancelar edición?',
-              text: "Se perderán los cambios no guardados",
-              icon: 'warning',
-              showCancelButton: true,
-              confirmButtonText: 'Sí, cancelar',
-              cancelButtonText: 'No',
-              confirmButtonColor: '#6c757d',
-              cancelButtonColor: '#3085d6'
-            }).then((result) => {
-              if (result.isConfirmed) {
-                modoAgregar();
-              }
-            });
-          });
-        });
+        };
 
         // Función auxiliar para remover filas de forma segura
         function removeRowSafe(btn) {
-          const rows = document.querySelectorAll("#product-table tr");
-          if (rows.length > 1) {
-            btn.closest("tr").remove();
-          } else {
-            Swal.fire({
-              icon: 'warning',
-              title: 'Atención',
-              text: 'Debe haber al menos una fila de producto',
-              confirmButtonColor: '#3085d6'
-            });
-          }
+            const rows = document.querySelectorAll("#product-table tr");
+            if (rows.length > 1) {
+                btn.closest("tr").remove();
+                calcularValores();
+            } else {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Atención',
+                    text: 'Debe haber al menos una fila de producto',
+                    confirmButtonColor: '#3085d6'
+                });
+            }
         }
 
-        // Funciones de confirmación con SweetAlert2
-          document.addEventListener("DOMContentLoaded", () => {
-          // Selecciona TODOS los formularios de la página
-          const forms = document.querySelectorAll("form");
+        // Script para alternar botones y manejar cancelar
+        document.addEventListener("DOMContentLoaded", function() {
+            const id = document.getElementById("txtId").value;
+            const btnAgregar = document.getElementById("btnAgregar");
+            const btnModificar = document.getElementById("btnModificar");
+            const btnEliminar = document.getElementById("btnEliminar");
+            const btnCancelar = document.getElementById("btnCancelar");
 
-          forms.forEach((form) => {
-            form.addEventListener("submit", function (e) {
-              const boton = e.submitter; // botón que disparó el envío
-              const accion = boton?.value;
+            function modoAgregar() {
+                // Ocultar/mostrar botones
+                btnAgregar.style.display = "inline-block";
+                btnModificar.style.display = "none";
+                btnEliminar.style.display = "none";
+                btnCancelar.style.display = "none";
 
-              // Solo mostrar confirmación para modificar o eliminar
-              if (accion === "btnModificar" || accion === "btnEliminar") {
-                e.preventDefault(); // detener envío temporalmente
+                // Limpiar txtId
+                document.getElementById("txtId").value = "";
 
-                let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar registro?";
-                let texto = accion === "btnModificar"
-                  ? "Se actualizarán los datos de esta cuenta contable."
-                  : "Esta acción eliminará el registro permanentemente.";
+               // Limpiar campos del formulario
+              document.getElementById("identificacion").value = "";
+              document.getElementById("nombre").value = "";
+              document.getElementById("fecha").value = new Date().toISOString().split('T')[0];
+              document.getElementById("numeroFactura").value = ""; // NUEVO CAMPO
+              document.getElementById("formaPago").value = "";
+              document.getElementById("fechaVencimiento").value = ""; // NUEVO CAMPO
+              document.getElementById("selectRetencion").value = "";
+              document.getElementById("observaciones").value = "";
+              
+              // Ocultar fecha de vencimiento
+              document.getElementById("fechaVencimientoContainer").style.display = "none";
+              document.getElementById("retencionContainer").classList.remove("col-md-12");
+              document.getElementById("retencionContainer").classList.add("col-md-6");
 
+                    // Limpiar la tabla de productos y dejar solo UNA fila vacía con select
+                const tableBody = document.getElementById("product-table");
+                tableBody.innerHTML = `
+                <tr>
+                    <td>
+                        <select name="codigoProducto" class="form-control select-producto" onchange="cargarProducto(this)">
+                            <option value="">Seleccionar producto</option>
+                            <?php
+                            $productos = $pdo->query("SELECT codigoProducto, descripcionProducto FROM productoinventarios ORDER BY descripcionProducto");
+                            while ($prod = $productos->fetch(PDO::FETCH_ASSOC)) {
+                                echo "<option value='{$prod['codigoProducto']}' data-nombre='{$prod['descripcionProducto']}'>{$prod['codigoProducto']}</option>";
+                            }
+                            ?>
+                        </select>
+                    </td>
+                    <td><input type="text" name="nombreProducto" class="form-control" value="" readonly></td>
+                    <td><input type="number" name="cantidad" class="form-control quantity" value=""></td>
+                    <td><input type="number" name="precio" class="form-control unit-price" value=""></td>
+                    <td><input type="number" name="iva" class="form-control iva" value="0.00" readonly></td>
+                    <td><input type="number" name="precioTotal" class="form-control total-price" value="0.00" readonly></td>
+                    <td>
+                        <button type="button" class="btn-add" onclick="addRow()">+</button>
+                        <button type="button" class="btn-remove" onclick="removeRowSafe(this)">-</button>
+                    </td>
+                </tr>
+            `;
+
+                // Obtener nuevo consecutivo
+                fetch(window.location.pathname + "?get_consecutivo=1")
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('consecutivo').value = data.consecutivo;
+                    })
+                    .catch(error => console.error('Error al obtener consecutivo:', error));
+
+                // Limpiar parámetros de la URL
+                if (window.history.replaceState) {
+                    const url = new URL(window.location);
+                    url.search = '';
+                    window.history.replaceState({}, document.title, url);
+                }
+
+                // Resetear totales
+                calcularValores();
+            }
+
+            // Estado inicial (modo modificar o agregar)
+            if (id && id.trim() !== "") {
+                btnAgregar.style.display = "none";
+                btnModificar.style.display = "inline-block";
+                btnEliminar.style.display = "inline-block";
+                btnCancelar.style.display = "inline-block";
+            } else {
+                modoAgregar();
+            }
+
+            // Evento cancelar
+            btnCancelar.addEventListener("click", function(e) {
+                e.preventDefault();
+                
                 Swal.fire({
-                  title: titulo,
-                  text: texto,
-                  icon: "warning",
-                  showCancelButton: true,
-                  confirmButtonText: "Sí, continuar",
-                  cancelButtonText: "Cancelar",
-                  confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
-                  cancelButtonColor: "#6c757d",
+                    title: '¿Cancelar edición?',
+                    text: "Se perderán los cambios no guardados",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, cancelar',
+                    cancelButtonText: 'No',
+                    confirmButtonColor: '#6c757d',
+                    cancelButtonColor: '#3085d6'
                 }).then((result) => {
-                  if (result.isConfirmed) {
-                    // Crear (si no existe) un campo oculto con la acción seleccionada
-                    let inputAccion = form.querySelector("input[name='accionOculta']");
-                    if (!inputAccion) {
-                      inputAccion = document.createElement("input");
-                      inputAccion.type = "hidden";
-                      inputAccion.name = "accion";
-                      form.appendChild(inputAccion);
+                    if (result.isConfirmed) {
+                        modoAgregar();
                     }
-                    inputAccion.value = accion;
-
-                    form.submit(); // Enviar el formulario correspondiente
-                  }
                 });
-              }
             });
-          });
         });
 
+        // Funciones de confirmación con SweetAlert2
+        document.addEventListener("DOMContentLoaded", () => {
+            const forms = document.querySelectorAll("form");
+
+            forms.forEach((form) => {
+                form.addEventListener("submit", function (e) {
+                    const boton = e.submitter;
+                    const accion = boton?.value;
+
+                    if (accion === "btnModificar" || accion === "btnEliminar") {
+                        e.preventDefault();
+
+                        let titulo = accion === "btnModificar" ? "¿Guardar cambios?" : "¿Eliminar registro?";
+                        let texto = accion === "btnModificar"
+                            ? "Se actualizarán los datos de esta factura."
+                            : "Esta acción eliminará el registro permanentemente.";
+
+                        Swal.fire({
+                            title: titulo,
+                            text: texto,
+                            icon: "warning",
+                            showCancelButton: true,
+                            confirmButtonText: "Sí, continuar",
+                            cancelButtonText: "Cancelar",
+                            confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+                            cancelButtonColor: "#6c757d",
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                let inputAccion = form.querySelector("input[name='accionOculta']");
+                                if (!inputAccion) {
+                                    inputAccion = document.createElement("input");
+                                    inputAccion.type = "hidden";
+                                    inputAccion.name = "accion";
+                                    form.appendChild(inputAccion);
+                                }
+                                inputAccion.value = accion;
+                                form.submit();
+                            }
+                        });
+                    }
+                });
+            });
+        });
+
+        // Empaquetar detalles antes de enviar el formulario
         document.getElementById("formFacturaVentas").addEventListener("submit", function(e) {
-          const rows = document.querySelectorAll("#product-table tr");
-          let detalles = [];
+            const rows = document.querySelectorAll("#product-table tr");
+            let detalles = [];
 
-          rows.forEach(row => {
-              const codigo = row.querySelector("[name='codigoProducto']")?.value || "";
-              const nombre = row.querySelector("[name='nombreProducto']")?.value || "";
-              const cantidad = row.querySelector("[name='cantidad']")?.value || "";
-              const precio = row.querySelector("[name='precio']")?.value || "";
-              const iva = row.querySelector("[name='iva']")?.value || "";
-              const total = row.querySelector("[name='precioTotal']")?.value || "";
+            rows.forEach(row => {
+                const codigo = row.querySelector("[name='codigoProducto']")?.value || "";
+                const nombre = row.querySelector("[name='nombreProducto']")?.value || "";
+                const cantidad = row.querySelector("[name='cantidad']")?.value || "";
+                const precio = row.querySelector("[name='precio']")?.value || "";
+                const iva = row.querySelector("[name='iva']")?.value || "";
+                const total = row.querySelector("[name='precioTotal']")?.value || "";
 
-              if (codigo && nombre && cantidad && precio) {
-                  detalles.push({codigoProducto: codigo, nombreProducto: nombre, cantidad, precio, iva, precioTotal: total});
-              }
-          });
+                if (codigo && nombre && cantidad && precio) {
+                    detalles.push({
+                        codigoProducto: codigo, 
+                        nombreProducto: nombre, 
+                        cantidad: parseFloat(cantidad), 
+                        precio: parseFloat(precio), 
+                        iva: parseFloat(iva), 
+                        precioTotal: parseFloat(total)
+                    });
+                }
+            });
 
-          const inputDetalles = document.createElement("input");
-          inputDetalles.type = "hidden";
-          inputDetalles.name = "detalles";
-          inputDetalles.value = JSON.stringify(detalles);
+            if (detalles.length === 0) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Debe agregar al menos un producto a la factura',
+                    confirmButtonColor: '#d33'
+                });
+                return;
+            }
 
-          this.appendChild(inputDetalles);
-      });
+            const inputDetalles = document.createElement("input");
+            inputDetalles.type = "hidden";
+            inputDetalles.name = "detalles";
+            inputDetalles.value = JSON.stringify(detalles);
+
+            this.appendChild(inputDetalles);
+        });
+
+        // Establecer fecha actual al cargar la página si está vacía
+        window.addEventListener('DOMContentLoaded', function() {
+          const fechaInput = document.getElementById('fecha');
+          const txtId = document.getElementById('txtId').value;
+          
+          // Solo establecer fecha actual si NO estamos editando
+          if (!txtId || txtId.trim() === "") {
+            // CORREGIDO: Obtener fecha local de Colombia (GMT-5)
+            const hoy = new Date();
+            const year = hoy.getFullYear();
+            const month = String(hoy.getMonth() + 1).padStart(2, '0');
+            const day = String(hoy.getDate()).padStart(2, '0');
+            const fechaLocal = `${year}-${month}-${day}`;
+            
+            fechaInput.value = fechaLocal;
+            fechaInput.setAttribute('max', fechaLocal);
+          }
+        });
 
         </script>
         <br>

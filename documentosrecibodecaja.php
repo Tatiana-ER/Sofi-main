@@ -16,15 +16,16 @@ if (isset($_GET['get_consecutivo'])) {
     exit;
 }
 
-// Obtener facturas a crédito del cliente con saldo pendiente
+// Obtener facturas a crédito del cliente con saldo pendiente - MODIFICADO
 if (isset($_GET['get_facturas']) && isset($_GET['identificacion'])) {
     $identificacion = $_GET['identificacion'];
     
     $stmt = $pdo->prepare("
         SELECT 
             id, 
-            consecutivo, 
+            numero_factura,  -- Cambiado de consecutivo a numero_factura
             fecha, 
+            fecha_vencimiento,  -- Agregado fecha_vencimiento
             CAST(valorTotal AS DECIMAL(10,2)) as valorTotal,
             COALESCE(CAST(saldoReal AS DECIMAL(10,2)), CAST(valorTotal AS DECIMAL(10,2))) as saldoReal
         FROM facturav 
@@ -83,9 +84,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['buscar_cliente'])) {
     exit;
 }
 
-// Variables iniciales
+// Variables iniciales - MODIFICADO: fecha actual por defecto
 $txtId = $_POST['txtId'] ?? "";
-$fecha = $_POST['fecha'] ?? "";
+// CORRECCIÓN: Usar $_POST si existe, si no usar fecha actual
+$fecha = isset($_POST['fecha']) && !empty($_POST['fecha']) ? $_POST['fecha'] : date('Y-m-d');
 $consecutivo = $_POST['consecutivo'] ?? "";
 $identificacion = $_POST['identificacion'] ?? "";
 $nombre = $_POST['nombre'] ?? "";
@@ -100,21 +102,21 @@ $accion = $_POST['accion'] ?? "";
 // Datos de facturas (JSON)
 $facturasData = $_POST['facturasData'] ?? "";
 
-// Función para actualizar saldos de facturas
+// Función para actualizar saldos de facturas - MODIFICADO
 function actualizarSaldosFacturas($pdo, $facturasData) {
     if (!empty($facturasData)) {
         $dataArray = json_decode($facturasData, true);
         
         foreach ($dataArray as $facturaData) {
-            // Obtener información actual de la factura
+            // Obtener información actual de la factura usando numero_factura
             $stmt = $pdo->prepare("
                 SELECT 
                     CAST(valorTotal AS DECIMAL(10,2)) as valorTotal,
                     COALESCE(CAST(saldoReal AS DECIMAL(10,2)), CAST(valorTotal AS DECIMAL(10,2))) as saldoReal
                 FROM facturav 
-                WHERE consecutivo = :consecutivo
+                WHERE numero_factura = :numero_factura
             ");
-            $stmt->execute([':consecutivo' => $facturaData['consecutivo']]);
+            $stmt->execute([':numero_factura' => $facturaData['numero_factura']]);
             $factura = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($factura) {
@@ -125,18 +127,18 @@ function actualizarSaldosFacturas($pdo, $facturasData) {
                 $stmtUpdate = $pdo->prepare("
                     UPDATE facturav 
                     SET saldoReal = :nuevoSaldo 
-                    WHERE consecutivo = :consecutivo
+                    WHERE numero_factura = :numero_factura
                 ");
                 $stmtUpdate->execute([
                     ':nuevoSaldo' => $nuevoSaldo,
-                    ':consecutivo' => $facturaData['consecutivo']
+                    ':numero_factura' => $facturaData['numero_factura']
                 ]);
             }
         }
     }
 }
 
-// Función para restaurar saldos cuando se elimina o modifica un recibo
+// Función para restaurar saldos cuando se elimina o modifica un recibo - MODIFICADO
 function restaurarSaldosFacturas($pdo, $idRecibo) {
     // Obtener los detalles del recibo que se va a eliminar/modificar
     $stmt = $pdo->prepare("
@@ -147,16 +149,16 @@ function restaurarSaldosFacturas($pdo, $idRecibo) {
     $stmt->execute([':idRecibo' => $idRecibo]);
     $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Restaurar saldos
+    // Restaurar saldos usando numero_factura
     foreach ($detalles as $detalle) {
         $stmtUpdate = $pdo->prepare("
             UPDATE facturav 
             SET saldoReal = COALESCE(saldoReal, CAST(valorTotal AS DECIMAL(10,2))) + :valor 
-            WHERE consecutivo = :consecutivo
+            WHERE numero_factura = :numero_factura
         ");
         $stmtUpdate->execute([
             ':valor' => $detalle['valorAplicado'],
-            ':consecutivo' => $detalle['consecutivoFactura']
+            ':numero_factura' => $detalle['consecutivoFactura']
         ]);
     }
 }
@@ -166,7 +168,7 @@ switch($accion) {
         try {
             $pdo->beginTransaction();
             
-            // Validar saldos disponibles antes de procesar
+            // Validar saldos disponibles antes de procesar - MODIFICADO
             if (!empty($facturasData)) {
                 $dataArray = json_decode($facturasData, true);
                 
@@ -175,13 +177,13 @@ switch($accion) {
                         SELECT 
                             COALESCE(CAST(saldoReal AS DECIMAL(10,2)), CAST(valorTotal AS DECIMAL(10,2))) as saldoReal
                         FROM facturav 
-                        WHERE consecutivo = :consecutivo
+                        WHERE numero_factura = :numero_factura
                     ");
-                    $stmt->execute([':consecutivo' => $facturaData['consecutivo']]);
+                    $stmt->execute([':numero_factura' => $facturaData['numero_factura']]);
                     $factura = $stmt->fetch(PDO::FETCH_ASSOC);
                     
                     if (!$factura || floatval($facturaData['valor']) > $factura['saldoReal']) {
-                        throw new Exception("El valor aplicado a la factura {$facturaData['consecutivo']} excede el saldo disponible");
+                        throw new Exception("El valor aplicado a la factura {$facturaData['numero_factura']} excede el saldo disponible");
                     }
                 }
             }
@@ -209,7 +211,7 @@ switch($accion) {
             
             $idRecibo = $pdo->lastInsertId();
             
-            // Insertar detalles de facturas
+            // Insertar detalles de facturas - MODIFICADO
             if (!empty($facturasData)) {
                 $dataArray = json_decode($facturasData, true);
                 
@@ -217,11 +219,11 @@ switch($accion) {
                     $stmtDetalle = $pdo->prepare("
                         INSERT INTO detalle_recibo_caja 
                         (idRecibo, consecutivoFactura, valorAplicado, fechaVencimiento)
-                        VALUES (:idRecibo, :consecutivo, :valor, :fechaVenc)
+                        VALUES (:idRecibo, :numero_factura, :valor, :fechaVenc)
                     ");
                     $stmtDetalle->execute([
                         ':idRecibo' => $idRecibo,
-                        ':consecutivo' => $facturaData['consecutivo'],
+                        ':numero_factura' => $facturaData['numero_factura'],
                         ':valor' => $facturaData['valor'],
                         ':fechaVenc' => $facturaData['fechaVencimiento'] ?: null
                     ]);
@@ -252,7 +254,7 @@ switch($accion) {
             // Restaurar saldos de las facturas del recibo original
             restaurarSaldosFacturas($pdo, $txtId);
             
-            // Validar nuevos saldos
+            // Validar nuevos saldos - MODIFICADO
             if (!empty($facturasData)) {
                 $dataArray = json_decode($facturasData, true);
                 
@@ -261,13 +263,13 @@ switch($accion) {
                         SELECT 
                             COALESCE(CAST(saldoReal AS DECIMAL(10,2)), CAST(valorTotal AS DECIMAL(10,2))) as saldoReal
                         FROM facturav 
-                        WHERE consecutivo = :consecutivo
+                        WHERE numero_factura = :numero_factura
                     ");
-                    $stmt->execute([':consecutivo' => $facturaData['consecutivo']]);
+                    $stmt->execute([':numero_factura' => $facturaData['numero_factura']]);
                     $factura = $stmt->fetch(PDO::FETCH_ASSOC);
                     
                     if (!$factura || floatval($facturaData['valor']) > $factura['saldoReal']) {
-                        throw new Exception("El valor aplicado a la factura {$facturaData['consecutivo']} excede el saldo disponible");
+                        throw new Exception("El valor aplicado a la factura {$facturaData['numero_factura']} excede el saldo disponible");
                     }
                 }
             }
@@ -309,7 +311,7 @@ switch($accion) {
             // Restaurar saldos de las facturas del recibo original
             restaurarSaldosFacturas($pdo, $txtId);
             
-            // Insertar nuevos detalles
+            // Insertar nuevos detalles - MODIFICADO
             if (!empty($facturasData)) {
                 $dataArray = json_decode($facturasData, true);
                 
@@ -317,11 +319,11 @@ switch($accion) {
                     $stmtDetalle = $pdo->prepare("
                         INSERT INTO detalle_recibo_caja 
                         (idRecibo, consecutivoFactura, valorAplicado, fechaVencimiento)
-                        VALUES (:idRecibo, :consecutivo, :valor, :fechaVenc)
+                        VALUES (:idRecibo, :numero_factura, :valor, :fechaVenc)
                     ");
                     $stmtDetalle->execute([
                         ':idRecibo' => $txtId,
-                        ':consecutivo' => $facturaData['consecutivo'],
+                        ':numero_factura' => $facturaData['numero_factura'],
                         ':valor' => $facturaData['valor'],
                         ':fechaVenc' => $facturaData['fechaVencimiento'] ?: null
                     ]);
@@ -392,6 +394,7 @@ $mediosPago = [];
 $stmt = $pdo->query("SELECT metodoPago, cuentaContable FROM mediosdepago");
 while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
     $mediosPago[] = $row;
+    
 }
 ?>
 
@@ -656,7 +659,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <div class="col-md-6">
             <label for="fecha" class="form-label fw-bold">Fecha del Recibo*</label>
             <input type="date" class="form-control" id="fecha" name="fecha"
-                   value="<?php echo htmlspecialchars($fecha); ?>" required>
+              value="<?php echo htmlspecialchars($fecha); ?>" required readonly>
           </div>
           <div class="col-md-6">
             <label for="consecutivo" class="form-label fw-bold">Consecutivo*</label>
@@ -685,16 +688,16 @@ document.addEventListener("DOMContentLoaded", () => {
           <i class="fas fa-file-invoice-dollar"></i> Cargar Facturas Pendientes
         </button>
 
-        <!-- Tabla de facturas -->
+        <!-- Tabla de facturas - MODIFICADO: Encabezados cambiados -->
         <div class="table-container">
           <table id="tablaFacturas">
             <thead>
               <tr>
-                <th style="width: 12%;">Consecutivo</th>
+                <th style="width: 12%;">Número Factura</th> <!-- Cambiado de Consecutivo -->
                 <th style="width: 12%;">Fecha Factura</th>
                 <th style="width: 13%;">Valor Total</th>
                 <th style="width: 13%;">Saldo Pendiente</th>
-                <th style="width: 13%;">Fecha Vencimiento*</th>
+                <th style="width: 13%;">Fecha Vencimiento*</th> <!-- Ahora viene de la BD -->
                 <th style="width: 17%;">Valor a Aplicar*</th>
                 <th style="width: 10%; text-align: center;">Seleccionar</th>
               </tr>
@@ -935,7 +938,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    // Renderizar facturas con o sin detalles previos
+    // Renderizar facturas con o sin detalles previos - MODIFICADO
     function renderFacturas(facturas, detalles) {
       const tbody = document.getElementById("facturasBody");
       tbody.innerHTML = "";
@@ -943,12 +946,12 @@ document.addEventListener("DOMContentLoaded", () => {
       facturas.forEach(f => {
         const tr = document.createElement("tr");
         tr.className = "factura-row";
-        tr.dataset.consecutivo = f.consecutivo;
+        tr.dataset.numero_factura = f.numero_factura; // Cambiado de consecutivo
         tr.dataset.valorTotal = f.valorTotal;
         tr.dataset.saldoReal = f.saldoReal;
         
         // Buscar si esta factura estaba previamente seleccionada
-        const detalleExistente = detalles.find(d => d.consecutivoFactura === f.consecutivo);
+        const detalleExistente = detalles.find(d => d.consecutivoFactura === f.numero_factura); // Cambiado
         
         // Calcular porcentaje de saldo
         const porcentajeSaldo = (parseFloat(f.saldoReal) / parseFloat(f.valorTotal)) * 100;
@@ -957,7 +960,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (porcentajeSaldo === 100) badgeClass = 'badge-info';
         
         tr.innerHTML = `
-          <td><strong>${f.consecutivo}</strong></td>
+          <td><strong>${f.numero_factura || f.consecutivo}</strong></td> <!-- Cambiado -->
           <td>${formatDate(f.fecha)}</td>
           <td><strong>${parseFloat(f.valorTotal).toFixed(2)}</strong></td>
           <td>
@@ -968,7 +971,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <td>
             <input type="date" 
                    class="form-control fecha-venc" 
-                   value="${detalleExistente ? detalleExistente.fechaVencimiento : ''}"
+                   value="${f.fecha_vencimiento || (detalleExistente ? detalleExistente.fechaVencimiento : '')}"
                    placeholder="Fecha vencimiento">
           </td>
           <td>
@@ -1013,8 +1016,22 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       });
       
+      // NUEVO: Evento para selección automática del valor - REQUERIMIENTO 06
       document.querySelectorAll(".factura-checkbox").forEach(checkbox => {
-        checkbox.addEventListener("change", calcularTotal);
+        checkbox.addEventListener("change", function() {
+          const row = this.closest('.factura-row');
+          const valorInput = row.querySelector('.valor-aplicar');
+          const saldoReal = parseFloat(row.dataset.saldoReal);
+          
+          if (this.checked && valorInput) {
+            // REQUERIMIENTO 06: Seleccionar automáticamente el valor pendiente
+            valorInput.value = saldoReal.toFixed(2);
+          } else if (valorInput) {
+            valorInput.value = '';
+          }
+          
+          calcularTotal();
+        });
       });
       
       // Calcular total inicial si hay detalles
@@ -1030,7 +1047,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return d.toLocaleDateString('es-CO');
     }
 
-    // Calcular total
+    // Calcular total - MODIFICADO
     function calcularTotal() {
       let total = 0;
       let facturasSeleccionadas = [];
@@ -1048,7 +1065,7 @@ document.addEventListener("DOMContentLoaded", () => {
           
           if (valor > 0) {
             total += valor;
-            facturasSeleccionadas.push(row.dataset.consecutivo);
+            facturasSeleccionadas.push(row.dataset.numero_factura); // Cambiado
             valoresAplicados.push(valor.toFixed(2));
             
             const fechaVenc = fechaVencInput && fechaVencInput.value ? fechaVencInput.value : '';
@@ -1056,9 +1073,9 @@ document.addEventListener("DOMContentLoaded", () => {
               fechasVencimiento.push(fechaVenc);
             }
             
-            // Agregar a array de objetos para JSON
+            // Agregar a array de objetos para JSON - MODIFICADO
             facturasData.push({
-              consecutivo: row.dataset.consecutivo,
+              numero_factura: row.dataset.numero_factura, // Cambiado
               valor: valor.toFixed(2),
               fechaVencimiento: fechaVenc
             });
@@ -1199,6 +1216,25 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         });
       });
+    });
+
+    // Establecer fecha actual al cargar la página si está vacía
+    window.addEventListener('DOMContentLoaded', function() {
+      const fechaInput = document.getElementById('fecha');
+      const txtId = document.getElementById('txtId').value;
+      
+      // Solo establecer fecha actual si NO estamos editando
+      if (!txtId || txtId.trim() === "") {
+        // CORREGIDO: Obtener fecha local de Colombia (GMT-5)
+        const hoy = new Date();
+        const year = hoy.getFullYear();
+        const month = String(hoy.getMonth() + 1).padStart(2, '0');
+        const day = String(hoy.getDate()).padStart(2, '0');
+        const fechaLocal = `${year}-${month}-${day}`;
+        
+        fechaInput.value = fechaLocal;
+        fechaInput.setAttribute('max', fechaLocal);
+      }
     });
   </script>
 
