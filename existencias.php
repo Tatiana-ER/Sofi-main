@@ -173,6 +173,33 @@ if (isset($_POST['action'])) {
     /* Ajuste específico para el input del total */
     #total { text-align: right !important; }
 
+    /* Botones de exportación */
+    .btn-exportar {
+      background-color: #17a2b8;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 20px;
+      margin-left: 10px;
+    }
+    .btn-exportar:hover {
+      background-color: #138496;
+    }
+    .btn-pdf {
+      background-color: #dc3545;
+    }
+    .btn-pdf:hover {
+      background-color: #c82333;
+    }
+    .btn-excel {
+      background-color: #28a745;
+    }
+    .btn-excel:hover {
+      background-color: #218838;
+    }
+
   </style>
 </head>
 
@@ -212,70 +239,80 @@ if (isset($_POST['action'])) {
       </div>
 
       <!-- FORMULARIO PRINCIPAL: Envía todos los datos, incluyendo la tabla, a generarPdfExistencias.php -->
-      <form action="generarPdfExistencias.php" method="POST" target="_blank">
-
-        <!-- Buscadores -->
-        <div class="row g-3">
-          <div class="col-md-4">
-            <label class="fw-bold">Código de Producto</label>
-            <input type="text" class="form-control" id="codigoBuscar" placeholder="Ej: PROD001">
-          </div>
-
-          <div class="col-md-8 position-relative">
-            <label class="fw-bold">Nombre del Producto</label>
-            <input type="text" class="form-control" id="nombreBuscar" placeholder="Escriba para buscar..." autocomplete="off">
-            <div id="suggestions" class="suggestions-box" style="display:none;"></div>
-          </div>
-        </div>
-
-        <div class="row g-3 mt-2">
-          <div class="col-md-12">
-            <label class="fw-bold">Producto Seleccionado</label>
-            <input type="text" class="form-control" id="nombreProducto" readonly placeholder="Seleccione un producto...">
-          </div>
-        </div>
-
-        <!-- Fechas (Campos de Filtro) -->
-        <div class="row g-3 mt-3">
-          <div class="col-md-6">
-            <label class="fw-bold">Fecha Desde</label>
-            <input type="date" class="form-control" name="fechaDesde">
-          </div>
-          <div class="col-md-6">
-            <label class="fw-bold">Fecha Hasta</label>
-            <input type="date" class="form-control" name="fechaHasta">
-          </div>
-        </div>
-
-        <!-- Tabla de Resultados -->
-        <div class="table-container mt-5">
-          <table id="informe">
-            <thead>
-              <tr>
-                <th>Código de Producto</th>
-                <th>Nombre Producto</th>
-                <th>Saldo Cantidades</th>
-              </tr>
-            </thead>
-            <!-- La tablaBody DEBE estar dentro del form para enviar sus inputs -->
-            <tbody id="tableBody"></tbody>
-          </table>
-        </div>
-
-        <!-- Total de Cantidades -->
-        <div class="mt-3 text-end d-flex justify-content-end align-items-center">
-          <label class="fw-bold me-2">Total de Cantidades:</label>
-          <!-- Se deja como number para consistencia, y se envía como 'total' -->
-          <input type="number" id="total" name="total" readonly class="form-control" style="width:150px;text-align:right;">
-        </div>
-
-        <!-- Botones de Acción -->
-        <div class="mt-4 text-center">
-          <button type="submit" class="btn btn-primary me-2">
-            <i class="fas fa-file-pdf"></i> Descargar PDF
-          </button>
-        </div>
+      <form id="formPdf" action="generarPdfExistencias.php" method="POST" target="_blank" style="display: none;">
+          <input type="hidden" id="datosPdf" name="datos">
       </form>
+
+      <form id="formExcel" action="generarExcelExistencias.php" method="POST" target="_blank" style="display: none;">
+          <input type="hidden" id="datosExcel" name="datos">
+      </form>
+
+      <!-- Buscadores -->
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="fw-bold">Código de Producto</label>
+          <input type="text" class="form-control" id="codigoBuscar" placeholder="Ej: PROD001">
+        </div>
+
+        <div class="col-md-8 position-relative">
+          <label class="fw-bold">Nombre del Producto</label>
+          <input type="text" class="form-control" id="nombreBuscar" placeholder="Escriba para buscar..." autocomplete="off">
+          <div id="suggestions" class="suggestions-box" style="display:none;"></div>
+        </div>
+      </div>
+
+      <div class="row g-3 mt-2">
+        <div class="col-md-12">
+          <label class="fw-bold">Producto Seleccionado</label>
+          <input type="text" class="form-control" id="nombreProducto" readonly placeholder="Seleccione un producto...">
+        </div>
+      </div>
+
+      <!-- Fechas (Campos de Filtro) -->
+      <div class="row g-3 mt-3">
+        <div class="col-md-6">
+          <label class="fw-bold">Fecha Desde</label>
+          <input type="date" class="form-control" id="fechaDesde">
+        </div>
+        <div class="col-md-6">
+          <label class="fw-bold">Fecha Hasta</label>
+          <input type="date" class="form-control" id="fechaHasta">
+        </div>
+      </div>
+
+      <!-- Tabla de Resultados -->
+      <div class="table-container mt-5">
+        <table id="informe">
+          <thead>
+            <tr>
+              <th>Código de Producto</th>
+              <th>Nombre Producto</th>
+              <th>Saldo Cantidades</th>
+            </tr>
+          </thead>
+          <!-- La tablaBody DEBE estar dentro del form para enviar sus inputs -->
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Total de Cantidades -->
+      <div class="mt-3 text-end d-flex justify-content-end align-items-center">
+        <label class="fw-bold me-2">Total de Cantidades:</label>
+        <!-- Se deja como number para consistencia, y se envía como 'total' -->
+        <input type="number" id="total" name="total" readonly class="form-control" style="width:150px;text-align:right;">
+      </div>
+
+      <!-- Botones de Acción -->
+      <div class="mt-4 text-center">
+        <button type="button" class="btn-exportar btn-pdf" onclick="exportarPDF()">
+          <i class="fas fa-file-pdf"></i> Descargar PDF
+        </button>
+        <button type="button" class="btn-exportar btn-excel" onclick="exportarExcel()">
+          <i class="fas fa-file-excel"></i> Descargar Excel
+        </button>
+        <br><br>
+        <br>
+      </div>
     </div>
   </div>
 
@@ -451,6 +488,87 @@ if (isset($_POST['action'])) {
       });
       // El total se muestra sin decimales.
       document.getElementById("total").value = total;
+    }
+
+    // 🔹 Función para exportar a PDF
+    function exportarPDF() {
+      const tbody = document.getElementById("tableBody");
+      if (tbody.children.length === 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Sin datos',
+          text: 'No hay datos para exportar. Agregue productos a la tabla primero.'
+        });
+        return;
+      }
+
+      // Preparar datos para exportación
+      const datosExportar = prepararDatosExportacion();
+      
+      // Enviar datos al formulario PDF
+      document.getElementById('datosPdf').value = JSON.stringify(datosExportar);
+      document.getElementById('formPdf').submit();
+
+      Swal.fire({
+        icon: 'success',
+        title: 'PDF Generado',
+        text: 'El informe se está generando en formato PDF...',
+        timer: 2000,
+        showConfirmButton: false
+      });
+    }
+
+    // 🔹 Función para exportar a Excel
+    function exportarExcel() {
+      const tbody = document.getElementById("tableBody");
+      if (tbody.children.length === 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Sin datos',
+          text: 'No hay datos para exportar. Agregue productos a la tabla primero.'
+        });
+        return;
+      }
+
+      // Preparar datos para exportación
+      const datosExportar = prepararDatosExportacion();
+      
+      // Enviar datos al formulario Excel
+      document.getElementById('datosExcel').value = JSON.stringify(datosExportar);
+      document.getElementById('formExcel').submit();
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Excel Generado',
+        text: 'El informe se está generando en formato Excel...',
+        timer: 2000,
+        showConfirmButton: false
+      });
+    }
+
+    // 🔹 Función para preparar datos para exportación
+    function prepararDatosExportacion() {
+      const datos = {
+        productos: [],
+        total: parseInt(document.getElementById('total').value) || 0,
+        fechaDesde: document.getElementById('fechaDesde').value,
+        fechaHasta: document.getElementById('fechaHasta').value,
+        fechaGeneracion: new Date().toLocaleDateString('es-ES'),
+        titulo: 'Informe de Existencias de Inventario'
+      };
+
+      // Recopilar todos los productos de la tabla
+      const filas = document.querySelectorAll('#tableBody tr');
+      filas.forEach(fila => {
+        const producto = {
+          codigo: fila.cells[0].querySelector('input').value,
+          nombre: fila.cells[1].querySelector('input').value,
+          cantidad: parseInt(fila.cells[2].querySelector('input').value) || 0
+        };
+        datos.productos.push(producto);
+      });
+
+      return datos;
     }
   </script>
 </body>
