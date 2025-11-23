@@ -66,19 +66,20 @@ class PDF extends FPDF
         $this->Ln(3);
         
         // Colores y fuente de la cabecera
-        $this->SetFillColor(220, 53, 69); // Color rojo
+        $this->SetFillColor(13, 110, 253); // Color azul (bootstrap primary)
         $this->SetTextColor(255, 255, 255);
         $this->SetDrawColor(200, 200, 200);
         $this->SetLineWidth(.3);
-        $this->SetFont('Arial', 'B', 9);
+        $this->SetFont('Arial', 'B', 8);
         
-        // Cabecera de la tabla
-        $anchos = array(30, 60, 33, 33, 33);
+        // Cabecera de la tabla - ACTUALIZADO con 6 columnas
+        $anchos = array(25, 50, 28, 28, 28, 28);
         $headers = array(
             utf8_decode('Identificación'),
             'Nombre del Proveedor',
-            'Total Adeudado',
-            'Valor Pagos',
+            'Total Cartera',
+            'Pagos Realizados',
+            'Valor Anticipos',
             'Saldo por Pagar'
         );
         
@@ -90,7 +91,7 @@ class PDF extends FPDF
         // Restaurar colores para el contenido
         $this->SetFillColor(255, 255, 255);
         $this->SetTextColor(0, 0, 0);
-        $this->SetFont('Arial', '', 9);
+        $this->SetFont('Arial', '', 8);
         
         // Datos de los proveedores
         $fill = false;
@@ -102,11 +103,15 @@ class PDF extends FPDF
                 $this->SetFillColor(255, 255, 255);
             }
             
+            // Verificar si existe valorAnticipos, si no, usar 0
+            $valorAnticipos = isset($proveedor['valorAnticipos']) ? $proveedor['valorAnticipos'] : 0;
+            
             $this->Cell($anchos[0], 7, $proveedor['identificacion'], 1, 0, 'C', true);
-            $this->Cell($anchos[1], 7, utf8_decode(substr($proveedor['nombre'], 0, 35)), 1, 0, 'L', true);
+            $this->Cell($anchos[1], 7, utf8_decode(substr($proveedor['nombre'], 0, 30)), 1, 0, 'L', true);
             $this->Cell($anchos[2], 7, number_format($proveedor['totalAdeudado'], 2), 1, 0, 'R', true);
             $this->Cell($anchos[3], 7, number_format($proveedor['valorPagos'], 2), 1, 0, 'R', true);
-            $this->Cell($anchos[4], 7, number_format($proveedor['saldoPagar'], 2), 1, 0, 'R', true);
+            $this->Cell($anchos[4], 7, number_format($valorAnticipos, 2), 1, 0, 'R', true);
+            $this->Cell($anchos[5], 7, number_format($proveedor['saldoPagar'], 2), 1, 0, 'R', true);
             $this->Ln();
             
             $fill = !$fill;
@@ -114,15 +119,20 @@ class PDF extends FPDF
         
         // Fila de totales
         $this->SetFillColor(248, 249, 250);
-        $this->SetFont('Arial', 'B', 10);
+        $this->SetFont('Arial', 'B', 9);
+        
+        // Verificar si existe totalAnticipos en los totales
+        $totalAnticipos = isset($totales['totalAnticipos']) ? $totales['totalAnticipos'] : 0;
+        
         $this->Cell($anchos[0] + $anchos[1], 8, 'TOTAL', 1, 0, 'C', true);
         $this->Cell($anchos[2], 8, number_format($totales['totalAdeudado'], 2), 1, 0, 'R', true);
         $this->Cell($anchos[3], 8, number_format($totales['totalPagos'], 2), 1, 0, 'R', true);
-        $this->Cell($anchos[4], 8, number_format($totales['totalSaldo'], 2), 1, 0, 'R', true);
+        $this->Cell($anchos[4], 8, number_format($totalAnticipos, 2), 1, 0, 'R', true);
+        $this->Cell($anchos[5], 8, number_format($totales['totalSaldo'], 2), 1, 0, 'R', true);
         $this->Ln();
     }
+    
 }
-
 // Crear instancia del PDF
 $pdf = new PDF('L', 'mm', 'Letter'); // Orientación horizontal
 $pdf->AliasNbPages();
@@ -131,6 +141,7 @@ $pdf->AddPage();
 
 // Generar tabla
 $pdf->TablaProveedores($datosProveedores['proveedores'], $datosProveedores['totales']);
+
 
 // Información adicional al final
 $pdf->Ln(10);
@@ -142,7 +153,7 @@ $pdf->Cell(0, 5, utf8_decode('Creado por iniciativa del programa de Contaduría 
 
 // Generar fecha y hora de generación
 $fechaGeneracion = date('d/m/Y H:i:s');
-$pdf->Ln(3);
+$pdf->Ln(3);    
 $pdf->SetFont('Arial', '', 8);
 $pdf->Cell(0, 5, utf8_decode('Documento generado el: ') . $fechaGeneracion, 0, 1, 'C');
 

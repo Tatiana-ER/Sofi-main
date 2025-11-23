@@ -4,44 +4,56 @@ require_once 'dompdf/autoload.inc.php';
 use Dompdf\Dompdf;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Recolectar datos del formulario (arrays)
-    $identificaciones = $_POST['identificaciones'] ?? [];
-    $nombres = $_POST['nombres'] ?? [];
-    $totalFacturado = $_POST['totalFacturado'] ?? [];
-    $abonosAnticipos = $_POST['abonosAnticipos'] ?? [];
-    $saldoCobrar = $_POST['saldoCobrar'] ?? [];
-    $totalGeneralFacturado = $_POST['totalGeneralFacturado'] ?? 0;
-    $totalGeneralAbonos = $_POST['totalGeneralAbonos'] ?? 0;
-    $totalGeneralSaldo = $_POST['totalGeneralSaldo'] ?? 0;
-    $fechaCorte = $_POST['fechaCorte'] ?? '';
+    // Obtener los datos en formato JSON
+    $datosClientes = isset($_POST['datosClientes']) ? json_decode($_POST['datosClientes'], true) : null;
+    $fechaCorte = $_POST['fecha'] ?? date('Y-m-d');
+
+    // Validar que los datos existan
+    if (!$datosClientes || !isset($datosClientes['clientes'])) {
+        die("Error: No se recibieron datos de clientes");
+    }
+
+    $clientes = $datosClientes['clientes'];
+    $totales = $datosClientes['totales'];
 
     // Crear las filas dinámicamente
     $filas = '';
-    if (!empty($identificaciones)) {
-        for ($i = 0; $i < count($identificaciones); $i++) {
-            $identificacion = htmlspecialchars($identificaciones[$i]);
-            $nombre = htmlspecialchars($nombres[$i]);
-            $facturado = htmlspecialchars($totalFacturado[$i]);
-            $abonos = htmlspecialchars($abonosAnticipos[$i]);
-            $saldo = htmlspecialchars($saldoCobrar[$i]);
+    if (!empty($clientes)) {
+        foreach ($clientes as $cliente) {
+            $identificacion = htmlspecialchars($cliente['identificacion']);
+            $nombre = htmlspecialchars($cliente['nombre']);
+            $totalFacturado = number_format($cliente['totalFacturado'], 2);
+            $valorAnticipos = number_format($cliente['valorAnticipos'], 2);
+            $abonosRealizados = number_format($cliente['abonosRealizados'], 2);
+            $saldoCobrar = number_format($cliente['saldoCobrar'], 2);
 
             $filas .= "
                 <tr>
                     <td>$identificacion</td>
                     <td>$nombre</td>
-                    <td style='text-align:right;'>$facturado</td>
-                    <td style='text-align:right;'>$abonos</td>
-                    <td style='text-align:right;'>$saldo</td>
+                    <td style='text-align:right;'>$totalFacturado</td>
+                    <td style='text-align:right;'>$valorAnticipos</td>
+                    <td style='text-align:right;'>$abonosRealizados</td>
+                    <td style='text-align:right;'>$saldoCobrar</td>
                 </tr>
             ";
         }
     } else {
         $filas = "
             <tr>
-                <td colspan='5' style='text-align:center;'>No hay clientes seleccionados</td>
+                <td colspan='6' style='text-align:center;'>No hay clientes seleccionados</td>
             </tr>
         ";
     }
+
+    // Formatear totales
+    $totalGeneralFacturado = number_format($totales['totalFacturado'], 2);
+    $totalGeneralAnticipos = number_format($totales['totalAnticipos'], 2);
+    $totalGeneralAbonos = number_format($totales['totalAbonos'], 2);
+    $totalGeneralSaldo = number_format($totales['totalSaldo'], 2);
+
+    // Formatear fecha de corte
+    $fechaFormateada = date('d/m/Y', strtotime($fechaCorte));
 
     // Crear el contenido HTML para el PDF
     $html = "
@@ -68,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </p>
     
     <div class='info-cliente'>
-        <p><strong>Fecha de Corte:</strong> $fechaCorte</p>
+        <p><strong>Fecha de Corte:</strong> $fechaFormateada</p>
     </div>
 
     <h3 style='text-align: center; color: #333; margin-bottom: 10px;'>ESTADO DE CUENTA</h3>
@@ -79,7 +91,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <th>Identificación</th>
                 <th>Nombre del Cliente</th>
                 <th>Total Facturado</th>
-                <th>Abonos/Anticipos</th>
+                <th>Valor Anticipos</th>
+                <th>Abonos Realizados</th>
                 <th>Saldo por Cobrar</th>
             </tr>
         </thead>
@@ -90,6 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <tr>
                 <th colspan='2' style='text-align:center;'>TOTAL</th>
                 <th style='text-align:right;'>$totalGeneralFacturado</th>
+                <th style='text-align:right;'>$totalGeneralAnticipos</th>
                 <th style='text-align:right;'>$totalGeneralAbonos</th>
                 <th style='text-align:right;'>$totalGeneralSaldo</th>
             </tr>
@@ -111,7 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $dompdf->render();
 
     // Nombre del archivo
-    $dompdf->stream("estado_cuenta_cartera.pdf", ["Attachment" => true]);
+    $dompdf->stream("estado_cuenta_clientes.pdf", ["Attachment" => true]);
     exit;
 }
 ?>

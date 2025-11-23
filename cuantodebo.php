@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             'nombre' => '',
             'totalAdeudado' => 0,
             'valorPagos' => 0,
+            'valorAnticipos' => 0,
             'saldoPagar' => 0
         ];
 
@@ -53,8 +54,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $response['valorPagos'] = floatval($rowPagos['valorPagos']);
             }
 
-            // 3. SALDO POR PAGAR = Total Adeudado - Valor Pagos
-            $response['saldoPagar'] = $response['totalAdeudado'] - $response['valorPagos'];
+            // 3. VALOR ANTICIPOS: Suma de débitos en cuenta 1330 y auxiliares
+            $stmtAnticipos = $pdo->prepare("
+                SELECT COALESCE(SUM(valorDebito), 0) AS valorAnticipos
+                FROM detallecomprobantecontable
+                WHERE cuentaContable LIKE '1330%'
+                AND tercero LIKE CONCAT('%', ?, '%')
+            ");
+            $stmtAnticipos->execute([$cedula]);
+            $rowAnticipos = $stmtAnticipos->fetch(PDO::FETCH_ASSOC);
+
+            if ($rowAnticipos) {
+                $response['valorAnticipos'] = floatval($rowAnticipos['valorAnticipos']);
+            }
+
+            // 4. SALDO POR PAGAR = Total Adeudado - Valor Pagos - Valor Anticipos
+            $response['saldoPagar'] = $response['totalAdeudado'] - $response['valorPagos'] - $response['valorAnticipos'];
         }
 
         echo json_encode($response);
@@ -183,6 +198,18 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
     .btn-limpiar:hover {
       background-color: #5a6268;
     }
+    .btn-exportar {
+      background-color: #17a2b8;
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 10px;
+    }
+    .btn-exportar:hover {
+      background-color: #138496;
+    }
   </style>
 </head>
 
@@ -244,6 +271,11 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
           <input type="hidden" id="fechaPdf" name="fecha">
       </form>
 
+      <form id="formExcel" action="exportar_cuanto_debo_excel.php" method="POST" target="_blank" style="display: none;">
+          <input type="hidden" id="datosProveedoresExcel" name="datosProveedores">
+          <input type="hidden" id="fechaExcel" name="fecha">
+      </form>
+
         <div class="section-title mt-5">
           <h4>ESTADO DE CUENTAS POR PAGAR</h4>
         </div>
@@ -256,6 +288,7 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
                   <th>Identificación</th>
                   <th>Nombre del Proveedor</th>
                   <th>Total Cartera</th>
+                  <th>Pagos Realizados</th>
                   <th>Valor Anticipos</th>
                   <th>Saldo por Pagar</th>
                   <th>Acciones</th>
@@ -269,6 +302,7 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
                   <th colspan="2">TOTAL</th>
                   <th id="totalAdeudadoSum">0.00</th>
                   <th id="totalPagosSum">0.00</th>
+                  <th id="totalAnticiposSum">0.00</th>
                   <th id="totalSaldoSum">0.00</th>
                   <th></th>
                 </tr>
@@ -281,8 +315,11 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
           <button type="button" class="btn-limpiar" onclick="limpiarTabla()">
             <i class="fas fa-eraser"></i> Limpiar Tabla
           </button>
-          <button type="button" class="btn btn-success" onclick="generarPDF()">
+          <button type="button" class="btn btn-primary" onclick="generarPDF()">
             <i class="fas fa-file-pdf"></i> Generar PDF
+          </button>
+          <button type="button" class="btn btn-success ms-2" onclick="exportarExcel()" style="background-color: #17a2b8; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin-left: 10px;">
+            <i class="fas fa-file-excel"></i> Generar Excel
           </button>
         </div>
 
@@ -412,13 +449,14 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
         // Validar que los datos sean números válidos
         const totalAdeudado = parseFloat(data.totalAdeudado) || 0;
         const valorPagos = parseFloat(data.valorPagos) || 0;
+        const valorAnticipos = parseFloat(data.valorAnticipos) || 0;
         const saldoPagar = parseFloat(data.saldoPagar) || 0;
 
         // Agregar proveedor al array
         proveedoresAgregados.push(cedula);
 
         // Agregar fila a la tabla
-        agregarFilaProveedor(cedula, data.nombre, totalAdeudado, valorPagos, saldoPagar);
+        agregarFilaProveedor(cedula, data.nombre, totalAdeudado, valorPagos, valorAnticipos, saldoPagar);
 
         // Actualizar totales
         actualizarTotales();
@@ -447,7 +485,7 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
     }
 
     // Función para agregar una fila a la tabla
-    function agregarFilaProveedor(cedula, nombre, totalAdeudado, valorPagos, saldoPagar) {
+    function agregarFilaProveedor(cedula, nombre, totalAdeudado, valorPagos, valorAnticipos, saldoPagar) {
       const tbody = document.getElementById('tablaProveedores');
       const fila = document.createElement('tr');
       fila.setAttribute('data-cedula', cedula);
@@ -457,6 +495,7 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
         <td>${nombre}</td>
         <td class="total-adeudado">${formatearMoneda(totalAdeudado)}</td>
         <td class="valor-pagos">${formatearMoneda(valorPagos)}</td>
+        <td class="valor-anticipos">${formatearMoneda(valorAnticipos)}</td>
         <td class="saldo-pagar">${formatearMoneda(saldoPagar)}</td>
         <td>
           <button type="button" class="btn-eliminar" onclick="eliminarFila('${cedula}')">
@@ -544,21 +583,25 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
     function actualizarTotales() {
       let totalAdeudado = 0;
       let totalPagos = 0;
+      let totalAnticipos = 0;
       let totalSaldo = 0;
 
       const filas = document.querySelectorAll('#tablaProveedores tr');
       filas.forEach(fila => {
         const adeudado = parseFloat(fila.querySelector('.total-adeudado').textContent.replace(/,/g, '')) || 0;
         const pagos = parseFloat(fila.querySelector('.valor-pagos').textContent.replace(/,/g, '')) || 0;
+        const anticipos = parseFloat(fila.querySelector('.valor-anticipos').textContent.replace(/,/g, '')) || 0;
         const saldo = parseFloat(fila.querySelector('.saldo-pagar').textContent.replace(/,/g, '')) || 0;
 
         totalAdeudado += adeudado;
         totalPagos += pagos;
+        totalAnticipos += anticipos;
         totalSaldo += saldo;
       });
 
       document.getElementById('totalAdeudadoSum').textContent = formatearMoneda(totalAdeudado);
       document.getElementById('totalPagosSum').textContent = formatearMoneda(totalPagos);
+      document.getElementById('totalAnticiposSum').textContent = formatearMoneda(totalAnticipos);
       document.getElementById('totalSaldoSum').textContent = formatearMoneda(totalSaldo);
     }
 
@@ -591,6 +634,7 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
         totales: {
           totalAdeudado: 0,
           totalPagos: 0,
+          totalAnticipos: 0,
           totalSaldo: 0
         }
       };
@@ -602,6 +646,7 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
         const nombre = fila.querySelector('td:nth-child(2)').textContent;
         const totalAdeudado = parseFloat(fila.querySelector('.total-adeudado').textContent.replace(/,/g, '')) || 0;
         const valorPagos = parseFloat(fila.querySelector('.valor-pagos').textContent.replace(/,/g, '')) || 0;
+        const valorAnticipos = parseFloat(fila.querySelector('.valor-anticipos').textContent.replace(/,/g, '')) || 0;
         const saldoPagar = parseFloat(fila.querySelector('.saldo-pagar').textContent.replace(/,/g, '')) || 0;
 
         datosPDF.proveedores.push({
@@ -609,18 +654,21 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
           nombre: nombre,
           totalAdeudado: totalAdeudado,
           valorPagos: valorPagos,
+          valorAnticipos: valorAnticipos,
           saldoPagar: saldoPagar
         });
 
         // Acumular totales
         datosPDF.totales.totalAdeudado += totalAdeudado;
         datosPDF.totales.totalPagos += valorPagos;
+        datosPDF.totales.totalAnticipos += valorAnticipos;
         datosPDF.totales.totalSaldo += saldoPagar;
       });
 
       // Formatear totales para evitar decimales largos
       datosPDF.totales.totalAdeudado = parseFloat(datosPDF.totales.totalAdeudado.toFixed(2));
       datosPDF.totales.totalPagos = parseFloat(datosPDF.totales.totalPagos.toFixed(2));
+      datosPDF.totales.totalAnticipos = parseFloat(datosPDF.totales.totalAnticipos.toFixed(2));
       datosPDF.totales.totalSaldo = parseFloat(datosPDF.totales.totalSaldo.toFixed(2));
 
       console.log('Datos enviados al PDF:', datosPDF);
@@ -637,6 +685,83 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
         icon: 'success',
         title: 'PDF generado',
         text: 'El PDF se está generando...',
+        timer: 2000,
+        showConfirmButton: false
+      });
+    }
+
+    // Función para exportar a Excel
+    function exportarExcel() {
+      // Verificar que haya proveedores en la tabla
+      if (proveedoresAgregados.length === 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Tabla vacía',
+          text: 'No hay proveedores en la tabla para exportar a Excel'
+        });
+        return;
+      }
+
+      // Obtener fecha de corte
+      const fechaCorte = document.getElementById('fecha').value;
+      
+      // Preparar datos para Excel (misma estructura que PDF)
+      const datosExcel = {
+        proveedores: [],
+        totales: {
+          totalAdeudado: 0,
+          totalPagos: 0,
+          totalAnticipos: 0,
+          totalSaldo: 0
+        }
+      };
+
+      // Recorrer todas las filas de la tabla
+      const filas = document.querySelectorAll('#tablaProveedores tr');
+      filas.forEach(fila => {
+        const cedula = fila.querySelector('td:nth-child(1)').textContent;
+        const nombre = fila.querySelector('td:nth-child(2)').textContent;
+        const totalAdeudado = parseFloat(fila.querySelector('.total-adeudado').textContent.replace(/,/g, '')) || 0;
+        const valorPagos = parseFloat(fila.querySelector('.valor-pagos').textContent.replace(/,/g, '')) || 0;
+        const valorAnticipos = parseFloat(fila.querySelector('.valor-anticipos').textContent.replace(/,/g, '')) || 0;
+        const saldoPagar = parseFloat(fila.querySelector('.saldo-pagar').textContent.replace(/,/g, '')) || 0;
+
+        datosExcel.proveedores.push({
+          identificacion: cedula,
+          nombre: nombre,
+          totalAdeudado: totalAdeudado,
+          valorPagos: valorPagos,
+          valorAnticipos: valorAnticipos,
+          saldoPagar: saldoPagar
+        });
+
+        // Acumular totales
+        datosExcel.totales.totalAdeudado += totalAdeudado;
+        datosExcel.totales.totalPagos += valorPagos;
+        datosExcel.totales.totalAnticipos += valorAnticipos;
+        datosExcel.totales.totalSaldo += saldoPagar;
+      });
+
+      // Formatear totales
+      datosExcel.totales.totalAdeudado = parseFloat(datosExcel.totales.totalAdeudado.toFixed(2));
+      datosExcel.totales.totalPagos = parseFloat(datosExcel.totales.totalPagos.toFixed(2));
+      datosExcel.totales.totalAnticipos = parseFloat(datosExcel.totales.totalAnticipos.toFixed(2));
+      datosExcel.totales.totalSaldo = parseFloat(datosExcel.totales.totalSaldo.toFixed(2));
+
+      console.log('Datos enviados a Excel:', datosExcel);
+
+      // Enviar datos al formulario oculto de Excel
+      document.getElementById('datosProveedoresExcel').value = JSON.stringify(datosExcel);
+      document.getElementById('fechaExcel').value = fechaCorte;
+
+      // Enviar formulario
+      document.getElementById('formExcel').submit();
+
+      // Mostrar mensaje de éxito
+      Swal.fire({
+        icon: 'success',
+        title: 'Excel generado',
+        text: 'El archivo Excel se está generando...',
         timer: 2000,
         showConfirmButton: false
       });

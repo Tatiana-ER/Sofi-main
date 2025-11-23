@@ -225,9 +225,8 @@ if (isset($_POST['action'])) {
     </div>
   </header>
 
-  <div class="container" style="margin-top: 80px;">
-
-    <!-- Botón de Regresar -->
+  <!-- Services Section -->
+  <section id="services" class="services">
     <button class="btn-ir" onclick="window.location.href='informesinventarios.php'">
       <i class="fa-solid fa-arrow-left"></i> Regresar
     </button>
@@ -304,10 +303,10 @@ if (isset($_POST['action'])) {
 
       <!-- Botones de Acción -->
       <div class="mt-4 text-center">
-        <button type="button" class="btn-exportar btn-pdf" onclick="exportarPDF()">
+        <button type="button" class="btn btn-primary" onclick="exportarPDF()">
           <i class="fas fa-file-pdf"></i> Descargar PDF
         </button>
-        <button type="button" class="btn-exportar btn-excel" onclick="exportarExcel()">
+        <button type="button" class="btn btn-success ms-2" onclick="exportarExcel()">
           <i class="fas fa-file-excel"></i> Descargar Excel
         </button>
         <br><br>
@@ -315,6 +314,7 @@ if (isset($_POST['action'])) {
       </div>
     </div>
   </div>
+</section>
 
   <!-- Footer -->
   <footer id="footer" class="footer-minimalista">

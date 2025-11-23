@@ -257,9 +257,15 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
         </div>
       </div>
 
-      <form id="formPdf" action="generar_pdf.php" method="POST" target="_blank" style="display: none;">
-          <!-- Este se llenará dinámicamente con JavaScript -->
-      </form>
+        <form id="formPdf" action="generar_pdf.php" method="POST" target="_blank" style="display: none;">
+            <input type="hidden" id="datosClientesPdf" name="datosClientes">
+            <input type="hidden" id="fechaPdf" name="fecha">
+        </form>
+
+        <form id="formExcel" action="generar_excel_clientes.php" method="POST" target="_blank" style="display: none;">
+        <input type="hidden" id="datosClientesExcel" name="datosClientes">
+        <input type="hidden" id="fechaExcel" name="fecha">
+         </form>
 
         <div class="section-title mt-5">
           <h4>ESTADO DE CUENTA</h4>
@@ -296,14 +302,17 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'cliente') {
           </div>
         </div>
 
-        <div class="mt-4">
-          <button type="button" class="btn-limpiar" onclick="limpiarTabla()">
-            <i class="fas fa-eraser"></i> Limpiar Tabla
-          </button>
-          <button type="button" class="btn btn-success" onclick="generarPDF()">
-            <i class="fas fa-file-pdf"></i> Generar PDF
-          </button>
-        </div>
+          <div class="mt-4">
+            <button type="button" class="btn-limpiar" onclick="limpiarTabla()">
+              <i class="fas fa-eraser"></i> Limpiar Tabla
+            </button>
+            <button type="button" class="btn btn-success" onclick="generarPDF()">
+              <i class="fas fa-file-pdf"></i> Generar PDF
+            </button>
+            <button type="button" class="btn btn-primary" onclick="generarExcel()">
+              <i class="fas fa-file-excel"></i> Generar Excel
+            </button>
+          </div>
 
       </form>
 
@@ -642,135 +651,173 @@ function actualizarTotales() {
       return parseFloat(valor).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     }
 
-    // Función para generar PDF
-  function generarPDF() {
-    if (clientesAgregados.length === 0) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Tabla vacía',
-        text: 'No hay clientes en la tabla para generar el PDF'
-      });
-      return;
-    }
-
-    const fechaCorte = document.getElementById('fecha').value;
-    
-    const identificaciones = [];
-    const nombres = [];
-    const totalesFacturado = [];
-    const valoresAnticipos = [];
-    const abonosRealizados = [];
-    const saldosCobrar = [];
-    
-    let totalFacturado = 0;
-    let totalAnticipos = 0;
-    let totalAbonos = 0;
-    let totalSaldo = 0;
-
-    const filas = document.querySelectorAll('#tablaClientes tr');
-    filas.forEach(fila => {
-      const cedula = fila.querySelector('td:nth-child(1)').textContent;
-      const nombre = fila.querySelector('td:nth-child(2)').textContent;
-      const facturado = fila.querySelector('.total-facturado').textContent;
-      const anticipos = fila.querySelector('.valor-anticipos').textContent;
-      const abonos = fila.querySelector('.abonos-realizados').textContent;
-      const saldo = fila.querySelector('.saldo-cobrar').textContent;
-
-      identificaciones.push(cedula);
-      nombres.push(nombre);
-      totalesFacturado.push(facturado);
-      valoresAnticipos.push(anticipos);
-      abonosRealizados.push(abonos);
-      saldosCobrar.push(saldo);
-
-      totalFacturado += parseFloat(facturado.replace(/,/g, '')) || 0;
-      totalAnticipos += parseFloat(anticipos.replace(/,/g, '')) || 0;
-      totalAbonos += parseFloat(abonos.replace(/,/g, '')) || 0;
-      totalSaldo += parseFloat(saldo.replace(/,/g, '')) || 0;
-    });
-
-    const form = document.getElementById('formPdf');
-    form.innerHTML = '';
-
-    identificaciones.forEach((id, index) => {
-      const inputId = document.createElement('input');
-      inputId.type = 'hidden';
-      inputId.name = 'identificaciones[]';
-      inputId.value = identificaciones[index];
-      form.appendChild(inputId);
-
-      const inputNombre = document.createElement('input');
-      inputNombre.type = 'hidden';
-      inputNombre.name = 'nombres[]';
-      inputNombre.value = nombres[index];
-      form.appendChild(inputNombre);
-
-      const inputFacturado = document.createElement('input');
-      inputFacturado.type = 'hidden';
-      inputFacturado.name = 'totalFacturado[]';
-      inputFacturado.value = totalesFacturado[index];
-      form.appendChild(inputFacturado);
-
-      const inputAnticipos = document.createElement('input');
-      inputAnticipos.type = 'hidden';
-      inputAnticipos.name = 'valorAnticipos[]';
-      inputAnticipos.value = valoresAnticipos[index];
-      form.appendChild(inputAnticipos);
-
-      const inputAbonos = document.createElement('input');
-      inputAbonos.type = 'hidden';
-      inputAbonos.name = 'abonosRealizados[]';
-      inputAbonos.value = abonosRealizados[index];
-      form.appendChild(inputAbonos);
-
-      const inputSaldo = document.createElement('input');
-      inputSaldo.type = 'hidden';
-      inputSaldo.name = 'saldoCobrar[]';
-      inputSaldo.value = saldosCobrar[index];
-      form.appendChild(inputSaldo);
-    });
-
-    // Agregar totales
-    const inputTotalFacturado = document.createElement('input');
-    inputTotalFacturado.type = 'hidden';
-    inputTotalFacturado.name = 'totalGeneralFacturado';
-    inputTotalFacturado.value = formatearMoneda(totalFacturado);
-    form.appendChild(inputTotalFacturado);
-
-    const inputTotalAnticipos = document.createElement('input');
-    inputTotalAnticipos.type = 'hidden';
-    inputTotalAnticipos.name = 'totalGeneralAnticipos';
-    inputTotalAnticipos.value = formatearMoneda(totalAnticipos);
-    form.appendChild(inputTotalAnticipos);
-
-    const inputTotalAbonos = document.createElement('input');
-    inputTotalAbonos.type = 'hidden';
-    inputTotalAbonos.name = 'totalGeneralAbonos';
-    inputTotalAbonos.value = formatearMoneda(totalAbonos);
-    form.appendChild(inputTotalAbonos);
-
-    const inputTotalSaldo = document.createElement('input');
-    inputTotalSaldo.type = 'hidden';
-    inputTotalSaldo.name = 'totalGeneralSaldo';
-    inputTotalSaldo.value = formatearMoneda(totalSaldo);
-    form.appendChild(inputTotalSaldo);
-
-    const inputFecha = document.createElement('input');
-    inputFecha.type = 'hidden';
-    inputFecha.name = 'fechaCorte';
-    inputFecha.value = fechaCorte;
-    form.appendChild(inputFecha);
-
-    form.submit();
-
+// Función para generar PDF
+function generarPDF() {
+  // Verificar que haya clientes en la tabla
+  if (clientesAgregados.length === 0) {
     Swal.fire({
-      icon: 'success',
-      title: 'PDF generado',
-      text: 'El PDF se está generando...',
-      timer: 2000,
-      showConfirmButton: false
+      icon: 'warning',
+      title: 'Tabla vacía',
+      text: 'No hay clientes en la tabla para generar el PDF'
     });
+    return;
   }
+
+  // Obtener fecha de corte
+  const fechaCorte = document.getElementById('fecha').value;
+  
+  // Preparar datos para el PDF
+  const datosPDF = {
+    clientes: [],
+    totales: {
+      totalFacturado: 0,
+      totalAnticipos: 0,
+      totalAbonos: 0,
+      totalSaldo: 0
+    }
+  };
+
+  // Recorrer todas las filas de la tabla
+  const filas = document.querySelectorAll('#tablaClientes tr');
+  filas.forEach(fila => {
+    const cedula = fila.querySelector('td:nth-child(1)').textContent;
+    const nombre = fila.querySelector('td:nth-child(2)').textContent;
+    const totalFacturado = parseFloat(fila.querySelector('.total-facturado').textContent.replace(/,/g, '')) || 0;
+    const valorAnticipos = parseFloat(fila.querySelector('.valor-anticipos').textContent.replace(/,/g, '')) || 0;
+    const abonosRealizados = parseFloat(fila.querySelector('.abonos-realizados').textContent.replace(/,/g, '')) || 0;
+    const saldoCobrar = parseFloat(fila.querySelector('.saldo-cobrar').textContent.replace(/,/g, '')) || 0;
+
+    datosPDF.clientes.push({
+      identificacion: cedula,
+      nombre: nombre,
+      totalFacturado: totalFacturado,
+      valorAnticipos: valorAnticipos,
+      abonosRealizados: abonosRealizados,
+      saldoCobrar: saldoCobrar
+    });
+
+    // Acumular totales
+    datosPDF.totales.totalFacturado += totalFacturado;
+    datosPDF.totales.totalAnticipos += valorAnticipos;
+    datosPDF.totales.totalAbonos += abonosRealizados;
+    datosPDF.totales.totalSaldo += saldoCobrar;
+  });
+
+  // Formatear totales para evitar decimales largos
+  datosPDF.totales.totalFacturado = parseFloat(datosPDF.totales.totalFacturado.toFixed(2));
+  datosPDF.totales.totalAnticipos = parseFloat(datosPDF.totales.totalAnticipos.toFixed(2));
+  datosPDF.totales.totalAbonos = parseFloat(datosPDF.totales.totalAbonos.toFixed(2));
+  datosPDF.totales.totalSaldo = parseFloat(datosPDF.totales.totalSaldo.toFixed(2));
+
+  console.log('Datos enviados al PDF:', datosPDF);
+
+  // Limpiar el formulario y agregar los nuevos campos
+  const form = document.getElementById('formPdf');
+  form.innerHTML = '';
+
+  // Crear campo hidden para los datos
+  const inputDatos = document.createElement('input');
+  inputDatos.type = 'hidden';
+  inputDatos.name = 'datosClientes';
+  inputDatos.value = JSON.stringify(datosPDF);
+  form.appendChild(inputDatos);
+
+  // Crear campo hidden para la fecha
+  const inputFecha = document.createElement('input');
+  inputFecha.type = 'hidden';
+  inputFecha.name = 'fecha';
+  inputFecha.value = fechaCorte;
+  form.appendChild(inputFecha);
+
+  // Enviar formulario
+  form.submit();
+
+  // Mostrar mensaje de éxito
+  Swal.fire({
+    icon: 'success',
+    title: 'PDF generado',
+    text: 'El PDF se está generando...',
+    timer: 2000,
+    showConfirmButton: false
+  });
+}
+
+  // Función para generar Excel
+function generarExcel() {
+  // Verificar que haya clientes en la tabla
+  if (clientesAgregados.length === 0) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'Tabla vacía',
+      text: 'No hay clientes en la tabla para generar el Excel'
+    });
+    return;
+  }
+
+  // Obtener fecha de corte
+  const fechaCorte = document.getElementById('fecha').value;
+  
+  // Preparar datos para el Excel (mismo formato que el PDF)
+  const datosExcel = {
+    clientes: [],
+    totales: {
+      totalFacturado: 0,
+      totalAnticipos: 0,
+      totalAbonos: 0,
+      totalSaldo: 0
+    }
+  };
+
+  // Recorrer todas las filas de la tabla
+  const filas = document.querySelectorAll('#tablaClientes tr');
+  filas.forEach(fila => {
+    const cedula = fila.querySelector('td:nth-child(1)').textContent;
+    const nombre = fila.querySelector('td:nth-child(2)').textContent;
+    const totalFacturado = parseFloat(fila.querySelector('.total-facturado').textContent.replace(/,/g, '')) || 0;
+    const valorAnticipos = parseFloat(fila.querySelector('.valor-anticipos').textContent.replace(/,/g, '')) || 0;
+    const abonosRealizados = parseFloat(fila.querySelector('.abonos-realizados').textContent.replace(/,/g, '')) || 0;
+    const saldoCobrar = parseFloat(fila.querySelector('.saldo-cobrar').textContent.replace(/,/g, '')) || 0;
+
+    datosExcel.clientes.push({
+      identificacion: cedula,
+      nombre: nombre,
+      totalFacturado: totalFacturado,
+      valorAnticipos: valorAnticipos,
+      abonosRealizados: abonosRealizados,
+      saldoCobrar: saldoCobrar
+    });
+
+    // Acumular totales
+    datosExcel.totales.totalFacturado += totalFacturado;
+    datosExcel.totales.totalAnticipos += valorAnticipos;
+    datosExcel.totales.totalAbonos += abonosRealizados;
+    datosExcel.totales.totalSaldo += saldoCobrar;
+  });
+
+  // Formatear totales
+  datosExcel.totales.totalFacturado = parseFloat(datosExcel.totales.totalFacturado.toFixed(2));
+  datosExcel.totales.totalAnticipos = parseFloat(datosExcel.totales.totalAnticipos.toFixed(2));
+  datosExcel.totales.totalAbonos = parseFloat(datosExcel.totales.totalAbonos.toFixed(2));
+  datosExcel.totales.totalSaldo = parseFloat(datosExcel.totales.totalSaldo.toFixed(2));
+
+  console.log('Datos enviados al Excel:', datosExcel);
+
+  // Enviar datos al formulario oculto
+  document.getElementById('datosClientesExcel').value = JSON.stringify(datosExcel);
+  document.getElementById('fechaExcel').value = fechaCorte;
+
+  // Enviar formulario
+  document.getElementById('formExcel').submit();
+
+  // Mostrar mensaje de éxito
+  Swal.fire({
+    icon: 'success',
+    title: 'Excel generado',
+    text: 'El archivo Excel se está generando...',
+    timer: 2000,
+    showConfirmButton: false
+  });
+}
 
   </script>
 
