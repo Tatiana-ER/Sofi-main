@@ -318,14 +318,19 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
         <div class="row g-3 mt-2">
           <div class="col-md-8">
             <label for="cedula" class="form-label">Cédula o NIT*</label>
-            <input type="number" class="form-control" id="cedula" name="cedula"
-                  value="<?php echo $cedula; ?>" required>
+            <input type="text" class="form-control" id="cedula" name="cedula"
+                  value="<?php echo $cedula; ?>" 
+                  maxlength="10" 
+                  pattern="[0-9]{1,10}"
+                  title="La cédula o NIT debe tener máximo 10 dígitos numéricos"
+                  required>
+            <small class="form-text text-muted">Máximo 10 dígitos</small>
           </div>
           <div class="col-md-4">
             <label for="digito" class="form-label">Dígito de verificación</label>
             <input type="text" class="form-control" id="digito" name="digito" maxlength="1"
                   pattern="[1-9]" title="Solo se permite un dígito entre 1 y 9"
-                  value="<?php echo $digito; ?>" placeholder="1-9">
+                  value="<?php echo $digula; ?>" placeholder="1-9">
           </div>
         </div>
 
