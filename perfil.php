@@ -1,9 +1,47 @@
 <?php
+session_start();
+
+// Evitar caché que pueda interferir con la sesión
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
+// Verificar que el usuario esté logueado
+// CAMBIO: usar 'usuario' en lugar de 'user_id'
+if (!isset($_SESSION['usuario'])) {
+    header("Location: index.php");
+    exit();
+}
+
 $conexion = new mysqli("localhost", "root", "", "sofi");
 
 if ($conexion->connect_error) {
     die("Error de conexión: " . $conexion->connect_error);
 }
+
+// Obtener información del usuario logueado incluyendo su rol
+// CAMBIO: buscar por username en lugar de id
+$username = $_SESSION['usuario'];
+$sqlUser = "SELECT u.*, r.nombre as rol_nombre FROM usuarios u 
+            INNER JOIN roles r ON u.rol_id = r.id 
+            WHERE u.username = ?";
+$stmtUser = $conexion->prepare($sqlUser);
+$stmtUser->bind_param("s", $username);  // "s" porque es string, no integer
+$stmtUser->execute();
+$resultUser = $stmtUser->get_result();
+$usuario = $resultUser->fetch_assoc();
+$stmtUser->close();
+
+// IMPORTANTE: Si no se encuentra el usuario, cerrar sesión
+if (!$usuario) {
+    session_destroy();
+    header("Location: index.php");
+    exit();
+}
+
+// Verificar si es administrador (rol_id = 1)
+$esAdmin = ($usuario['rol_id'] == 1);
+
 
 // Variables iniciales
 $persona = $cedula = $digito = $nombres = $apellidos = $razon = "";
@@ -12,80 +50,136 @@ $responsabilidadesInput = "";
 $regimen = $actividad = "";
 $tarifa = 0;
 $aiu = 0;
+$perfilExiste = false;
+$modoEdicion = false;
+
+// Verificar si ya existe un perfil guardado
+$sqlPerfil = "SELECT * FROM perfil LIMIT 1";
+$resultPerfil = $conexion->query($sqlPerfil);
+
+if ($resultPerfil->num_rows > 0) {
+    $perfilExiste = true;
+    $perfil = $resultPerfil->fetch_assoc();
+    
+    // Cargar datos existentes
+    $persona = $perfil['persona'];
+    $cedula = $perfil['cedula'];
+    $digito = $perfil['digito'];
+    $nombres = $perfil['nombres'];
+    $apellidos = $perfil['apellidos'];
+    $razon = $perfil['razon'];
+    $departamento = $perfil['departamento'];
+    $ciudad = $perfil['ciudad'];
+    $direccion = $perfil['direccion'];
+    $email = $perfil['email'];
+    $telefono = $perfil['telefono'];
+    $responsabilidadesInput = $perfil['responsabilidad'];
+    $regimen = $perfil['regimen'];
+    $actividad = $perfil['actividad'];
+    $tarifa = $perfil['tarifa'];
+    $aiu = $perfil['aiu'];
+}
+
+// Verificar si se activó el modo edición (solo admin puede editar)
+if (isset($_GET['editar'])) {
+    if ($esAdmin) {
+        $modoEdicion = true;
+    } else {
+        // Si no es admin y trata de editar, redirigir sin modo edición
+        header("Location: perfil.php");
+        exit();
+    }
+}
 
 $mostrarMensaje = isset($_GET['guardado']) && $_GET['guardado'] == 1 ? "guardar" : null;
 
 // Procesar el formulario cuando se envíe
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $persona = $_POST['persona'] ?? '';
-    $cedula = $_POST['cedula'] ?? '';
-    $digito = $_POST['digito'] ?? '';
-    $nombres = $_POST['nombres'] ?? '';
-    $apellidos = $_POST['apellidos'] ?? '';
-    $razon = $_POST['razon'] ?? '';
-    $departamento = $_POST['departamento'] ?? '';
-    $ciudad = $_POST['ciudad'] ?? '';
-    $direccion = $_POST['direccion'] ?? '';
-    $email = $_POST['email'] ?? '';
-    $telefono = $_POST['telefono'] ?? '';
-
-    $responsabilidadesSeleccionadas = $_POST['responsabilidades'] ?? [];
-    $responsabilidadesInput = is_array($responsabilidadesSeleccionadas)
-        ? implode(', ', $responsabilidadesSeleccionadas)
-        : $responsabilidadesSeleccionadas;
-
-    $regimen = $_POST['regimen'] ?? '';
-    $actividad = $_POST['actividad'] ?? '';
-    $tarifa = !empty($_POST['tarifa']) ? floatval($_POST['tarifa']) : NULL;
-    $aiu = isset($_POST['aiu']) ? 1 : 0;
-
-    // Validar cédula
-    if (strlen($cedula) > 10) {
-        $cedula = substr($cedula, 0, 10);
-    }
-
-    if (!ctype_digit($cedula)) {
-        $mostrarMensaje = "cedulaInvalida";
+    
+    if (!$esAdmin && $perfilExiste) {
+        $mostrarMensaje = "sinPermiso";
     } else {
-        $sql = "INSERT INTO perfil 
-        (persona, cedula, digito, nombres, apellidos, razon, departamento, ciudad, direccion, email, regimen, actividad, tarifa, aiu, telefono, responsabilidad)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $persona = $_POST['persona'] ?? '';
+        $cedula = $_POST['cedula'] ?? '';
+        $digito = $_POST['digito'] ?? '';   
+        $nombres = $_POST['nombres'] ?? '';
+        $apellidos = $_POST['apellidos'] ?? '';
+        $razon = $_POST['razon'] ?? '';
+        $departamento = $_POST['departamento'] ?? '';
+        $ciudad = $_POST['ciudad'] ?? '';
+        $direccion = $_POST['direccion'] ?? '';
+        $email = $_POST['email'] ?? '';
+        $telefono = $_POST['telefono'] ?? '';
 
-        $stmt = $conexion->prepare($sql);
+        $responsabilidadesSeleccionadas = $_POST['responsabilidades'] ?? [];
+        $responsabilidadesInput = is_array($responsabilidadesSeleccionadas)
+            ? implode(', ', $responsabilidadesSeleccionadas)
+            : $responsabilidadesSeleccionadas;
 
-        if (!$stmt) {
-            die("Error al preparar la consulta: " . $conexion->error);
+        $regimen = $_POST['regimen'] ?? '';
+        $actividad = $_POST['actividad'] ?? '';
+        $tarifa = !empty($_POST['tarifa']) ? floatval($_POST['tarifa']) : NULL;
+        $aiu = isset($_POST['aiu']) ? 1 : 0;
+
+        // Validar cédula
+        if (strlen($cedula) > 10) {
+            $cedula = substr($cedula, 0, 10);
         }
 
-        $stmt->bind_param(
-            "ssisssssssssdiis",
-            $persona,
-            $cedula,
-            $digito,
-            $nombres,
-            $apellidos,
-            $razon,
-            $departamento,
-            $ciudad,
-            $direccion,
-            $email,
-            $regimen,
-            $actividad,
-            $tarifa,
-            $aiu,
-            $telefono,
-            $responsabilidadesInput
-        );
-
-        if ($stmt->execute()) {
-            header("Location: " . $_SERVER['PHP_SELF'] . "?guardado=1");
-            exit();
+        if (!ctype_digit($cedula)) {
+            $mostrarMensaje = "cedulaInvalida";
         } else {
-            $mostrarMensaje = "error";
-            $errorGuardar = $stmt->error;
-        }
+            if ($perfilExiste) {
+                // ACTUALIZAR perfil existente
+                $sql = "UPDATE perfil SET 
+                        persona=?, cedula=?, digito=?, nombres=?, apellidos=?, razon=?, 
+                        departamento=?, ciudad=?, direccion=?, email=?, regimen=?, 
+                        actividad=?, tarifa=?, aiu=?, telefono=?, responsabilidad=?
+                        WHERE id=?";
+                
+                $stmt = $conexion->prepare($sql);
+                $perfilId = $perfil['id'];
+                
+                $stmt->bind_param(
+                    "ssisssssssssdissi",
+                    $persona, $cedula, $digito, $nombres, $apellidos, $razon,
+                    $departamento, $ciudad, $direccion, $email, $regimen,
+                    $actividad, $tarifa, $aiu, $telefono, $responsabilidadesInput,
+                    $perfilId
+                );
+            } else {
+                // INSERTAR nuevo perfil
+                $sql = "INSERT INTO perfil 
+                (persona, cedula, digito, nombres, apellidos, razon, departamento, ciudad, direccion, email, regimen, actividad, tarifa, aiu, telefono, responsabilidad)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-        $stmt->close();
+                $stmt = $conexion->prepare($sql);
+
+                $stmt->bind_param(
+                    "ssisssssssssdiis",
+                    $persona, $cedula, $digito, $nombres, $apellidos, $razon,
+                    $departamento, $ciudad, $direccion, $email, $regimen,
+                    $actividad, $tarifa, $aiu, $telefono, $responsabilidadesInput
+                );
+            }
+
+            if (!$stmt) {
+                die("Error al preparar la consulta: " . $conexion->error);
+            }
+
+            if ($stmt->execute()) {
+                // Actualizar variable $perfilExiste después de guardar
+                $perfilExiste = true;
+                // Redirigir para recargar datos
+                header("Location: perfil.php?guardado=1");
+                exit();
+            } else {
+                $mostrarMensaje = "error";
+                $errorGuardar = $stmt->error;
+            }
+
+            $stmt->close();
+        }
     }
 }
 
@@ -98,14 +192,15 @@ document.addEventListener("DOMContentLoaded", () => {
     <?php if ($mostrarMensaje === "guardar"): ?>
         Swal.fire({
             icon: 'success',
-            title: 'Datos guardados correctamente',
+            title: '¡Datos guardados correctamente!',
+            text: 'El perfil del negocio ha sido actualizado.',
             confirmButtonColor: '#3085d6'
         });
     <?php elseif ($mostrarMensaje === "error"): ?>
         Swal.fire({
             icon: 'error',
             title: 'Error al guardar los datos',
-            text: 'Por favor revisa la conexión o los campos ingresados.'
+            text: '<?php echo isset($errorGuardar) ? htmlspecialchars($errorGuardar) : "Por favor revisa la conexión o los campos ingresados."; ?>'
         });
     <?php elseif ($mostrarMensaje === "cedulaInvalida"): ?>
         Swal.fire({
@@ -113,11 +208,19 @@ document.addEventListener("DOMContentLoaded", () => {
             title: 'Cédula inválida',
             text: 'Debe contener solo números.'
         });
+    <?php elseif ($mostrarMensaje === "sinPermiso"): ?>
+        Swal.fire({
+            icon: 'error',
+            title: 'Sin permisos',
+            text: 'Solo el administrador puede modificar el perfil del negocio.',
+            confirmButtonColor: '#d33'
+        });
     <?php endif; ?>
 
     if (window.history.replaceState) {
         const url = new URL(window.location);
         url.searchParams.delete('guardado');
+        url.searchParams.delete('editar');
         window.history.replaceState({}, document.title, url);
     }
 });
@@ -183,7 +286,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <a class="nav-link scrollto active" href="perfil.php" style="color: darkblue;">Mi Negocio</a>
           </li>
           <li>
-            <a class="nav-link scrollto active" href="index.php" style="color: darkblue;">Cerrar Sesión</a>
+            <a class="nav-link scrollto active" href="logout.php" style="color: darkblue;">Cerrar Sesión</a>
           </li>
         </ul>
         <i class="bi bi-list mobile-nav-toggle"></i>
@@ -200,178 +303,243 @@ document.addEventListener("DOMContentLoaded", () => {
 
         <Form method="post" autocomplete="off">
 
-          <div class="section-title">
-            <h2>MI NEGOCIO</h2>
-            <p>(Los campos marcados con * son obligatorios)</p>
-          </div>
+      <div class="section-title">
+          <h2>MI NEGOCIO</h2>
+          <p>(Los campos marcados con * son obligatorios)</p>
+                    
+            <div class="mt-3" style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>Usuario:</strong> <?php echo htmlspecialchars($usuario['username']); ?> 
+                        <span class="badge bg-<?php echo $esAdmin ? 'danger' : 'secondary'; ?>">
+                            <?php echo $esAdmin ? 'Administrador' : 'Usuario'; ?>
+                        </span>
+                    </div>
+        
+        <?php if ($perfilExiste && $esAdmin && !$modoEdicion): ?>
+            <a href="?editar=1" class="btn btn-warning btn-sm">
+                <i class="bi bi-pencil-square"></i> Editar Perfil
+            </a>
+        <?php elseif ($modoEdicion && $esAdmin): ?>
+            <div>
+                <span class="badge bg-warning text-dark me-2">
+                    <i class="bi bi-exclamation-triangle"></i> Modo Edición
+                </span>
+                <a href="perfil.php" class="btn btn-secondary btn-sm">
+                    <i class="bi bi-x-circle"></i> Cancelar Edición
+                </a>
+            </div>
+        <?php endif; ?>
+    </div>
+    
+    <?php if ($perfilExiste && !$esAdmin): ?>
+        <div class="alert alert-info mt-2 mb-0" style="font-size: 0.9em;">
+            <i class="bi bi-info-circle"></i> El perfil está bloqueado. Solo el administrador puede realizar cambios.
+        </div>
+    <?php endif; ?>
+</div>
 
-          <div class="mb-3">
-            <h2>DATOS DE USUARIO</h2>
-            <br>
-            <div class="row mb-3">
-                  <!-- Tipo de persona -->
-                  <div class="col-md-4">
-                    <label class="form-label">Tipo de persona*</label><br>
-                    <div class="form-check form-check-inline">
-                      <input class="form-check-input" type="radio" id="personaNatural" name="persona" value="natural" onclick="toggleFields()">
+      <div class="mb-3">
+          <h2>DATOS DE USUARIO</h2>
+          <br>
+          <div class="row mb-3">
+              <!-- Tipo de persona -->
+              <div class="col-md-4">
+                  <label class="form-label">Tipo de persona*</label><br>
+                  <div class="form-check form-check-inline">
+                      <input class="form-check-input" type="radio" id="personaNatural" name="persona" 
+                            value="natural" onclick="toggleFields()" 
+                            <?php echo ($persona == 'natural') ? 'checked' : ''; ?>
+                            <?php echo ($perfilExiste && !$modoEdicion) ? 'disabled' : ''; ?>>
                       <label class="form-check-label" for="personaNatural">Persona Natural</label>
-                    </div>
-                    <div class="form-check form-check-inline">
-                      <input class="form-check-input" type="radio" id="personaJuridica" name="persona" value="juridica" onclick="toggleFields()">
-                      <label class="form-check-label" for="personaJuridica">Persona Jurídica</label>
-                    </div>
                   </div>
+                  <div class="form-check form-check-inline">
+                      <input class="form-check-input" type="radio" id="personaJuridica" name="persona" 
+                            value="juridica" onclick="toggleFields()"
+                            <?php echo ($persona == 'juridica') ? 'checked' : ''; ?>
+                            <?php echo ($perfilExiste && !$modoEdicion) ? 'disabled' : ''; ?>>
+                      <label class="form-check-label" for="personaJuridica">Persona Jurídica</label>
+                  </div>
+              </div>
 
-                    <!-- Cédula o NIT -->
-                    <div class="col-md-4">
-                      <label for="cedula" class="form-label">Cédula o NIT*</label>
-                      <input 
-                        type="text" 
-                        class="form-control" 
-                        id="cedula" 
-                        name="cedula" 
-                        placeholder="Ej: 1234567890"
-                        maxlength="10"
-                        oninput="limitLength(this, 10)"
-                      >
-                    </div>
-
-                    <script>
-                      function limitLength(input, maxLength) {
-                        if (input.value.length > maxLength) {
-                          input.value = input.value.slice(0, maxLength);
-                        }
-                      }
-                    </script>
-
+              <!-- Cédula o NIT -->
+              <div class="col-md-4">
+                  <label for="cedula" class="form-label">Cédula o NIT*</label>
+                  <input 
+                      type="text" 
+                      class="form-control" 
+                      id="cedula" 
+                      name="cedula" 
+                      placeholder="Ej: 1234567890"
+                      maxlength="10"
+                      oninput="limitLength(this, 10)"
+                      value="<?php echo htmlspecialchars($cedula); ?>"
+                      <?php echo ($perfilExiste && !$modoEdicion) ? 'readonly' : 'required'; ?>
+                  >
+              </div>
 
               <!-- Dígito de verificación -->
               <div class="col-md-4">
-                <label for="digito" class="form-label">Dígito de verificación</label>
-                <input 
-                  type="text" 
-                  class="form-control" 
-                  id="digito" 
-                  name="digito" 
-                  maxlength="1" 
-                  pattern="[0-9]" 
-                  title="Solo se permite un dígito entre 0 y 9"
-                  placeholder="Dígito entre 0 y 9"
-                  value="<?php echo htmlspecialchars($digito); ?>">
+                  <label for="digito" class="form-label">Dígito de verificación</label>
+                  <input 
+                      type="text" 
+                      class="form-control" 
+                      id="digito" 
+                      name="digito" 
+                      maxlength="1" 
+                      pattern="[0-9]" 
+                      title="Solo se permite un dígito entre 0 y 9"
+                      placeholder="Dígito entre 0 y 9"
+                      value="<?php echo htmlspecialchars($digito); ?>"
+                      <?php echo ($perfilExiste && !$modoEdicion) ? 'readonly' : ''; ?>
+                  >
               </div>
-            </div>
+          </div>
 
-            <!-- Nombres, apellidos y razón social -->
-              <div class="row g-3 mt-2">
-                <div class="col-md-4">
+          <!-- Nombres, apellidos y razón social -->
+          <div class="row g-3 mt-2">
+              <div class="col-md-4">
                   <label for="nombres" class="form-label">Nombres</label>
                   <input type="text" class="form-control" id="nombres" name="nombres"
-                        value="<?php echo $nombres; ?>" disabled>
-                </div>
-                <div class="col-md-4">
+                        value="<?php echo htmlspecialchars($nombres); ?>" 
+                        <?php echo ($persona != 'natural' || ($perfilExiste && !$modoEdicion)) ? 'disabled' : ''; ?>>
+              </div>
+              <div class="col-md-4">
                   <label for="apellidos" class="form-label">Apellidos</label>
                   <input type="text" class="form-control" id="apellidos" name="apellidos"
-                        value="<?php echo $apellidos; ?>" disabled>
-                </div>
-                <div class="col-md-4">
+                        value="<?php echo htmlspecialchars($apellidos); ?>" 
+                        <?php echo ($persona != 'natural' || ($perfilExiste && !$modoEdicion)) ? 'disabled' : ''; ?>>
+              </div>
+              <div class="col-md-4">
                   <label for="razon" class="form-label">Razón Social</label>
                   <input type="text" class="form-control" id="razon" name="razon"
-                        value="<?php echo $razon ?>" disabled>
-                </div>
+                        value="<?php echo htmlspecialchars($razon); ?>" 
+                        <?php echo ($persona != 'juridica' || ($perfilExiste && !$modoEdicion)) ? 'disabled' : ''; ?>>
               </div>
+          </div>
 
-                <!-- Departamento y ciudad -->
-                <div class="row g-3 mt-2">
-                  <div class="col-md-6">
-                    <label for="departamento" class="form-label">Departamento*</label>
-                    <input type="text" class="form-control" id="departamento" name="departamento"
-                          placeholder="Buscar departamento..." autocomplete="off"
-                          value="<?php echo $departamento; ?>" required>
-                  </div>
-                  <div class="col-md-6">
-                    <label for="ciudad" class="form-label">Ciudad*</label>
-                    <select id="ciudad" name="ciudad" class="form-control" disabled>
+          <!-- Departamento y ciudad -->
+          <div class="row g-3 mt-2">
+              <div class="col-md-6">
+                  <label for="departamento" class="form-label">Departamento*</label>
+                  <input type="text" class="form-control" id="departamento" name="departamento"
+                        placeholder="Buscar departamento..." autocomplete="off"
+                        value="<?php echo htmlspecialchars($departamento); ?>" 
+                        <?php echo ($perfilExiste && !$modoEdicion) ? 'readonly' : 'required'; ?>>
+              </div>
+              <div class="col-md-6">
+                  <label for="ciudad" class="form-label">Ciudad*</label>
+                  <select id="ciudad" name="ciudad" class="form-control" 
+                          <?php echo ($perfilExiste && !$modoEdicion) ? 'disabled' : ''; ?>>
                       <option value="">Selecciona una ciudad...</option>
-                    </select>
-                  </div>
-                </div>
+                      <?php if ($ciudad): ?>
+                          <option value="<?php echo htmlspecialchars($ciudad); ?>" selected>
+                              <?php echo htmlspecialchars($ciudad); ?>
+                          </option>
+                      <?php endif; ?>
+                  </select>
+              </div>
+          </div>
 
-                <!-- Dirección, teléfono y correo -->
-                <div class="row g-3 mt-2">
-                  <div class="col-md-4">
-                    <label for="direccion" class="form-label">Dirección*</label>
-                    <input type="text" class="form-control" id="direccion" name="direccion"
-                          placeholder="ej: Cll 12 #52-16"
-                          value="<?php echo $direccion; ?>" required>
-                  </div>
-                  <div class="col-md-4">
-                    <label for="telefono" class="form-label">Teléfono</label>
-                    <input type="number" class="form-control" id="telefono" name="telefono"
-                          value="<?php echo $telefono; ?>">
-                  </div>
-                  <div class="col-md-4">
-                    <label for="email" class="form-label">Correo electrónico*</label>
-                    <input type="email" class="form-control" id="email" name="email"
-                          placeholder="example@correo.com"
-                          value="<?php echo $email; ?>" required>
-                  </div>
-                </div>
-                  </div>
-            <br>
+          <!-- Dirección, teléfono y correo -->
+          <div class="row g-3 mt-2">
+              <div class="col-md-4">
+                  <label for="direccion" class="form-label">Dirección*</label>
+                  <input type="text" class="form-control" id="direccion" name="direccion"
+                        placeholder="ej: Cll 12 #52-16"
+                        value="<?php echo htmlspecialchars($direccion); ?>" 
+                        <?php echo ($perfilExiste && !$modoEdicion) ? 'readonly' : 'required'; ?>>
+              </div>
+              <div class="col-md-4">
+                  <label for="telefono" class="form-label">Teléfono</label>
+                  <input type="number" class="form-control" id="telefono" name="telefono"
+                        value="<?php echo htmlspecialchars($telefono); ?>"
+                        <?php echo ($perfilExiste && !$modoEdicion) ? 'readonly' : ''; ?>>
+              </div>
+              <div class="col-md-4">
+                  <label for="email" class="form-label">Correo electrónico*</label>
+                  <input type="email" class="form-control" id="email" name="email"
+                        placeholder="example@correo.com"
+                        value="<?php echo htmlspecialchars($email); ?>" 
+                        <?php echo ($perfilExiste && !$modoEdicion) ? 'readonly' : 'required'; ?>>
+              </div>
+          </div>
+      </div>
+
+          <br>
           <div class="mb-3">
-            <h2>PERFIL TRIBUTARIO</h2>
-            <br>
-            <!-- Fila 1: Tipo de régimen, Código actividad, Actividad económica -->
-            <div class="row g-3 mt-2">
-              <div class="col-md-4">
-                <label for="regimen" class="form-label">Tipo de régimen*</label>
-                <select class="form-select" name="regimen" id="regimen" required>
-                  <option selected disabled>Seleccione un régimen...</option>
-                  <option value="Responsable de IVA">Responsable de IVA</option>
-                  <option value="No responsable de IVA">No responsable de IVA</option>
-                  <option value="Régimen simple de tributación">Régimen simple de tributación</option>
-                  <option value="Régimen especial">Régimen especial</option>
-                </select>
-              </div>
+              <h2>PERFIL TRIBUTARIO</h2>
+              <br>
+              <!-- Fila 1: Tipo de régimen, Código actividad, Actividad económica -->
+              <div class="row g-3 mt-2">
+                  <div class="col-md-4">
+                      <label for="regimen" class="form-label">Tipo de régimen*</label>
+                      <select class="form-select" name="regimen" id="regimen" 
+                              <?php echo ($perfilExiste && !$modoEdicion) ? 'disabled' : 'required'; ?>>
+                          <option value="" <?php echo empty($regimen) ? 'selected' : ''; ?>>Seleccione un régimen...</option>
+                          <option value="Responsable de IVA" <?php echo ($regimen == 'Responsable de IVA') ? 'selected' : ''; ?>>Responsable de IVA</option>
+                          <option value="No responsable de IVA" <?php echo ($regimen == 'No responsable de IVA') ? 'selected' : ''; ?>>No responsable de IVA</option>
+                          <option value="Régimen simple de tributación" <?php echo ($regimen == 'Régimen simple de tributación') ? 'selected' : ''; ?>>Régimen simple de tributación</option>
+                          <option value="Régimen especial" <?php echo ($regimen == 'Régimen especial') ? 'selected' : ''; ?>>Régimen especial</option>
+                      </select>
+                  </div>
 
-              <div class="col-md-4">
-                <label for="actividadEconomica" class="form-label">Código de actividad económica</label>
-                <input type="text" name="actividadEconomica" class="form-control" id="actividadEconomica" placeholder="Ej: 6201">
-              </div>
+                  <div class="col-md-4">
+                      <label for="actividadEconomica" class="form-label">Código de actividad económica</label>
+                      <input type="text" name="actividadEconomica" class="form-control" id="actividadEconomica" 
+                            placeholder="Ej: 6201"
+                            <?php echo ($perfilExiste && !$modoEdicion) ? 'readonly' : ''; ?>>
+                  </div>
 
-              <div class="col-md-4">
-                <label for="actividad" class="form-label">Actividad económica</label>
-                <input type="text" name="actividad" class="form-control" id="actividad" placeholder="Ej: Comercio al por menor de alimentos">
+                  <div class="col-md-4">
+                      <label for="actividad" class="form-label">Actividad económica</label>
+                      <input type="text" name="actividad" class="form-control" id="actividad" 
+                            placeholder="Ej: Comercio al por menor de alimentos"
+                            value="<?php echo htmlspecialchars($actividad); ?>"
+                            <?php echo ($perfilExiste && !$modoEdicion) ? 'readonly' : ''; ?>>
+                  </div>
               </div>
-            </div>
+              
               <!-- Fila 2: Tarifa ICA, AIU, Responsabilidades Tributarias -->
               <div class="row g-3 mt-2">
-                <div class="col-md-4">
-                  <label for="tarifa" class="form-label">Tarifa ICA</label>
-                  <input type="number" name="tarifa" class="form-control" id="tarifa" step="0.0001" placeholder="Ej: 0.004">
-                </div>
-
-                <div class="col-md-4 d-flex align-items-center">
-                  <div>
-                    <label for="aiu" class="form-label d-block">Manejo de AIU</label>
-                    <input type="checkbox" name="aiu" id="aiu" style="transform: scale(1.3); margin-top: 6px;">
+                  <div class="col-md-4">
+                      <label for="tarifa" class="form-label">Tarifa ICA</label>
+                      <input type="number" name="tarifa" class="form-control" id="tarifa" step="0.0001" 
+                            placeholder="Ej: 0.004"
+                            value="<?php echo $tarifa; ?>"
+                            <?php echo ($perfilExiste && !$modoEdicion) ? 'readonly' : ''; ?>>
                   </div>
-                </div>
 
-                <!-- Campo en el formulario --> 
-                <label for="responsabilidadesTributarias">Responsabilidades Tributarias*</label>
-                <select id="responsabilidadesTributarias" name="responsabilidades[]" class="form-select" multiple="multiple" required> 
-                    <!-- Opciones se llenan por JS --> 
-                </select> 
-                 <div id="seleccionadas" class="mt-2"></div> 
-                 <!-- Campo oculto que sí se envía --> 
-                <input type="hidden" id="responsabilidadesInput" name="responsabilidadesSeleccionadas">
+                  <div class="col-md-4 d-flex align-items-center">
+                      <div>
+                          <label for="aiu" class="form-label d-block">Manejo de AIU</label>
+                          <input type="checkbox" name="aiu" id="aiu" style="transform: scale(1.3); margin-top: 6px;"
+                                <?php echo ($aiu == 1) ? 'checked' : ''; ?>
+                                <?php echo ($perfilExiste && !$modoEdicion) ? 'disabled' : ''; ?>>
+                      </div>
+                  </div>
 
-                  <!-- Botón -->
-                <div class="mt-4">
-                <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
+                  <div class="col-md-12">
+                      <label for="responsabilidadesTributarias">Responsabilidades Tributarias*</label>
+                      <select id="responsabilidadesTributarias" name="responsabilidades[]" 
+                              class="form-select" multiple="multiple" 
+                              <?php echo ($perfilExiste && !$modoEdicion) ? 'disabled' : 'required'; ?>> 
+                          <!-- Opciones se llenan por JS --> 
+                      </select> 
+                      <div id="seleccionadas" class="mt-2"></div> 
+                      <input type="hidden" id="responsabilidadesInput" name="responsabilidadesSeleccionadas">
+                  </div>
+              </div>
 
-
+              <!-- Botón -->
+              <div class="mt-4">
+                  <?php if (!$perfilExiste || $modoEdicion): ?>
+                      <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">
+                          <?php echo $perfilExiste ? 'Actualizar' : 'Guardar'; ?>
+                      </button>
+                  <?php endif; ?>
+              </div>
+          </div>
           <!-- Script de los campos departamentos y ciudades-->
           <script>
             document.addEventListener('DOMContentLoaded', function () {
@@ -749,28 +917,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
           <!-- Script de los checklist Persona natural y Persona juridica -->
           <script>
-            function toggleFields() {
-                const personaNatural = document.getElementById("personaNatural").checked;
-                const personaJuridica = document.getElementById("personaJuridica").checked;
+          function toggleFields() {
+              const personaNatural = document.getElementById("personaNatural").checked;
+              const personaJuridica = document.getElementById("personaJuridica").checked;
+              const perfilExiste = <?php echo $perfilExiste ? 'true' : 'false'; ?>;
+              const modoEdicion = <?php echo $modoEdicion ? 'true' : 'false'; ?>;
+              
+              // Solo permitir cambios si no existe perfil o está en modo edición
+              const bloqueado = perfilExiste && !modoEdicion;
 
-                // Habilitar campos
-                document.getElementById("nombres").disabled = !personaNatural;
-                document.getElementById("apellidos").disabled = !personaNatural;
-                document.getElementById("razon").disabled = !personaJuridica;
+              // Habilitar campos según el tipo de persona
+              document.getElementById("nombres").disabled = !personaNatural || bloqueado;
+              document.getElementById("apellidos").disabled = !personaNatural || bloqueado;
+              document.getElementById("razon").disabled = !personaJuridica || bloqueado;
 
-                // Desactivar campo "Dígito de verificación" si es persona natural
-                digito.disabled = personaNatural;
-                if (personaNatural) {
-                    digito.value = ""; // limpiar el valor si estaba habilitado antes
-                }
+              // Desactivar campo "Dígito de verificación" si es persona natural
+              const digito = document.getElementById("digito");
+              digito.disabled = personaNatural || bloqueado;
+              if (personaNatural && !bloqueado) {
+                  digito.value = ""; // limpiar el valor si estaba habilitado antes
+              }
+          }
 
-                // Limpiar campos no habilitados
-                if (personaNatural) {
-                    document.getElementById("nit").value = "";
-                } else if (personaJuridica) {
-                    document.getElementById("cedula").value = "";
-                }
-            }
+          // Ejecutar al cargar la página para establecer el estado correcto
+          document.addEventListener('DOMContentLoaded', toggleFields);
           </script>
 
             <script>
@@ -825,6 +995,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 $select.append(option);
               });
 
+              // Cargar responsabilidades guardadas si existen
+              <?php if (!empty($responsabilidadesInput)): ?>
+              const responsabilidadesGuardadas = <?php echo json_encode(explode(', ', $responsabilidadesInput)); ?>;
+              $select.val(responsabilidadesGuardadas);
+              <?php endif; ?>
+
               // Inicializar Select2
               $select.select2({
                 placeholder: 'Seleccione una o varias responsabilidades',
@@ -832,8 +1008,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 dropdownParent: $('body'),        
                 maximumSelectionLength: 10,      
                 closeOnSelect: false,             
-                dropdownCssClass: 'custom-select2-dropdown'
+                dropdownCssClass: 'custom-select2-dropdown',
+                disabled: <?php echo ($perfilExiste && !$modoEdicion) ? 'true' : 'false'; ?>
               });
+              
               const style = document.createElement('style');
               style.innerHTML = `
                 .select2-container--open { z-index: 99999 !important; }
@@ -842,7 +1020,6 @@ document.addEventListener("DOMContentLoaded", () => {
               document.head.appendChild(style);
             });
             </script>
-
         </Form>
       </div>
     </section><!-- End Services Section -->

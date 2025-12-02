@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 
 <head>
   <meta charset="utf-8">
@@ -28,6 +28,9 @@
 
   <!-- Template Main CSS File -->
   <link href="assets/css/improved-style.css" rel="stylesheet">
+  
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
   <!-- Estilos del nuevo logo -->
   <style>
@@ -50,32 +53,71 @@
     }
 
     /* ===== Footer ===== */
-      #footer {
-        background: #1c0e0e40; /* azul oscuro institucional */
-        color: #000000ff;
-        text-align: center;
-      }
+    #footer {
+      background: #1c0e0e40; /* azul oscuro institucional */
+      color: #000000ff;
+      text-align: center;
+    }
 
-      #footer a {
-        color: #000000ff;
-        text-decoration: none;
-      }
+    #footer a {
+      color: #000000ff;
+      text-decoration: none;
+    }
 
-      #footer a:hover {
-        color: #000000ff;
-        text-decoration: underline;
-      }
+    #footer a:hover {
+      color: #000000ff;
+      text-decoration: underline;
+    }
 
-      #footer .copyright {
-        font-weight: 500;
-        margin-bottom: 5px;
-      }
-
+    #footer .copyright {
+      font-weight: 500;
+      margin-bottom: 5px;
+    }
   </style>
 
 </head>
 
 <body>
+<!-- Mostrar mensajes de error si existen -->
+<?php if (isset($_GET['error'])): ?>
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    <?php
+    $error = $_GET['error'];
+    $mensaje = '';
+    $titulo = 'Error';
+    
+    switch($error) {
+        case 'campos_vacios':
+            $mensaje = 'Por favor, completa todos los campos.';
+            break;
+        case 'credenciales_invalidas':
+            $mensaje = 'Usuario o contraseña incorrectos.';
+            break;
+        case 'error_servidor':
+            $mensaje = 'Error en el servidor. Intenta nuevamente.';
+            break;
+        default:
+            $mensaje = 'Ha ocurrido un error desconocido.';
+    }
+    ?>
+    
+    Swal.fire({
+        icon: 'error',
+        title: '<?php echo $titulo; ?>',
+        text: '<?php echo $mensaje; ?>',
+        confirmButtonColor: '#d33'
+    }).then(() => {
+        // Limpiar el parámetro de error de la URL
+        if (window.history.replaceState) {
+            const url = new URL(window.location);
+            url.searchParams.delete('error');
+            window.history.replaceState({}, document.title, url);
+        }
+    });
+});
+</script>
+<?php endif; ?>
 
   <!-- ======= Header ======= -->
   <header id="header" class="fixed-top d-flex align-items-center ">
@@ -92,10 +134,11 @@
       <!-- Navbar -->
       <nav id="navbar" class="navbar">
         <ul>
-          <form action="login.php" method="get">
-            <button type="submit" class="button nav-link scrollto active" style="color: darkblue;">Iniciar Sesión</button>
-          </form>
+          <li>
+            <a class="nav-link scrollto active" href="login.php" style="color: darkblue;">Iniciar Sesión</a>
+          </li>
         </ul>
+        <i class="bi bi-list mobile-nav-toggle"></i>
       </nav><!-- .navbar -->
 
     </div>

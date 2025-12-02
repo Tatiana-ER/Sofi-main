@@ -43,7 +43,7 @@
             <div class="input-container">
 
                 <!-- FORMULARIO DE LOGIN -->
-                <form action="inicioSesion/inicioSesion.php" method="POST">
+                <form action="inicioSesion.php" method="POST">
                     <div class="input">
                         <i class="fa fa-user"></i>
                         <input type="text" name="username" required placeholder="Usuario">

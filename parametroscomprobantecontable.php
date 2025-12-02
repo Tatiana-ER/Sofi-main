@@ -5,11 +5,6 @@ include ("connection.php");
 $conn = new connection();
 $pdo = $conn->connect();
 
-// Calcular el siguiente consecutivo ANTES de cualquier acción
-$sentencia = $pdo->prepare("SELECT IFNULL(MAX(consecutivo), 0) + 1 AS siguiente FROM comprobantecontable");
-$sentencia->execute();
-$siguienteConsecutivo = $sentencia->fetch(PDO::FETCH_ASSOC)['siguiente'];
-
 // Variables del formulario
 $txtId = $_POST['txtId'] ?? "";
 $codigoDocumento = $_POST['codigoDocumento'] ?? "";
@@ -18,15 +13,10 @@ $consecutivo = $_POST['consecutivo'] ?? "";
 $activo = isset($_POST['activo']) ? 1 : 0;
 $accion = $_POST['accion'] ?? "";
 
-// Si no hay consecutivo (nuevo registro), mostrar automáticamente el siguiente
-if ($consecutivo == "") {
-  $consecutivo = $siguienteConsecutivo;
-}
-
 switch ($accion) {
   case "btnAgregar":
-      // Asignar consecutivo automático antes de guardar
-      $consecutivo = $siguienteConsecutivo;
+      // CONSECUTIVO FIJO: Siempre 1 para todos los tipos de documento
+      $consecutivo = 1;
 
       $sentencia = $pdo->prepare("INSERT INTO comprobantecontable (codigoDocumento, descripcionDocumento, consecutivo, activo) 
                                   VALUES (:codigoDocumento, :descripcionDocumento, :consecutivo, :activo)");
@@ -63,6 +53,10 @@ switch ($accion) {
 
       header("Location: ".$_SERVER['PHP_SELF']."?msg=eliminado");
       exit;
+  break;
+
+  case "btnEditar":
+      // Solo cargar los datos del registro a editar
   break;
 }
 
@@ -217,7 +211,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="row g-3">
           <div class="col-md-4">
             <label for="codigoDocumento" class="form-label fw-bold">Codigo de documento*</label>
-            <input type="number" class="form-control" value="<?php echo $codigoDocumento;?>" id="codigoDocumento" name="codigoDocumento" placeholder="" required>
+            <input type="text" class="form-control" value="<?php echo $codigoDocumento;?>" id="codigoDocumento" name="codigoDocumento" placeholder="" required>
           </div>
           <div class="col-md-8">
             <label for="descripcionDocumento" class="form-label fw-bold">Descripción documento*</label>
@@ -232,7 +226,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <input type="text" class="form-control" 
                   id="consecutivo" 
                   name="consecutivo" 
-                  value="<?php echo $consecutivo != '' ? $consecutivo : $siguienteConsecutivo; ?>" 
+                  value="1" 
                   readonly>
           </div>  
         </div>
@@ -253,112 +247,127 @@ document.addEventListener("DOMContentLoaded", () => {
 
       </form>
 
-      <div class="row">
-        <div class="table-responsive">
-          <table class="table-container">
-            <thead>
-              <tr>
-                <th>Código Documento</th>
-                <th>Descripción Documento</th>
-                <th>Consecutivo</th>
-                <th>Activo</th>
-                <th>Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach($lista as $usuario){ ?>
-                <tr>
-                  <td><?php echo $usuario['codigoDocumento']; ?></td>
-                  <td><?php echo $usuario['descripcionDocumento']; ?></td>
-                  <td><?php echo $usuario['consecutivo']; ?></td>
-                  <td><?php echo $usuario['activo']? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
-                  <td>
-                    <form action="" method="post" style="display:inline-block;">
-                      <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
-                      <input type="hidden" name="codigoDocumento" value="<?php echo $usuario['codigoDocumento']; ?>">
-                      <input type="hidden" name="descripcionDocumento" value="<?php echo $usuario['descripcionDocumento']; ?>">
-                      <input type="hidden" name="consecutivo" value="<?php echo $usuario['consecutivo']; ?>">
-                      <input type="hidden" name="activo" value="<?php echo $usuario['activo'] ?>">
-                      <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-cuenta" title="Editar">
-                          <i class="fas fa-edit"></i>
-                      </button>
-                      <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
-                          <i class="fas fa-trash-alt"></i>
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-              <?php } ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
+<div class="row">
+  <div class="table-responsive">
+    <table class="table-container">
+      <thead>
+        <tr>
+          <th>Código Documento</th>
+          <th>Descripción Documento</th>
+          <th>Consecutivo</th>
+          <th>Activo</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach($lista as $usuario){ ?>
+          <tr>
+            <td><?php echo $usuario['codigoDocumento']; ?></td>
+            <td><?php echo $usuario['descripcionDocumento']; ?></td>
+            <td><?php echo $usuario['consecutivo']; ?></td>
+            <td><?php echo $usuario['activo']? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
+            <td>
+              <form action="" method="post" style="display:inline-block;">
+                <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                <input type="hidden" name="codigoDocumento" value="<?php echo $usuario['codigoDocumento']; ?>">
+                <input type="hidden" name="descripcionDocumento" value="<?php echo $usuario['descripcionDocumento']; ?>">
+                <input type="hidden" name="consecutivo" value="1"> <!-- CAMBIO AQUÍ: Siempre 1 -->
+                <input type="hidden" name="activo" value="<?php echo $usuario['activo'] ?>">
+                <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-cuenta" title="Editar">
+                    <i class="fas fa-edit"></i>
+                </button>
+              </form>
+              <form action="" method="post" style="display:inline-block;">
+                <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+        <?php } ?>
+      </tbody>
+    </table>
+  </div>
+</div>
  
     </div>
   </section><!-- End Services Section -->
   <script>
     // Script para alternar botones
-      document.addEventListener("DOMContentLoaded", function() {
-        const id = document.getElementById("txtId").value;
-        const btnAgregar = document.getElementById("btnAgregar");
-        const btnModificar = document.getElementById("btnModificar");
-        const btnEliminar = document.getElementById("btnEliminar");
-        const btnCancelar = document.getElementById("btnCancelar");
-        const form = document.getElementById("formComprobanteContable");
+// Script para alternar botones
+document.addEventListener("DOMContentLoaded", function() {
+  const id = document.getElementById("txtId").value;
+  const btnAgregar = document.getElementById("btnAgregar");
+  const btnModificar = document.getElementById("btnModificar");
+  const btnEliminar = document.getElementById("btnEliminar");
+  const btnCancelar = document.getElementById("btnCancelar");
+  const form = document.getElementById("formComprobanteContable");
+  const consecutivoInput = document.getElementById("consecutivo");
 
-        function modoAgregar() {
-          // Ocultar/mostrar botones
-          btnAgregar.style.display = "inline-block";
-          btnModificar.style.display = "none";
-          btnEliminar.style.display = "none";
-          btnCancelar.style.display = "none";
+  function modoAgregar() {
+    // Ocultar/mostrar botones
+    btnAgregar.style.display = "inline-block";
+    btnModificar.style.display = "none";
+    btnEliminar.style.display = "none";
+    btnCancelar.style.display = "none";
 
-          // Limpiar todos los campos manualmente
-          form.querySelectorAll("input, select, textarea").forEach(el => {
-            if (el.type === "radio" || el.type === "checkbox") {
-              el.checked = false;
-            } else if (el.id !== "consecutivo") {
-              el.value = "";
-            }
-          });
+    // Limpiar todos los campos manualmente
+    form.querySelectorAll("input, select, textarea").forEach(el => {
+      if (el.type === "radio" || el.type === "checkbox") {
+        el.checked = false;
+      } else if (el.id !== "consecutivo" && el.id !== "txtId") {
+        el.value = "";
+      }
+    });
 
-          // Si tienes checkbox "Activo", lo marcamos por defecto
-          const chkActivo = document.querySelector('input[name="activo"]');
-          if (chkActivo) chkActivo.checked = true;
+    // Establecer consecutivo siempre a 1
+    if (consecutivoInput) {
+      consecutivoInput.value = "1";
+    }
 
-          // Asegurar que el ID quede vacío
-          const txtId = document.getElementById("txtId");
-          if (txtId) txtId.value = "";
+    // Si tienes checkbox "Activo", lo marcamos por defecto
+    const chkActivo = document.querySelector('input[name="activo"]');
+    if (chkActivo) chkActivo.checked = true;
+
+    // Asegurar que el ID quede vacío
+    const txtId = document.getElementById("txtId");
+    if (txtId) txtId.value = "";
+  }
+
+  // Estado inicial (modo modificar o agregar)
+  if (id && id.trim() !== "") {
+    btnAgregar.style.display = "none";
+    btnModificar.style.display = "inline-block";
+    btnEliminar.style.display = "inline-block";
+    btnCancelar.style.display = "inline-block";
+    
+    // Asegurar que el consecutivo sea 1 incluso en modo edición
+    if (consecutivoInput) {
+      consecutivoInput.value = "1";
+    }
+  } else {
+    modoAgregar();
+  }
+
+  // Evento cancelar
+  btnCancelar.addEventListener("click", function(e) {
+    e.preventDefault();
+    modoAgregar();
+    
+    // AJUSTE ADICIONAL: Limpiar los parámetros de edición de la URL
+    if (window.history.replaceState) {
+      const url = new URL(window.location);
+      // Elimina todos los parámetros POST que se cargan al editar
+      url.searchParams.forEach((value, key) => {
+        if (key !== 'msg') { // Dejamos 'msg' por si acaso
+          url.searchParams.delete(key);
         }
-
-        // Estado inicial (modo modificar o agregar)
-        if (id && id.trim() !== "") {
-          btnAgregar.style.display = "none";
-          btnModificar.style.display = "inline-block";
-          btnEliminar.style.display = "inline-block";
-          btnCancelar.style.display = "inline-block";
-        } else {
-          modoAgregar();
-        }
-
-        // Evento cancelar
-        btnCancelar.addEventListener("click", function(e) {
-            e.preventDefault();
-            modoAgregar();
-            
-            // AJUSTE ADICIONAL: Limpiar los parámetros de edición de la URL
-            if (window.history.replaceState) {
-                const url = new URL(window.location);
-                // Elimina todos los parámetros POST que se cargan al editar
-                url.searchParams.forEach((value, key) => {
-                    if (key !== 'msg') { // Dejamos 'msg' por si acaso
-                        url.searchParams.delete(key);
-                    }
-                });
-                window.history.replaceState({}, document.title, url);
-            }
-           });
       });
+      window.history.replaceState({}, document.title, url);
+    }
+  });
+});
 
       // Funciones de confirmación con SweetAlert2
         document.addEventListener("DOMContentLoaded", () => {

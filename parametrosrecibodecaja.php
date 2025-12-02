@@ -5,11 +5,6 @@ include ("connection.php");
 $conn = new connection();
 $pdo = $conn->connect();
 
-// Calcular el siguiente consecutivo ANTES de cualquier acción
-$sentencia = $pdo->prepare("SELECT IFNULL(MAX(consecutivo), 0) + 1 AS siguiente FROM recibodecaja");
-$sentencia->execute();
-$siguienteConsecutivo = $sentencia->fetch(PDO::FETCH_ASSOC)['siguiente'];
-
 // Variables del formulario
 $txtId = $_POST['txtId'] ?? "";
 $codigoDocumento = $_POST['codigoDocumento'] ?? "";
@@ -20,8 +15,8 @@ $accion = $_POST['accion'] ?? "";
 
 switch ($accion) {
   case "btnAgregar":
-      // Asignar consecutivo automático antes de guardar
-      $consecutivo = $siguienteConsecutivo;
+      // CONSECUTIVO FIJO: Siempre 1 para todos los tipos de documento
+      $consecutivo = 1;
 
       $sentencia = $pdo->prepare("INSERT INTO recibodecaja(codigoDocumento, descripcionDocumento, consecutivo, activo) 
                                   VALUES (:codigoDocumento, :descripcionDocumento, :consecutivo, :activo)");
@@ -58,6 +53,10 @@ switch ($accion) {
 
       header("Location: ".$_SERVER['PHP_SELF']."?msg=eliminado");
       exit;
+  break;
+
+  case "btnEditar":
+      // Solo cargar los datos del registro a editar
   break;
 }
 
@@ -227,7 +226,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <input type="text" class="form-control" 
                   id="consecutivo" 
                   name="consecutivo" 
-                  value="<?php echo $consecutivo != '' ? $consecutivo : $siguienteConsecutivo; ?>" 
+                  value="1" 
                   readonly>
           </div>  
         </div>
@@ -247,50 +246,53 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
       </form>
 
-      <!-- Tabla de registros -->
-      <div class="row mt-5">
-        <div class="section-title">
-          <h3>Recibos de Caja Registrados</h3>
-        </div>
-        <div class="table-responsive">
-          <table class="table-container">
-            <thead>
-              <tr>
-                <th>Código Documento</th>
-                <th>Descripción Documento</th>
-                <th>Consecutivo</th>
-                <th>Activo</th>
-                <th>Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach($lista as $registro){ ?>
-                <tr>
-                  <td><?php echo $registro['codigoDocumento']; ?></td>
-                  <td><?php echo $registro['descripcionDocumento']; ?></td>
-                  <td><?php echo $registro['consecutivo']; ?></td>
-                  <td><?php echo $registro['activo'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
-                  <td>
-                    <form action="" method="post" style="display:inline-block;">
-                      <input type="hidden" name="txtId" value="<?php echo $registro['id']; ?>">
-                      <input type="hidden" name="codigoDocumento" value="<?php echo $registro['codigoDocumento']; ?>">
-                      <input type="hidden" name="descripcionDocumento" value="<?php echo $registro['descripcionDocumento']; ?>">
-                      <input type="hidden" name="consecutivo" value="<?php echo $registro['consecutivo']; ?>">
-                      <input type="hidden" name="activo" value="<?php echo $registro['activo']; ?>">
-                      <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info" title="Editar">
-                          <i class="fas fa-edit"></i>
-                      </button>
-                      <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
-                          <i class="fas fa-trash-alt"></i>
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-              <?php } ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
+<!-- Tabla de registros -->
+<div class="row mt-5">
+  <div class="section-title">
+    <h3>Recibos de Caja Registrados</h3>
+  </div>
+  <div class="table-responsive">
+    <table class="table-container">
+      <thead>
+        <tr>
+          <th>Código Documento</th>
+          <th>Descripción Documento</th>
+          <th>Consecutivo</th>
+          <th>Activo</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php foreach($lista as $registro){ ?>
+          <tr>
+            <td><?php echo $registro['codigoDocumento']; ?></td>
+            <td><?php echo $registro['descripcionDocumento']; ?></td>
+            <td><?php echo $registro['consecutivo']; ?></td>
+            <td><?php echo $registro['activo'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
+            <td>
+              <form action="" method="post" style="display:inline-block;">
+                <input type="hidden" name="txtId" value="<?php echo $registro['id']; ?>">
+                <input type="hidden" name="codigoDocumento" value="<?php echo $registro['codigoDocumento']; ?>">
+                <input type="hidden" name="descripcionDocumento" value="<?php echo $registro['descripcionDocumento']; ?>">
+                <input type="hidden" name="consecutivo" value="1"> <!-- CAMBIO AQUÍ: Siempre 1 -->
+                <input type="hidden" name="activo" value="<?php echo $registro['activo']; ?>">
+                <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info" title="Editar">
+                    <i class="fas fa-edit"></i>
+                </button>
+              </form>
+              <form action="" method="post" style="display:inline-block;">
+                <input type="hidden" name="txtId" value="<?php echo $registro['id']; ?>">
+                <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+        <?php } ?>
+      </tbody>
+    </table>
+  </div>
+</div>
  
     </div>
   </section><!-- End Services Section -->

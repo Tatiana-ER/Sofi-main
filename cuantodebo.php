@@ -9,72 +9,112 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $pdo = $conn->connect();
 
         $cedula = $_POST['cedula'] ?? '';
+        $fechaCorte = $_POST['fecha'] ?? date('Y-m-d');
 
         $response = [
             'nombre' => '',
             'totalAdeudado' => 0,
             'valorPagos' => 0,
             'valorAnticipos' => 0,
-            'saldoPagar' => 0
+            'saldoPagar' => 0,
+            'fechaCorte' => $fechaCorte
         ];
 
         if ($cedula !== '') {
-            // 1. Obtener nombre y TOTAL ADEUDADO (valorTotal de facturas a crédito)
+            // 1. Obtener nombre y TOTAL ADEUDADO (facturas a crédito hasta la fecha de corte)
             $stmtCartera = $pdo->prepare("
                 SELECT 
                     nombre,
-                    SUM(CASE 
-                        WHEN formaPago LIKE '%Credito%' 
-                        THEN CAST(REPLACE(valorTotal, ',', '') AS DECIMAL(10,2))
+                    COALESCE(SUM(CASE 
+                        WHEN (formaPago LIKE '%Credito%' OR formaPago LIKE '%credito%' OR formaPago LIKE '%CREDITO%')
+                        AND fecha <= :fechaCorte
+                        THEN valorTotal
                         ELSE 0 
-                    END) AS totalAdeudado
+                    END), 0) AS totalAdeudado
                 FROM facturac 
-                WHERE identificacion = ?
+                WHERE identificacion = :cedula
                 GROUP BY nombre
             ");
-            $stmtCartera->execute([$cedula]);
+            $stmtCartera->execute([
+                ':cedula' => $cedula,
+                ':fechaCorte' => $fechaCorte
+            ]);
+            
             $rowCartera = $stmtCartera->fetch(PDO::FETCH_ASSOC);
 
             if ($rowCartera) {
                 $response['nombre'] = $rowCartera['nombre'];
-                $response['totalAdeudado'] = floatval($rowCartera['totalAdeudado']);
+                $response['totalAdeudado'] = floatval($rowCartera['totalAdeudado'] ?? 0);
+            } else {
+                // Si no hay resultados, intentar obtener solo el nombre
+                $stmtNombre = $pdo->prepare("SELECT nombre FROM facturac WHERE identificacion = :cedula LIMIT 1");
+                $stmtNombre->execute([':cedula' => $cedula]);
+                $rowNombre = $stmtNombre->fetch(PDO::FETCH_ASSOC);
+                if ($rowNombre) {
+                    $response['nombre'] = $rowNombre['nombre'];
+                }
             }
 
-            // 2. VALOR PAGOS: Suma de pagos aplicados (de detalle_comprobante_egreso)
-            $stmtPagos = $pdo->prepare("
-                SELECT COALESCE(SUM(det.valorAplicado), 0) AS valorPagos
-                FROM detalle_comprobante_egreso det
-                INNER JOIN doccomprobanteegreso dce ON det.idComprobante = dce.id
-                WHERE dce.identificacion = ?
-            ");
-            $stmtPagos->execute([$cedula]);
-            $rowPagos = $stmtPagos->fetch(PDO::FETCH_ASSOC);
+            // 2. VALOR PAGOS: Suma de pagos de comprobantes de egreso hasta la fecha de corte
+            // Solo se cuentan pagos que NO sean a crédito
+            try {
+                $stmtPagos = $pdo->prepare("
+                    SELECT COALESCE(SUM(valorTotal), 0) AS valorPagos
+                    FROM doccomprobanteegreso 
+                    WHERE identificacion = :cedula
+                    AND (formaPago NOT LIKE '%Credito%' AND formaPago NOT LIKE '%credito%' AND formaPago NOT LIKE '%CREDITO%')
+                    AND fecha <= :fechaCorte
+                ");
+                $stmtPagos->execute([
+                    ':cedula' => $cedula,
+                    ':fechaCorte' => $fechaCorte
+                ]);
+                
+                $rowPagos = $stmtPagos->fetch(PDO::FETCH_ASSOC);
+                $response['valorPagos'] = floatval($rowPagos['valorPagos'] ?? 0);
 
-            if ($rowPagos) {
-                $response['valorPagos'] = floatval($rowPagos['valorPagos']);
+            } catch (Exception $e) {
+                $response['valorPagos'] = 0;
+                error_log("ERROR en pagos: " . $e->getMessage());
             }
 
-            // 3. VALOR ANTICIPOS: Suma de débitos en cuenta 1330 y auxiliares
-            $stmtAnticipos = $pdo->prepare("
-                SELECT COALESCE(SUM(valorDebito), 0) AS valorAnticipos
-                FROM detallecomprobantecontable
-                WHERE cuentaContable LIKE '1330%'
-                AND tercero LIKE CONCAT('%', ?, '%')
-            ");
-            $stmtAnticipos->execute([$cedula]);
-            $rowAnticipos = $stmtAnticipos->fetch(PDO::FETCH_ASSOC);
-
-            if ($rowAnticipos) {
-                $response['valorAnticipos'] = floatval($rowAnticipos['valorAnticipos']);
+            // 3. VALOR ANTICIPOS: Suma de débitos en cuenta 1330 (Anticipos y avances) hasta la fecha de corte
+            try {
+                $stmtAnticipos = $pdo->prepare("
+                    SELECT COALESCE(SUM(d.valorDebito), 0) AS valorAnticipos
+                    FROM detallecomprobantecontable d
+                    INNER JOIN doccomprobantecontable dc ON d.comprobante_id = dc.id
+                    WHERE d.cuentaContable LIKE '1330%'
+                    AND (d.tercero LIKE CONCAT('%', :cedula, '%') OR d.tercero = :cedula2)
+                    AND dc.fecha <= :fechaCorte
+                ");
+                $stmtAnticipos->execute([
+                    ':cedula' => $cedula,
+                    ':cedula2' => $cedula,
+                    ':fechaCorte' => $fechaCorte
+                ]);
+                $rowAnticipos = $stmtAnticipos->fetch(PDO::FETCH_ASSOC);
+                $response['valorAnticipos'] = floatval($rowAnticipos['valorAnticipos'] ?? 0);
+            } catch (Exception $e) {
+                $response['valorAnticipos'] = 0;
+                error_log("ERROR en anticipos: " . $e->getMessage());
             }
 
             // 4. SALDO POR PAGAR = Total Adeudado - Valor Pagos - Valor Anticipos
             $response['saldoPagar'] = $response['totalAdeudado'] - $response['valorPagos'] - $response['valorAnticipos'];
+            
+            // DEBUG: Mostrar todos los valores con fecha
+            error_log("DEBUG - Resumen para cédula: $cedula | Fecha corte: $fechaCorte");
+            error_log("  - Nombre: {$response['nombre']}");
+            error_log("  - Total Adeudado: {$response['totalAdeudado']}");
+            error_log("  - Pagos Realizados: {$response['valorPagos']}");
+            error_log("  - Anticipos: {$response['valorAnticipos']}");
+            error_log("  - Saldo por Pagar: {$response['saldoPagar']}");
         }
 
         echo json_encode($response);
     } catch (Exception $e) {
-        echo json_encode(['error' => $e->getMessage()]);
+        echo json_encode(['error' => 'Error en el servidor: ' . $e->getMessage()]);
     }
     exit;
 }
@@ -406,82 +446,102 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
 
     // Función para obtener datos de cartera y agregar a la tabla
     function obtenerDatosCartera(cedula) {
-      // Verificar si el proveedor ya está en la tabla
-      if (proveedoresAgregados.includes(cedula)) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'Proveedor duplicado',
-          text: 'Este proveedor ya está en la tabla',
-          timer: 2000,
-          showConfirmButton: false
-        });
-        return;
-      }
+        // Verificar si el proveedor ya está en la tabla
+        if (proveedoresAgregados.includes(cedula)) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Proveedor duplicado',
+                text: 'Este proveedor ya está en la tabla',
+                timer: 2000,
+                showConfirmButton: false
+            });
+            return;
+        }
 
-      fetch(window.location.href, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'action=fetchProveedor&cedula=' + encodeURIComponent(cedula)
-      })
-      .then(response => response.json())
-      .then(data => {
-        console.log('Datos recibidos:', data);
+        // Obtener la fecha de corte del campo fecha
+        const fechaCorte = document.getElementById('fecha').value;
         
-        if (data.error) {
-          console.error('Error del servidor:', data.error);
-          Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'Error al consultar los datos: ' + data.error
-          });
-          return;
+        // Validar que la fecha esté seleccionada
+        if (!fechaCorte) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Fecha requerida',
+                text: 'Por favor seleccione una fecha de corte'
+            });
+            return;
         }
 
-        if (!data.nombre) {
-          Swal.fire({
-            icon: 'warning',
-            title: 'Proveedor no encontrado',
-            text: 'No se encontraron datos para este proveedor'
-          });
-          return;
-        }
+        // Crear objeto FormData para enviar los datos
+        const formData = new URLSearchParams();
+        formData.append('action', 'fetchProveedor');
+        formData.append('cedula', cedula);
+        formData.append('fecha', fechaCorte);
 
-        // Validar que los datos sean números válidos
-        const totalAdeudado = parseFloat(data.totalAdeudado) || 0;
-        const valorPagos = parseFloat(data.valorPagos) || 0;
-        const valorAnticipos = parseFloat(data.valorAnticipos) || 0;
-        const saldoPagar = parseFloat(data.saldoPagar) || 0;
+        fetch(window.location.href, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Datos recibidos:', data);
+            console.log('Fecha de corte utilizada:', fechaCorte);
+            
+            if (data.error) {
+                console.error('Error del servidor:', data.error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Error al consultar los datos: ' + data.error
+                });
+                return;
+            }
 
-        // Agregar proveedor al array
-        proveedoresAgregados.push(cedula);
+            if (!data.nombre) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Proveedor no encontrado',
+                    text: 'No se encontraron datos para este proveedor hasta la fecha ' + fechaCorte
+                });
+                return;
+            }
 
-        // Agregar fila a la tabla
-        agregarFilaProveedor(cedula, data.nombre, totalAdeudado, valorPagos, valorAnticipos, saldoPagar);
+            // Validar que los datos sean números válidos
+            const totalAdeudado = parseFloat(data.totalAdeudado) || 0;
+            const valorPagos = parseFloat(data.valorPagos) || 0;
+            const valorAnticipos = parseFloat(data.valorAnticipos) || 0;
+            const saldoPagar = parseFloat(data.saldoPagar) || 0;
 
-        // Actualizar totales
-        actualizarTotales();
+            // Agregar proveedor al array
+            proveedoresAgregados.push(cedula);
 
-        // Limpiar campos de búsqueda
-        inputCedula.value = '';
-        inputNombre.value = '';
+            // Agregar fila a la tabla
+            agregarFilaProveedor(cedula, data.nombre, totalAdeudado, valorPagos, valorAnticipos, saldoPagar);
 
-        // Mostrar mensaje de éxito
-        Swal.fire({
-          icon: 'success',
-          title: 'Proveedor agregado',
-          text: 'Proveedor agregado correctamente a la tabla',
-          timer: 1500,
-          showConfirmButton: false
+            // Actualizar totales
+            actualizarTotales();
+
+            // Limpiar campos de búsqueda
+            inputCedula.value = '';
+            inputNombre.value = '';
+
+            // Mostrar mensaje de éxito con fecha
+            Swal.fire({
+                icon: 'success',
+                title: 'Proveedor agregado',
+                text: `Proveedor agregado correctamente. Datos hasta: ${fechaCorte}`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+        })
+        .catch(error => {
+            console.error('Error en fetch:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'Error al realizar la consulta'
+            });
         });
-      })
-      .catch(error => {
-        console.error('Error en fetch:', error);
-        Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: 'Error al realizar la consulta'
-        });
-      });
     }
 
     // Función para agregar una fila a la tabla
