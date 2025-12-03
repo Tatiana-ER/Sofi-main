@@ -12,6 +12,23 @@ $cuenta_codigo = isset($_GET['cuenta']) ? $_GET['cuenta'] : '';
 $tercero = isset($_GET['tercero']) ? $_GET['tercero'] : '';
 $mostrar_saldo_inicial = isset($_GET['mostrar_saldo_inicial']) ? true : false;
 
+// ================== FUNCIÓN PARA EXTRAER SOLO LA IDENTIFICACIÓN (NÚMEROS) ==================
+function extraerIdentificacion($identificacion) {
+    // Si está vacío, retornar vacío
+    if (empty($identificacion)) {
+        return '';
+    }
+    
+    // Si contiene guion, extraer solo la parte numérica
+    if (strpos($identificacion, '-') !== false) {
+        $partes = explode('-', $identificacion, 2);
+        return trim($partes[0]);
+    }
+    
+    // Si ya es solo números, retornarlo limpio
+    return trim($identificacion);
+}
+
 // ================== FUNCIÓN PARA CALCULAR SALDOS POR CUENTA ==================
 function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $tercero = '', $calcular_saldo_inicial = false) {
     if ($calcular_saldo_inicial) {
@@ -47,8 +64,13 @@ function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $
     }
     
     if ($tercero != '') {
-        $sql .= " AND tercero_identificacion = :tercero";
+        // Para filtrar por tercero, necesitamos verificar tanto la identificación limpia como la con formato
+        $sql .= " AND ( 
+                    tercero_identificacion = :tercero 
+                    OR tercero_identificacion LIKE CONCAT(:tercero_con_guion, '%')
+                  )";
         $params[':tercero'] = $tercero;
+        $params[':tercero_con_guion'] = $tercero . ' -';
     }
     
     $stmt = $pdo->prepare($sql);
@@ -94,8 +116,12 @@ function obtenerResultadoEjercicio($pdo, $fecha_desde, $fecha_hasta, $tercero = 
     $params_ingresos = [':desde' => $fecha_desde, ':hasta' => $fecha_hasta];
     
     if ($tercero != '') {
-        $sql_ingresos .= " AND tercero_identificacion = :tercero";
+        $sql_ingresos .= " AND ( 
+                           tercero_identificacion = :tercero 
+                           OR tercero_identificacion LIKE CONCAT(:tercero_con_guion, '%')
+                         )";
         $params_ingresos[':tercero'] = $tercero;
+        $params_ingresos[':tercero_con_guion'] = $tercero . ' -';
     }
     
     $stmt = $pdo->prepare($sql_ingresos);
@@ -111,8 +137,12 @@ function obtenerResultadoEjercicio($pdo, $fecha_desde, $fecha_hasta, $tercero = 
     $params_costos = [':desde' => $fecha_desde, ':hasta' => $fecha_hasta];
     
     if ($tercero != '') {
-        $sql_costos .= " AND tercero_identificacion = :tercero";
+        $sql_costos .= " AND ( 
+                          tercero_identificacion = :tercero 
+                          OR tercero_identificacion LIKE CONCAT(:tercero_con_guion, '%')
+                        )";
         $params_costos[':tercero'] = $tercero;
+        $params_costos[':tercero_con_guion'] = $tercero . ' -';
     }
     
     $stmt = $pdo->prepare($sql_costos);
@@ -128,8 +158,12 @@ function obtenerResultadoEjercicio($pdo, $fecha_desde, $fecha_hasta, $tercero = 
     $params_gastos = [':desde' => $fecha_desde, ':hasta' => $fecha_hasta];
     
     if ($tercero != '') {
-        $sql_gastos .= " AND tercero_identificacion = :tercero";
+        $sql_gastos .= " AND ( 
+                          tercero_identificacion = :tercero 
+                          OR tercero_identificacion LIKE CONCAT(:tercero_con_guion, '%')
+                        )";
         $params_gastos[':tercero'] = $tercero;
+        $params_gastos[':tercero_con_guion'] = $tercero . ' -';
     }
     
     $stmt = $pdo->prepare($sql_gastos);
@@ -156,8 +190,12 @@ if ($cuenta_codigo != '') {
 }
 
 if ($tercero != '') {
-    $sql_cuentas .= " AND tercero_identificacion = :tercero";
+    $sql_cuentas .= " AND ( 
+                        tercero_identificacion = :tercero 
+                        OR tercero_identificacion LIKE CONCAT(:tercero_con_guion, '%')
+                      )";
     $params_cuentas[':tercero'] = $tercero;
+    $params_cuentas[':tercero_con_guion'] = $tercero . ' -';
 }
 
 $sql_cuentas .= " ORDER BY clase, codigo_cuenta";
@@ -345,9 +383,9 @@ foreach ($codigos_unicos as $codigo) {
     ];
 }
 
-// ================== LISTA DE TERCEROS PARA EL SELECT ==================
-$sql_terceros = "SELECT DISTINCT 
-                    ld.tercero_identificacion,
+// ================== LISTA DE TERCEROS PARA EL SELECT (UNIFICADA) ==================
+$sql_terceros = "SELECT 
+                    DISTINCT ld.tercero_identificacion,
                     ld.tercero_nombre
                  FROM libro_diario ld
                  WHERE ld.tercero_identificacion IS NOT NULL 
@@ -358,7 +396,42 @@ $sql_terceros = "SELECT DISTINCT
 
 $stmt_terceros = $pdo->prepare($sql_terceros);
 $stmt_terceros->execute([':desde' => $fecha_desde, ':hasta' => $fecha_hasta]);
-$lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
+$terceros_db = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
+
+// Procesar y unificar los terceros
+$terceros_unificados = [];
+
+foreach ($terceros_db as $t) {
+    $identificacion = $t['tercero_identificacion'];
+    $identificacion_limpia = extraerIdentificacion($identificacion);
+    
+    // Buscar el nombre completo (puede venir de tercero_nombre o del mismo tercero_identificacion)
+    $nombre_completo = '';
+    
+    if (!empty($t['tercero_nombre'])) {
+        $nombre_completo = $t['tercero_nombre'];
+    } else {
+        // Si no hay tercero_nombre, extraer del campo tercero_identificacion
+        if (strpos($identificacion, '-') !== false) {
+            $partes = explode('-', $identificacion, 2);
+            if (count($partes) == 2) {
+                $nombre_completo = trim($partes[1]);
+            }
+        }
+    }
+    
+    // Usar la identificación limpia como clave para evitar duplicados
+    if (!empty($identificacion_limpia) && !isset($terceros_unificados[$identificacion_limpia])) {
+        $terceros_unificados[$identificacion_limpia] = [
+            'identificacion_limpia' => $identificacion_limpia,
+            'nombre' => $nombre_completo ?: 'Tercero ' . $identificacion_limpia,
+            'mostrar' => $identificacion_limpia . ' - ' . ($nombre_completo ?: 'Tercero ' . $identificacion_limpia)
+        ];
+    }
+}
+
+// Convertir a array para usar en el select
+$lista_terceros = array_values($terceros_unificados);
 
 // ================== VERIFICAR EQUILIBRIO CONTABLE ==================
 $total_pasivo_patrimonio = $totalPasivos + $totalPatrimonios;
@@ -526,7 +599,7 @@ $esta_equilibrado = abs($diferencia) < 0.01;
     }
     
     @media print {
-      .btn-ir, form, .btn-primary, .btn-secondary, .btn-success { display: none; }
+      .btn-ir, form, .btn-primary, .btn-secondary, .btn-success, .btn-limpiar { display: none; }
     }
   </style>
 </head>
@@ -595,9 +668,9 @@ $esta_equilibrado = abs($diferencia) < 0.01;
               <select name="tercero" id="selectTercero" class="form-select">
                   <option value="">-- Todos --</option>
                   <?php foreach ($lista_terceros as $t): ?>
-                      <option value="<?= htmlspecialchars($t['tercero_identificacion']) ?>" 
-                              <?= $t['tercero_identificacion']==$tercero?'selected':'' ?>>
-                          <?= htmlspecialchars($t['tercero_identificacion'] . '  ' . $t['tercero_nombre']) ?>
+                      <option value="<?= htmlspecialchars($t['identificacion_limpia']) ?>" 
+                              <?= $t['identificacion_limpia']==$tercero?'selected':'' ?>>
+                          <?= htmlspecialchars($t['mostrar']) ?>
                       </option>
                   <?php endforeach; ?>
               </select>
@@ -616,6 +689,12 @@ $esta_equilibrado = abs($diferencia) < 0.01;
                       Mostrar saldo inicial
                   </label>
               </div>
+          </div>
+          <!-- Botón para limpiar filtros -->
+          <div class="col-md-12 mt-3">
+              <button type="button" class="btn-limpiar" onclick="limpiarFiltros()">
+                </i> Limpiar Filtros
+              </button>
           </div>
       </form>
 
@@ -889,6 +968,12 @@ $esta_equilibrado = abs($diferencia) < 0.01;
 
         const url = `exportar_estado_situacion_pdf.php?periodo_fiscal=${encodeURIComponent(periodo_fiscal)}&cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}&mostrar_saldo_inicial=${mostrar_saldo_inicial}`;
         window.open(url, '_blank');
+    }
+
+    // Función para limpiar filtros
+    function limpiarFiltros() {
+        // Redirigir a la misma página sin parámetros
+        window.location.href = window.location.pathname;
     }
   </script>
 </body>

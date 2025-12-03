@@ -844,3 +844,114 @@ form {
   background-color: #ff0000; /* rojo */
   margin-left: 10px;
 }
+
+/* Agrega al final de tu sección de estilos CSS */
+
+.total-cliente-row {
+    font-weight: bold;
+    background-color: #e8f4fd !important;
+}
+
+.total-cliente-row td {
+    padding: 10px 8px !important;
+    border-top: 2px solid #007bff !important;
+}
+
+.total-general-cliente {
+    color: #dc3545;
+    font-size: 1.1em;
+}
+
+.cliente-separator {
+    height: 3px;
+    background-color: #f1f3f4;
+}
+
+.total-row {
+    font-weight: bold;
+    background-color: #e9ecef !important;
+}
+
+.total-row td {
+    padding: 10px 8px !important;
+    border-top: 2px solid #6c757d !important;
+}
+
+.btn-limpiar {
+      background-color: #6c757d;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 20px;
+      margin-left: 10px;
+    }
+.btn-limpiar:hover {
+  background-color: #5a6268;
+}
+
+    .btn-generar {
+      background-color: #28a745;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+    .btn-generar:hover {
+      background-color: #218838;
+    }
+    .btn-agregar {
+      background-color: #007bff;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 20px;
+      margin-left: 10px;
+    }
+    .btn-agregar:hover {
+      background-color: #0069d9;
+    }
+    .btn-exportar {
+      background-color: #17a2b8;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 20px;
+      margin-left: 10px;
+    }
+    .btn-exportar:hover {
+      background-color: #138496;
+    }
+    .btn-limpiar {
+      background-color: #6c757d;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 20px;
+      margin-left: 10px;
+    }
+    .btn-limpiar:hover {
+      background-color: #5a6268;
+    }
+    .total-row {
+      font-weight: bold;
+      background-color: #e9ecef;
+    }
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 20px;
+    }
+    .cliente-header {
+      background-color: #e3f2fd;
+      font-weight: bold;
+    }

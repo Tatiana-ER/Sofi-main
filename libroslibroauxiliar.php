@@ -10,29 +10,76 @@ $fecha_hasta = isset($_GET['hasta']) ? $_GET['hasta'] : date('Y-12-31');
 $cuenta_codigo = isset($_GET['cuenta']) ? $_GET['cuenta'] : '';
 $tercero = isset($_GET['tercero']) ? $_GET['tercero'] : '';
 
+// ================== FUNCIÓN PARA EXTRAER SOLO LA IDENTIFICACIÓN (NÚMEROS) ==================
+function extraerIdentificacion($identificacion) {
+    // Si está vacío, retornar vacío
+    if (empty($identificacion)) {
+        return '';
+    }
+    
+    // Si contiene guion, extraer solo la parte numérica
+    if (strpos($identificacion, '-') !== false) {
+        $partes = explode('-', $identificacion, 2);
+        return trim($partes[0]);
+    }
+    
+    // Si ya es solo números, retornarlo limpio
+    return trim($identificacion);
+}
+
 // ================== OBTENER CUENTAS ==================
 if ($cuenta_codigo != '') {
     $sql_cuentas = "SELECT codigo_cuenta, MIN(nombre_cuenta) as nombre_cuenta
                     FROM libro_diario
                     WHERE codigo_cuenta = :cuenta
-                    GROUP BY codigo_cuenta
-                    ORDER BY codigo_cuenta";
+                    AND fecha BETWEEN :desde AND :hasta";
+    
+    $params_cuentas = [
+        ':cuenta' => $cuenta_codigo,
+        ':desde' => $fecha_desde,
+        ':hasta' => $fecha_hasta
+    ];
+    
+    if ($tercero != '') {
+        $sql_cuentas .= " AND ( 
+                           tercero_identificacion = :tercero 
+                           OR tercero_identificacion LIKE CONCAT(:tercero_con_guion, '%')
+                         )";
+        $params_cuentas[':tercero'] = $tercero;
+        $params_cuentas[':tercero_con_guion'] = $tercero . ' -';
+    }
+    
+    $sql_cuentas .= " GROUP BY codigo_cuenta ORDER BY codigo_cuenta";
     $stmt_cuentas = $pdo->prepare($sql_cuentas);
-    $stmt_cuentas->execute([':cuenta' => $cuenta_codigo]);
+    $stmt_cuentas->execute($params_cuentas);
 } else {
     $sql_cuentas = "SELECT codigo_cuenta, MIN(nombre_cuenta) as nombre_cuenta
                     FROM libro_diario
-                    WHERE fecha BETWEEN :desde AND :hasta
-                    GROUP BY codigo_cuenta
-                    ORDER BY codigo_cuenta";
+                    WHERE fecha BETWEEN :desde AND :hasta";
+    
+    $params_cuentas = [
+        ':desde' => $fecha_desde,
+        ':hasta' => $fecha_hasta
+    ];
+    
+    if ($tercero != '') {
+        $sql_cuentas .= " AND ( 
+                           tercero_identificacion = :tercero 
+                           OR tercero_identificacion LIKE CONCAT(:tercero_con_guion, '%')
+                         )";
+        $params_cuentas[':tercero'] = $tercero;
+        $params_cuentas[':tercero_con_guion'] = $tercero . ' -';
+    }
+    
+    $sql_cuentas .= " GROUP BY codigo_cuenta ORDER BY codigo_cuenta";
     $stmt_cuentas = $pdo->prepare($sql_cuentas);
-    $stmt_cuentas->execute([':desde' => $fecha_desde, ':hasta' => $fecha_hasta]);
+    $stmt_cuentas->execute($params_cuentas);
 }
 $cuentas = $stmt_cuentas->fetchAll(PDO::FETCH_ASSOC);
 
 // ================== FUNCIÓN PARA OBTENER MOVIMIENTOS ==================
 function obtenerMovimientosCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $tercero = '') {
-    // Obtener el nombre correcto de la cuenta (siempre el más reciente o más común)
+    // Obtener el nombre correcto de la cuenta
     $sql_nombre = "SELECT nombre_cuenta 
                    FROM libro_diario 
                    WHERE codigo_cuenta = :cuenta 
@@ -42,10 +89,9 @@ function obtenerMovimientosCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_has
     $stmt_nombre->execute([':cuenta' => $codigo_cuenta]);
     $nombre_cuenta = $stmt_nombre->fetch(PDO::FETCH_COLUMN);
     
-    // Si no encontramos nombre, usar uno por defecto según el código
     if (!$nombre_cuenta) {
         if ($codigo_cuenta == '135515') {
-            $nombre_cuenta = 'Retención en la Fuente por Cobrar'; // Nombre correcto
+            $nombre_cuenta = 'Retención en la Fuente por Cobrar';
         } else {
             $nombre_cuenta = 'Cuenta ' . $codigo_cuenta;
         }
@@ -60,8 +106,20 @@ function obtenerMovimientosCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_has
                     COALESCE(SUM(credito),0) as suma_credito_prev
                   FROM libro_diario
                   WHERE codigo_cuenta = :cuenta AND fecha < :desde";
+    
+    $params_saldo = [':cuenta' => $codigo_cuenta, ':desde' => $fecha_desde];
+    
+    if ($tercero != '') {
+        $sql_saldo .= " AND ( 
+                        tercero_identificacion = :tercero 
+                        OR tercero_identificacion LIKE CONCAT(:tercero_con_guion, '%')
+                      )";
+        $params_saldo[':tercero'] = $tercero;
+        $params_saldo[':tercero_con_guion'] = $tercero . ' -';
+    }
+    
     $stmt_saldo = $pdo->prepare($sql_saldo);
-    $stmt_saldo->execute([':cuenta' => $codigo_cuenta, ':desde' => $fecha_desde]);
+    $stmt_saldo->execute($params_saldo);
     $row = $stmt_saldo->fetch(PDO::FETCH_ASSOC);
 
     $deb_prev = floatval($row['suma_debito_prev']);
@@ -85,11 +143,16 @@ function obtenerMovimientosCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_has
     $sql_mov = "SELECT * FROM libro_diario
                 WHERE codigo_cuenta = :cuenta
                   AND fecha BETWEEN :desde AND :hasta";
+    
     $params = [':cuenta' => $codigo_cuenta, ':desde' => $fecha_desde, ':hasta' => $fecha_hasta];
     
     if ($tercero != '') {
-        $sql_mov .= " AND tercero_identificacion = :tercero";
+        $sql_mov .= " AND ( 
+                      tercero_identificacion = :tercero 
+                      OR tercero_identificacion LIKE CONCAT(:tercero_con_guion, '%')
+                    )";
         $params[':tercero'] = $tercero;
+        $params[':tercero_con_guion'] = $tercero . ' -';
     }
     
     $sql_mov .= " ORDER BY fecha ASC, id ASC";
@@ -103,15 +166,13 @@ function obtenerMovimientosCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_has
         $debito = floatval($m['debito']);
         $credito = floatval($m['credito']);
 
-        // Guardamos el saldo ANTES del movimiento (saldo inicial de esta fila)
+        // Guardamos el saldo ANTES del movimiento
         $movimientos[$k]['saldo_inicial_fila'] = $saldo;
 
         // Aplicamos el movimiento
         if (in_array($naturaleza, ['1','5','6','7'])) {
-            // Activo / Costos / Gastos
             $saldo += ($debito - $credito);
         } else {
-            // Pasivo / Patrimonio / Ingresos
             $saldo += ($credito - $debito);
         }
 
@@ -131,23 +192,61 @@ function obtenerMovimientosCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_has
 }
 
 // ================== LISTA DE CUENTAS PARA EL SELECT ==================
-$sql_lista = "SELECT codigo_cuenta, MIN(nombre_cuenta) as nombre_cuenta 
+$sql_lista = "SELECT DISTINCT codigo_cuenta, MIN(nombre_cuenta) as nombre_cuenta 
               FROM libro_diario 
               GROUP BY codigo_cuenta 
               ORDER BY codigo_cuenta";
 $stmt_lista = $pdo->query($sql_lista);
 $lista_cuentas = $stmt_lista->fetchAll(PDO::FETCH_ASSOC);
 
-// ================== LISTA DE TERCEROS PARA EL SELECT ==================
-$sql_terceros = "SELECT DISTINCT 
-                    tercero_identificacion,
-                    tercero_nombre
-                 FROM libro_diario
-                 WHERE tercero_identificacion IS NOT NULL 
-                   AND tercero_identificacion != ''
-                 ORDER BY tercero_nombre ASC";
-$stmt_terceros = $pdo->query($sql_terceros);
-$lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
+// ================== LISTA DE TERCEROS PARA EL SELECT (UNIFICADA) ==================
+$sql_terceros = "SELECT 
+                    DISTINCT ld.tercero_identificacion,
+                    ld.tercero_nombre
+                 FROM libro_diario ld
+                 WHERE ld.tercero_identificacion IS NOT NULL 
+                   AND ld.tercero_identificacion != ''
+                   AND ld.fecha BETWEEN :desde AND :hasta
+                 ORDER BY ld.tercero_nombre ASC";
+
+$stmt_terceros = $pdo->prepare($sql_terceros);
+$stmt_terceros->execute([':desde' => $fecha_desde, ':hasta' => $fecha_hasta]);
+$terceros_db = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
+
+// Procesar y unificar los terceros
+$terceros_unificados = [];
+
+foreach ($terceros_db as $t) {
+    $identificacion = $t['tercero_identificacion'];
+    $identificacion_limpia = extraerIdentificacion($identificacion);
+    
+    // Buscar el nombre completo
+    $nombre_completo = '';
+    
+    if (!empty($t['tercero_nombre'])) {
+        $nombre_completo = $t['tercero_nombre'];
+    } else {
+        // Si no hay tercero_nombre, extraer del campo tercero_identificacion
+        if (strpos($identificacion, '-') !== false) {
+            $partes = explode('-', $identificacion, 2);
+            if (count($partes) == 2) {
+                $nombre_completo = trim($partes[1]);
+            }
+        }
+    }
+    
+    // Usar la identificación limpia como clave para evitar duplicados
+    if (!empty($identificacion_limpia) && !isset($terceros_unificados[$identificacion_limpia])) {
+        $terceros_unificados[$identificacion_limpia] = [
+            'identificacion_limpia' => $identificacion_limpia,
+            'nombre' => $nombre_completo ?: 'Tercero ' . $identificacion_limpia,
+            'mostrar' => $identificacion_limpia . ' - ' . ($nombre_completo ?: 'Tercero ' . $identificacion_limpia)
+        ];
+    }
+}
+
+// Convertir a array para usar en el select
+$lista_terceros = array_values($terceros_unificados);
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -307,6 +406,10 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
     .btn-limpiar {
       background-color: #6c757d;
       color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
     }
     
     .btn-limpiar:hover {
@@ -385,15 +488,21 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
           <select name="tercero" id="selectTercero" class="form-select">
             <option value="">-- Todos --</option>
             <?php foreach ($lista_terceros as $t): ?>
-              <option value="<?= htmlspecialchars($t['tercero_identificacion']) ?>" 
-                      <?= $t['tercero_identificacion']==$tercero?'selected':'' ?>>
-                <?= htmlspecialchars($t['tercero_identificacion'] . '  ' . $t['tercero_nombre']) ?>
+              <option value="<?= htmlspecialchars($t['identificacion_limpia']) ?>" 
+                      <?= $t['identificacion_limpia']==$tercero?'selected':'' ?>>
+                <?= htmlspecialchars($t['mostrar']) ?>
               </option>
             <?php endforeach; ?>
           </select>
         </div>
         <div class="col-md-2 d-flex align-items-end">
           <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-search"></i> Buscar</button>
+        </div>
+        <!-- Botón para limpiar filtros -->
+        <div class="col-md-12 mt-3">
+          <button type="button" class="btn-limpiar" onclick="limpiarFiltros()">
+            Limpiar Filtros
+          </button>
         </div>
       </form>
 
@@ -451,25 +560,23 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
                             $tercero_id = $mov['tercero_identificacion'] ?? '';
                             $tercero_nombre = $mov['tercero_nombre'] ?? '';
                             
-                            // Si el nombre está vacío pero la identificación contiene " - ", separar
-                            if (empty($tercero_nombre) && strpos($tercero_id, ' - ') !== false) {
-                                $partes = explode(' - ', $tercero_id, 2);
-                                $tercero_id = trim($partes[0]);
-                                $tercero_nombre = trim($partes[1]);
-                            }
-                            // Si aún está vacío el nombre, intentar con otros separadores comunes
-                            elseif (empty($tercero_nombre) && strpos($tercero_id, '-') !== false) {
+                            // Usar la función extraerIdentificacion para limpiar la identificación
+                            $identificacion_limpia = extraerIdentificacion($tercero_id);
+                            
+                            // Si el nombre está vacío, intentar extraerlo del campo identificacion
+                            if (empty($tercero_nombre) && strpos($tercero_id, '-') !== false) {
                                 $partes = explode('-', $tercero_id, 2);
-                                $tercero_id = trim($partes[0]);
-                                $tercero_nombre = trim($partes[1]);
+                                if (count($partes) == 2) {
+                                    $tercero_nombre = trim($partes[1]);
+                                }
                             }
 
                             echo "<tr>
                                     <td>" . htmlspecialchars($cuenta['codigo_cuenta']) . "</td>
                                     <td>" . htmlspecialchars($datos['nombre_cuenta_corregido']) . "</td>
-                                    <td>" . htmlspecialchars($tercero_id) . "</td>
+                                    <td>" . htmlspecialchars($identificacion_limpia) . "</td>
                                     <td>" . htmlspecialchars($tercero_nombre) . "</td>
-                                    <td>" . strtoupper(date('F d \D\E Y', strtotime($mov['fecha']))) . "</td>
+                                    <td>" . date('d/m/Y', strtotime($mov['fecha'])) . "</td>
                                     <td>" . htmlspecialchars($comprobante) . "</td>
                                     <td>" . htmlspecialchars($mov['concepto']) . "</td>
                                     <td class='text-end'>" . number_format($mov['saldo_inicial_fila'], 0, ',', '.') . "</td>
@@ -495,7 +602,6 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
       const hasta = document.querySelector('input[name="hasta"]').value;
       const tercero = document.querySelector('select[name="tercero"]').value;
 
-      // Cambia aquí el nombre del archivo
       const url = `exportar_libro_auxiliar.php?cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}`;
       
       window.location.href = url;
@@ -507,13 +613,11 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
       const hasta = document.querySelector('input[name="hasta"]').value;
       const tercero = document.querySelector('select[name="tercero"]').value;
 
-      // ✅ Nombre del archivo PDF
       const url = `exportar_libro_auxiliar_pdf.php?cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}`;
       
       window.location.href = url;
   }
   </script>
-
 
   <!-- ======= Footer ======= -->
   <footer id="footer" class="footer-minimalista">
@@ -558,6 +662,12 @@ $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
         width: '100%'
       });
     });
+
+    // Función para limpiar filtros
+    function limpiarFiltros() {
+        // Redirigir a la misma página sin parámetros
+        window.location.href = window.location.pathname;
+    }
   </script>
 </body>
 </html>

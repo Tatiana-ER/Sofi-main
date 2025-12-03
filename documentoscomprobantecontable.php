@@ -50,6 +50,15 @@ switch($accion){
               if ($terceroCompleto == ' - ') {
                   $terceroCompleto = '';
               }
+
+              // Para cuenta contable: solo guardar el código
+              $cuentaContable = $detalle['cuentaContable'];
+              
+              // Si viene en formato "código - nombre", extraer solo el código
+              if (strpos($cuentaContable, '-') !== false) {
+                  $partes = explode('-', $cuentaContable, 2);
+                  $cuentaContable = trim($partes[0]);
+              }
               
               $stmtDetalle->execute([
                   ':comprobante_id' => $idComprobante,
@@ -98,6 +107,15 @@ switch($accion){
               $terceroCompleto = trim(($detalle['terceroCedula'] ?? '') . ' - ' . ($detalle['terceroNombre'] ?? ''));
               if ($terceroCompleto == ' - ') {
                   $terceroCompleto = '';
+              }
+
+              // Para cuenta contable: solo guardar el código
+              $cuentaContable = $detalle['cuentaContable'];
+              
+              // Si viene en formato "código - nombre", extraer solo el código
+              if (strpos($cuentaContable, '-') !== false) {
+                  $partes = explode('-', $cuentaContable, 2);
+                  $cuentaContable = trim($partes[0]);
               }
               
               $stmtDetalle->execute([
@@ -364,17 +382,31 @@ document.addEventListener("DOMContentLoaded", () => {
                 </tr>
               </thead>
               <tbody id="product-table">
-                <?php if (!empty($detalles)) : ?>
-                  <?php foreach ($detalles as $detalle): ?>
-                      <tr>
+                    <?php if (!empty($detalles)) : ?>
+                      <?php foreach ($detalles as $detalle): ?>
+                        <tr>
                           <td>
                             <select name="cuentaContable" class="form-control cuenta-select" style="width: 100%;">
-                              <option value="<?= htmlspecialchars($detalle['cuentaContable']) ?>" selected>
-                                <?= htmlspecialchars($detalle['cuentaContable']) ?>
-                              </option>
+                              <?php if (!empty($detalle['cuentaContable'])): ?>
+                                <?php 
+                                // Separar código y nombre si existe
+                                $cuentaCompleta = $detalle['cuentaContable'];
+                                $partes = explode('-', $cuentaCompleta, 2);
+                                $codigo = $partes[0] ?? $cuentaCompleta;
+                                $nombre = isset($partes[1]) ? trim($partes[1]) : '';
+                                ?>
+                                <option value="<?= htmlspecialchars($codigo) ?>" selected>
+                                  <?= htmlspecialchars($codigo) ?>
+                                </option>
+                              <?php else: ?>
+                                <option value="">Buscar cuenta...</option>
+                              <?php endif; ?>
                             </select>
                           </td>
-                          <td><input type="text" name="descripcionCuenta" class="form-control" value="<?= htmlspecialchars($detalle['descripcionCuenta']) ?>"></td>
+                          <td>
+                            <input type="text" name="descripcionCuenta" class="form-control" 
+                                  value="<?= htmlspecialchars($detalle['descripcionCuenta'] ?? $nombre) ?>">
+                          </td>
                           <td>
                             <select name="terceroCedula" class="form-control tercero-select" style="width: 100%;">
                               <?php if (!empty($detalle['terceroCedula'])): ?>
@@ -492,7 +524,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // ========== INICIALIZACIÓN DE SELECT2 CUENTAS ==========
 function initCuentaSelect($select) {
   $select.select2({
-    placeholder: "Buscar cuenta contable...",
+    placeholder: "Buscar por código o nombre...",
     allowClear: true,
     width: '100%',
     ajax: {
@@ -508,7 +540,7 @@ function initCuentaSelect($select) {
             return { 
               id: cuenta.valor, 
               text: cuenta.texto,
-              descripcion: cuenta.descripcion
+              nombre: cuenta.nombre
             };
           })
         };
@@ -517,19 +549,28 @@ function initCuentaSelect($select) {
     }
   });
   
+  // Al seleccionar: mostrar solo el código
   $select.on('select2:select', function (e) {
     const data = e.params.data;
     const row = $(this).closest('tr');
     
-    let descripcion = data.descripcion || '';
-    if (data.id && data.id.startsWith('130505')) {
-      descripcion = 'Clientes Nacionales';
-    }
+    // Crear nueva opción solo con el código
+    const newOption = new Option(data.id, data.id, true, true);
+    $(this).empty().append(newOption).trigger('change');
     
-    row.find('input[name="descripcionCuenta"]').val(descripcion);
+    // Llenar la descripción con el nombre
+    row.find('input[name="descripcionCuenta"]').val(data.nombre || '');
+    
+    // Feedback visual
+    const descInput = row.find('input[name="descripcionCuenta"]');
+    descInput.css('background-color', '#d4edda');
+    setTimeout(() => descInput.css('background-color', ''), 1000);
+  });
+
+  $select.on('select2:clear', function (e) {
+    $(this).closest('tr').find('input[name="descripcionCuenta"]').val('');
   });
 }
-
 // ========== INICIALIZACIÓN DE SELECT2 TERCEROS ==========
 function initTerceroSelect($select) {
   $select.select2({

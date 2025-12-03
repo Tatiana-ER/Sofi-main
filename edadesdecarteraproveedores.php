@@ -36,6 +36,112 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         exit;
     }
 
+    // Procesar generación del informe de edades de cartera
+    if ($_POST['action'] === 'generarInforme') {
+        header('Content-Type: application/json');
+        include("connection.php");
+
+        try {
+            $conn = new connection();
+            $pdo = $conn->connect();
+
+            $identificacion = $_POST['identificacion'] ?? '';
+            $rangoFechas = $_POST['rangoFechas'] ?? 'todos';
+            $tipoFiltro = $_POST['tipoFiltro'] ?? 'proveedor'; // 'proveedor' o 'rango'
+
+            $response = [
+                'facturas' => [],
+                'totales' => [
+                    'sinVencer' => 0,
+                    'vencido1_30' => 0,
+                    'vencido31_60' => 0,
+                    'mayor60' => 0
+                ]
+            ];
+
+            // Consulta base para obtener facturas pendientes
+            $sql = "
+                SELECT 
+                    f.identificacion,
+                    f.nombre,
+                    f.consecutivo as documento,
+                    f.fecha_vencimiento,
+                    CASE 
+                        WHEN f.saldoReal IS NULL OR f.saldoReal = '' THEN f.valorTotal
+                        ELSE f.saldoReal
+                    END as saldo_pendiente
+                FROM facturac f
+                WHERE (f.saldoReal > 0 OR f.saldoReal IS NULL)
+                AND f.formaPago LIKE '%Credito%'
+                AND (CASE 
+                        WHEN f.saldoReal IS NULL OR f.saldoReal = '' THEN f.valorTotal
+                        ELSE f.saldoReal
+                    END) > 0
+            ";
+
+            $params = [];
+
+            // Aplicar filtro por proveedor si se especificó
+            if ($tipoFiltro === 'proveedor' && $identificacion !== '') {
+                $sql .= " AND f.identificacion = ?";
+                $params[] = $identificacion;
+            }
+
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            $facturas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Procesar cada factura
+            foreach ($facturas as $factura) {
+                $diasMora = calcularDiasMora($factura['fecha_vencimiento']);
+                $saldos = clasificarSaldo($factura['saldo_pendiente'], $diasMora);
+
+                // Aplicar filtro por rango de fechas
+                $mostrarFactura = true;
+                if ($rangoFechas !== 'todos') {
+                    switch($rangoFechas) {
+                        case '1-30':
+                            $mostrarFactura = ($diasMora >= 1 && $diasMora <= 30);
+                            break;
+                        case '31-60':
+                            $mostrarFactura = ($diasMora >= 31 && $diasMora <= 60);
+                            break;
+                        case '61+':
+                            $mostrarFactura = ($diasMora > 60);
+                            break;
+                    }
+                }
+
+                if ($mostrarFactura) {
+                    $facturaData = [
+                        'identificacion' => $factura['identificacion'],
+                        'nombre' => $factura['nombre'],
+                        'documento' => $factura['documento'],
+                        'fecha_vencimiento' => $factura['fecha_vencimiento'],
+                        'dias_mora' => $diasMora,
+                        'saldo_sin_vencer' => $saldos['sinVencer'],
+                        'vencido_1_30' => $saldos['vencido1_30'],
+                        'vencido_31_60' => $saldos['vencido31_60'],
+                        'mayor_60' => $saldos['mayor60']
+                    ];
+
+                    $response['facturas'][] = $facturaData;
+
+                    // Acumular totales
+                    $response['totales']['sinVencer'] += $saldos['sinVencer'];
+                    $response['totales']['vencido1_30'] += $saldos['vencido1_30'];
+                    $response['totales']['vencido31_60'] += $saldos['vencido31_60'];
+                    $response['totales']['mayor60'] += $saldos['mayor60'];
+                }
+            }
+
+            echo json_encode($response);
+        } catch (Exception $e) {
+            echo json_encode(['error' => $e->getMessage()]);
+        }
+        exit;
+    }
+
     // Procesar agregar proveedor a la tabla
     if ($_POST['action'] === 'agregarProveedorTabla') {
         header('Content-Type: application/json');
@@ -174,49 +280,49 @@ function calcularDiasMora($fechaVencimiento) {
     return $diferencia->days;
 }
 
-  // Función para clasificar saldo por rangos de mora
-  function clasificarSaldo($saldo, $diasMora) {
-      // Asegurarse de que el saldo sea un número válido
-      $saldo = floatval($saldo);
-      if ($saldo <= 0) {
-          return [
-              'sinVencer' => 0,
-              'vencido1_30' => 0,
-              'vencido31_60' => 0,
-              'mayor60' => 0
-          ];
-      }
-      
-      if ($diasMora === 0) {
-          return [
-              'sinVencer' => $saldo,
-              'vencido1_30' => 0,
-              'vencido31_60' => 0,
-              'mayor60' => 0
-          ];
-      } elseif ($diasMora >= 1 && $diasMora <= 30) {
-          return [
-              'sinVencer' => 0,
-              'vencido1_30' => $saldo,
-              'vencido31_60' => 0,
-              'mayor60' => 0
-          ];
-      } elseif ($diasMora >= 31 && $diasMora <= 60) {
-          return [
-              'sinVencer' => 0,
-              'vencido1_30' => 0,
-              'vencido31_60' => $saldo,
-              'mayor60' => 0
-          ];
-      } else {
-          return [
-              'sinVencer' => 0,
-              'vencido1_30' => 0,
-              'vencido31_60' => 0,
-              'mayor60' => $saldo
-          ];
-      }
-  }
+// Función para clasificar saldo por rangos de mora
+function clasificarSaldo($saldo, $diasMora) {
+    // Asegurarse de que el saldo sea un número válido
+    $saldo = floatval($saldo);
+    if ($saldo <= 0) {
+        return [
+            'sinVencer' => 0,
+            'vencido1_30' => 0,
+            'vencido31_60' => 0,
+            'mayor60' => 0
+        ];
+    }
+    
+    if ($diasMora === 0) {
+        return [
+            'sinVencer' => $saldo,
+            'vencido1_30' => 0,
+            'vencido31_60' => 0,
+            'mayor60' => 0
+        ];
+    } elseif ($diasMora >= 1 && $diasMora <= 30) {
+        return [
+            'sinVencer' => 0,
+            'vencido1_30' => $saldo,
+            'vencido31_60' => 0,
+            'mayor60' => 0
+        ];
+    } elseif ($diasMora >= 31 && $diasMora <= 60) {
+        return [
+            'sinVencer' => 0,
+            'vencido1_30' => 0,
+            'vencido31_60' => $saldo,
+            'mayor60' => 0
+        ];
+    } else {
+        return [
+            'sinVencer' => 0,
+            'vencido1_30' => 0,
+            'vencido31_60' => 0,
+            'mayor60' => $saldo
+        ];
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -627,11 +733,25 @@ function calcularDiasMora($fechaVencimiento) {
 
             // Agregar facturas a la tabla
             if (data.facturas.length > 0) {
+                let totalProveedor = 0;
+                
                 data.facturas.forEach(factura => {
                     // Para filtro por rango, usar el nombre de la factura
                     const nombreMostrar = tipoFiltro === 'proveedor' ? data.proveedor.nombre : factura.nombre;
                     agregarFilaFactura(factura, nombreMostrar, claveUnica);
+                    
+                    // Calcular total del proveedor
+                    const saldoSinVencer = parseFloat(factura.saldo_sin_vencer) || 0;
+                    const vencido1_30 = parseFloat(factura.vencido_1_30) || 0;
+                    const vencido31_60 = parseFloat(factura.vencido_31_60) || 0;
+                    const mayor60 = parseFloat(factura.mayor_60) || 0;
+                    totalProveedor += saldoSinVencer + vencido1_30 + vencido31_60 + mayor60;
                 });
+
+                // Si es filtro por proveedor, agregar fila de TOTAL PROVEEDOR
+                if (tipoFiltro === 'proveedor') {
+                    agregarFilaTotalProveedor(identificacion, data.proveedor.nombre, totalProveedor);
+                }
 
                 // Actualizar totales
                 actualizarTotales();
@@ -670,6 +790,68 @@ function calcularDiasMora($fechaVencimiento) {
                 text: 'Error al agregar los datos'
             });
         });
+    }
+
+    // Función para agregar una fila de TOTAL PROVEEDOR
+    function agregarFilaTotalProveedor(identificacion, nombre, total) {
+        const tbody = document.getElementById('informe-body');
+        
+        const totalRow = document.createElement('tr');
+        totalRow.className = 'total-proveedor-row';
+        totalRow.setAttribute('data-total-proveedor', identificacion);
+        
+        totalRow.innerHTML = `
+            <td colspan="5" style="text-align: right; font-weight: bold;">
+                TOTAL PROVEEDOR: ${identificacion} - ${nombre}
+            </td>
+            <td colspan="4" style="text-align: center; font-weight: bold;" class="total-general-proveedor">
+                ${formatearMoneda(total)}
+            </td>
+            <td>
+                <button type="button" class="btn-eliminar" onclick="eliminarTotalProveedor('${identificacion}')">
+                    <i class="fas fa-trash"></i> Eliminar
+                </button>
+            </td>
+        `;
+        
+        tbody.appendChild(totalRow);
+        
+        // Agregar separador
+        const separator = document.createElement('tr');
+        separator.innerHTML = '<td colspan="10" class="proveedor-separator"></td>';
+        tbody.appendChild(separator);
+    }
+
+    // Función para eliminar el total del proveedor
+    function eliminarTotalProveedor(identificacion) {
+        // Buscar y eliminar todas las facturas de este proveedor
+        const filasProveedor = document.querySelectorAll(`tr[data-identificacion="${identificacion}"]`);
+        const filaTotal = document.querySelector(`tr[data-total-proveedor="${identificacion}"]`);
+        
+        // Eliminar filas
+        filasProveedor.forEach(fila => fila.remove());
+        if (filaTotal) filaTotal.remove();
+        
+        // Eliminar separador (el siguiente hermano de la fila total)
+        if (filaTotal && filaTotal.nextElementSibling) {
+            filaTotal.nextElementSibling.remove();
+        }
+        
+        // Eliminar del set de datos agregados
+        // Buscar y eliminar todas las claves relacionadas con este proveedor
+        const clavesAEliminar = [];
+        datosAgregados.forEach(clave => {
+            if (clave.startsWith(`proveedor_${identificacion}_`)) {
+                clavesAEliminar.push(clave);
+            }
+        });
+        
+        clavesAEliminar.forEach(clave => {
+            datosAgregados.delete(clave);
+        });
+        
+        // Actualizar totales
+        actualizarTotales();
     }
 
     // Función para agregar una fila de factura a la tabla
@@ -741,7 +923,9 @@ function calcularDiasMora($fechaVencimiento) {
 
     // Función para limpiar toda la tabla
     function limpiarTabla() {
-        if (datosAgregados.size === 0) {
+        // Verificar si hay datos antes de mostrar la alerta
+        const tbody = document.getElementById('informe-body');
+        if (!tbody || tbody.children.length === 0) {
             Swal.fire({
                 icon: 'info',
                 title: 'Tabla vacía',
@@ -761,9 +945,14 @@ function calcularDiasMora($fechaVencimiento) {
             cancelButtonText: 'Cancelar'
         }).then((result) => {
             if (result.isConfirmed) {
+                // Limpiar datos
                 datosAgregados.clear();
+                
+                // Limpiar cuerpo de la tabla
                 document.getElementById('informe-body').innerHTML = '';
-                actualizarTotales();
+                
+                // Resetear los totales a cero
+                resetearTotales();
                 
                 Swal.fire(
                     'Limpiado',
@@ -774,6 +963,72 @@ function calcularDiasMora($fechaVencimiento) {
         });
     }
 
+    // Función para resetear totales a cero
+    function resetearTotales() {
+        // Resetear valores mostrados
+        document.getElementById('total-sin-vencer').textContent = '0.00';
+        document.getElementById('total-1-30').textContent = '0.00';
+        document.getElementById('total-31-60').textContent = '0.00';
+        document.getElementById('total-mayor-60').textContent = '0.00';
+        
+        // Resetear data attributes
+        document.getElementById('total-sin-vencer').setAttribute('data-value', '0');
+        document.getElementById('total-1-30').setAttribute('data-value', '0');
+        document.getElementById('total-31-60').setAttribute('data-value', '0');
+        document.getElementById('total-mayor-60').setAttribute('data-value', '0');
+    }
+
+    // Función para calcular totales por proveedor
+    function calcularTotalesPorProveedor() {
+        const proveedores = {};
+        
+        const filas = document.querySelectorAll('#informe-body tr');
+        
+        filas.forEach(fila => {
+            // Verificar si esta fila tiene las celdas necesarias
+            const celdaIdentificacion = fila.cells[0];
+            const celdaNombre = fila.cells[1];
+            const celdaSaldoSinVencer = fila.querySelector('.saldo-sin-vencer');
+            const celdaVencido1_30 = fila.querySelector('.vencido-1-30');
+            const celdaVencido31_60 = fila.querySelector('.vencido-31-60');
+            const celdaMayor60 = fila.querySelector('.mayor-60');
+            
+            // Si no tiene celdas necesarias, saltar esta fila
+            if (!celdaIdentificacion || !celdaSaldoSinVencer) {
+                return; // Saltar esta iteración
+            }
+            
+            const identificacion = celdaIdentificacion.textContent;
+            const nombre = celdaNombre ? celdaNombre.textContent : '';
+            
+            const sinVencer = parseFloat(celdaSaldoSinVencer.getAttribute('data-value')) || 0;
+            const vencido1_30 = celdaVencido1_30 ? parseFloat(celdaVencido1_30.getAttribute('data-value')) || 0 : 0;
+            const vencido31_60 = celdaVencido31_60 ? parseFloat(celdaVencido31_60.getAttribute('data-value')) || 0 : 0;
+            const mayor60 = celdaMayor60 ? parseFloat(celdaMayor60.getAttribute('data-value')) || 0 : 0;
+            
+            const totalProveedor = sinVencer + vencido1_30 + vencido31_60 + mayor60;
+            
+            if (!proveedores[identificacion]) {
+                proveedores[identificacion] = {
+                    nombre: nombre,
+                    total: 0,
+                    sinVencer: 0,
+                    vencido1_30: 0,
+                    vencido31_60: 0,
+                    mayor60: 0
+                };
+            }
+            
+            proveedores[identificacion].total += totalProveedor;
+            proveedores[identificacion].sinVencer += sinVencer;
+            proveedores[identificacion].vencido1_30 += vencido1_30;
+            proveedores[identificacion].vencido31_60 += vencido31_60;
+            proveedores[identificacion].mayor60 += mayor60;
+        });
+        
+        return proveedores;
+    }
+
     // Función para actualizar totales
     function actualizarTotales() {
         let totalSinVencer = 0;
@@ -781,30 +1036,58 @@ function calcularDiasMora($fechaVencimiento) {
         let total31_60 = 0;
         let totalMayor60 = 0;
 
-        const filas = document.querySelectorAll('#informe-body tr');
+        // Solo sumar filas que sean facturas (no totales de proveedor ni separadores)
+        const filas = document.querySelectorAll('#informe-body tr:not(.total-proveedor-row):not(.proveedor-separator)');
+        
         filas.forEach(fila => {
-            const sinVencer = parseFloat(fila.querySelector('.saldo-sin-vencer').getAttribute('data-value')) || 0;
-            const vencido1_30 = parseFloat(fila.querySelector('.vencido-1-30').getAttribute('data-value')) || 0;
-            const vencido31_60 = parseFloat(fila.querySelector('.vencido-31-60').getAttribute('data-value')) || 0;
-            const mayor60 = parseFloat(fila.querySelector('.mayor-60').getAttribute('data-value')) || 0;
+            // Verificar si la fila tiene las celdas necesarias
+            const celdaSinVencer = fila.querySelector('.saldo-sin-vencer');
+            if (celdaSinVencer) {
+                const sinVencer = parseFloat(celdaSinVencer.getAttribute('data-value')) || 0;
+                const vencido1_30 = fila.querySelector('.vencido-1-30') ? 
+                                   parseFloat(fila.querySelector('.vencido-1-30').getAttribute('data-value')) || 0 : 0;
+                const vencido31_60 = fila.querySelector('.vencido-31-60') ? 
+                                    parseFloat(fila.querySelector('.vencido-31-60').getAttribute('data-value')) || 0 : 0;
+                const mayor60 = fila.querySelector('.mayor-60') ? 
+                               parseFloat(fila.querySelector('.mayor-60').getAttribute('data-value')) || 0 : 0;
 
-            totalSinVencer += sinVencer;
-            total1_30 += vencido1_30;
-            total31_60 += vencido31_60;
-            totalMayor60 += mayor60;
+                totalSinVencer += sinVencer;
+                total1_30 += vencido1_30;
+                total31_60 += vencido31_60;
+                totalMayor60 += mayor60;
+            }
         });
 
         // Actualizar las celdas de totales
-        document.getElementById('total-sin-vencer').textContent = formatearMoneda(totalSinVencer);
-        document.getElementById('total-1-30').textContent = formatearMoneda(total1_30);
-        document.getElementById('total-31-60').textContent = formatearMoneda(total31_60);
-        document.getElementById('total-mayor-60').textContent = formatearMoneda(totalMayor60);
+        actualizarCeldasTotales(totalSinVencer, total1_30, total31_60, totalMayor60);
+    }
+
+    // Función auxiliar para actualizar celdas de totales
+    function actualizarCeldasTotales(sinVencer, vencido1_30, vencido31_60, mayor60) {
+        const celdaSinVencer = document.getElementById('total-sin-vencer');
+        const celda1_30 = document.getElementById('total-1-30');
+        const celda31_60 = document.getElementById('total-31-60');
+        const celdaMayor60 = document.getElementById('total-mayor-60');
         
-        // También guardar los valores numéricos en data attributes
-        document.getElementById('total-sin-vencer').setAttribute('data-value', totalSinVencer);
-        document.getElementById('total-1-30').setAttribute('data-value', total1_30);
-        document.getElementById('total-31-60').setAttribute('data-value', total31_60);
-        document.getElementById('total-mayor-60').setAttribute('data-value', totalMayor60);
+        if (celdaSinVencer) {
+            celdaSinVencer.textContent = formatearMoneda(sinVencer);
+            celdaSinVencer.setAttribute('data-value', sinVencer);
+        }
+        
+        if (celda1_30) {
+            celda1_30.textContent = formatearMoneda(vencido1_30);
+            celda1_30.setAttribute('data-value', vencido1_30);
+        }
+        
+        if (celda31_60) {
+            celda31_60.textContent = formatearMoneda(vencido31_60);
+            celda31_60.setAttribute('data-value', vencido31_60);
+        }
+        
+        if (celdaMayor60) {
+            celdaMayor60.textContent = formatearMoneda(mayor60);
+            celdaMayor60.setAttribute('data-value', mayor60);
+        }
     }
 
     // Función para formatear fecha
@@ -907,26 +1190,61 @@ function calcularDiasMora($fechaVencimiento) {
                 vencido31_60: parseFloat(document.getElementById('total-31-60').getAttribute('data-value')) || 0,
                 mayor60: parseFloat(document.getElementById('total-mayor-60').getAttribute('data-value')) || 0
             },
+            totalesPorProveedor: {},
+            filasEspeciales: [],
             fechaGeneracion: new Date().toLocaleDateString('es-ES'),
             titulo: 'Informe de Edades de Cartera - Proveedores'
         };
 
-        // Recopilar todas las facturas de la tabla
+        // Recopilar todas las facturas y detectar filas especiales
         const filas = document.querySelectorAll('#informe-body tr');
+        
         filas.forEach(fila => {
-            const factura = {
-                identificacion: fila.cells[0].textContent,
-                nombre: fila.cells[1].textContent,
-                documento: fila.cells[2].textContent,
-                fecha_vencimiento: fila.cells[3].textContent,
-                dias_mora: fila.cells[4].textContent,
-                saldo_sin_vencer: parseFloat(fila.querySelector('.saldo-sin-vencer').getAttribute('data-value')) || 0,
-                vencido_1_30: parseFloat(fila.querySelector('.vencido-1-30').getAttribute('data-value')) || 0,
-                vencido_31_60: parseFloat(fila.querySelector('.vencido-31-60').getAttribute('data-value')) || 0,
-                mayor_60: parseFloat(fila.querySelector('.mayor-60').getAttribute('data-value')) || 0
-            };
-            datos.facturas.push(factura);
+            // Verificar si es una fila de "TOTAL PROVEEDOR"
+            if (fila.classList.contains('total-proveedor-row')) {
+                const texto = fila.cells[0] ? fila.cells[0].textContent : '';
+                const valor = fila.querySelector('.total-general-proveedor') ? 
+                              fila.querySelector('.total-general-proveedor').textContent : '0.00';
+                
+                const filaEspecial = {
+                    tipo: 'total_proveedor',
+                    texto: texto,
+                    valor: valor
+                };
+                datos.filasEspeciales.push(filaEspecial);
+            }
+            // Verificar si es un separador
+            else if (fila.classList.contains('proveedor-separator')) {
+                const filaEspecial = {
+                    tipo: 'separador'
+                };
+                datos.filasEspeciales.push(filaEspecial);
+            }
+            // Es una factura normal - verificar que tenga celdas de saldo
+            else {
+                const celdaSinVencer = fila.querySelector('.saldo-sin-vencer');
+                if (celdaSinVencer && fila.cells[0] && fila.cells[1]) {
+                    const factura = {
+                        identificacion: fila.cells[0].textContent || '',
+                        nombre: fila.cells[1].textContent || '',
+                        documento: fila.cells[2] ? fila.cells[2].textContent : '',
+                        fecha_vencimiento: fila.cells[3] ? fila.cells[3].textContent : '',
+                        dias_mora: fila.cells[4] ? fila.cells[4].textContent : '0',
+                        saldo_sin_vencer: parseFloat(celdaSinVencer.getAttribute('data-value')) || 0,
+                        vencido_1_30: fila.querySelector('.vencido-1-30') ? 
+                                    parseFloat(fila.querySelector('.vencido-1-30').getAttribute('data-value')) || 0 : 0,
+                        vencido_31_60: fila.querySelector('.vencido-31-60') ? 
+                                      parseFloat(fila.querySelector('.vencido-31-60').getAttribute('data-value')) || 0 : 0,
+                        mayor_60: fila.querySelector('.mayor-60') ? 
+                                parseFloat(fila.querySelector('.mayor-60').getAttribute('data-value')) || 0 : 0
+                    };
+                    datos.facturas.push(factura);
+                }
+            }
         });
+
+        // Calcular totales por proveedor
+        datos.totalesPorProveedor = calcularTotalesPorProveedor();
 
         return datos;
     }

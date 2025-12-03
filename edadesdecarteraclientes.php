@@ -187,10 +187,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     f.nombre,
                     f.consecutivo as documento,
                     f.fecha_vencimiento,
-                    f.saldoReal as saldo_pendiente
+                    CASE 
+                        WHEN f.saldoReal IS NULL OR f.saldoReal = '' THEN f.valorTotal
+                        ELSE f.saldoReal
+                    END as saldo_pendiente
                 FROM facturav f
-                WHERE f.saldoReal > 0
+                WHERE (f.saldoReal > 0 OR f.saldoReal IS NULL)
                 AND f.formaPago LIKE '%Credito%'
+                AND (CASE 
+                        WHEN f.saldoReal IS NULL OR f.saldoReal = '' THEN f.valorTotal
+                        ELSE f.saldoReal
+                    END) > 0
             ";
 
             $params = [];
@@ -649,6 +656,7 @@ function calcularDiasMora($fechaVencimiento) {
 
     // Array para almacenar los datos agregados (evitar duplicados)
 let datosAgregados = new Set();
+let ultimoClienteAgregado = null;
 
 // Función para manejar el cambio de tipo de filtro
 function manejarCambioFiltro() {
@@ -729,11 +737,25 @@ function manejarCambioFiltro() {
 
           // Agregar facturas a la tabla
           if (data.facturas.length > 0) {
+              let totalCliente = 0;
+              
               data.facturas.forEach(factura => {
                   // Para filtro por rango, usar el nombre de la factura
                   const nombreMostrar = tipoFiltro === 'cliente' ? data.cliente.nombre : factura.nombre;
                   agregarFilaFactura(factura, nombreMostrar, claveUnica);
+                  
+                  // Calcular total del cliente
+                  const saldoSinVencer = parseFloat(factura.saldo_sin_vencer) || 0;
+                  const vencido1_30 = parseFloat(factura.vencido_1_30) || 0;
+                  const vencido31_60 = parseFloat(factura.vencido_31_60) || 0;
+                  const mayor60 = parseFloat(factura.mayor_60) || 0;
+                  totalCliente += saldoSinVencer + vencido1_30 + vencido31_60 + mayor60;
               });
+
+              // Si es filtro por cliente, agregar fila de TOTAL CLIENTE
+              if (tipoFiltro === 'cliente') {
+                  agregarFilaTotalCliente(identificacion, data.cliente.nombre, totalCliente);
+              }
 
               // Actualizar totales
               actualizarTotales();
@@ -773,6 +795,58 @@ function manejarCambioFiltro() {
           });
       });
   }
+
+  function agregarFilaTotalCliente(identificacion, nombre, total) {
+    const tbody = document.getElementById('informe-body');
+    
+    const totalRow = document.createElement('tr');
+    totalRow.className = 'total-cliente-row';
+    totalRow.setAttribute('data-total-cliente', identificacion);
+    
+    totalRow.innerHTML = `
+        <td colspan="5" style="text-align: right; font-weight: bold;">
+            TOTAL CLIENTE: ${identificacion} - ${nombre}
+        </td>
+        <td colspan="4" style="text-align: center; font-weight: bold;" class="total-general-cliente">
+            ${formatearMoneda(total)}
+        </td>
+        <td>
+            <button type="button" class="btn-eliminar" onclick="eliminarTotalCliente('${identificacion}')">
+                <i class="fas fa-trash"></i> Eliminar
+            </button>
+        </td>
+    `;
+    
+    tbody.appendChild(totalRow);
+    
+    // Agregar separador
+    const separator = document.createElement('tr');
+    separator.innerHTML = '<td colspan="10" class="cliente-separator"></td>';
+    tbody.appendChild(separator);
+}
+
+// Nueva función para eliminar el total del cliente
+function eliminarTotalCliente(identificacion) {
+    // Buscar y eliminar todas las facturas de este cliente
+    const filasCliente = document.querySelectorAll(`tr[data-identificacion="${identificacion}"]`);
+    const filaTotal = document.querySelector(`tr[data-total-cliente="${identificacion}"]`);
+    
+    // Eliminar filas
+    filasCliente.forEach(fila => fila.remove());
+    if (filaTotal) filaTotal.remove();
+    
+    // Eliminar separador (el siguiente hermano de la fila total)
+    if (filaTotal && filaTotal.nextElementSibling) {
+        filaTotal.nextElementSibling.remove();
+    }
+    
+    // Eliminar del set de datos agregados
+    // Necesitaríamos saber qué claves corresponden a este cliente
+    // Esto es más complejo y requeriría mejor estructura de datos
+    
+    // Actualizar totales
+    actualizarTotales();
+}
 
     // Función para agregar cliente a la tabla
     function agregarClienteTabla() {
@@ -866,38 +940,40 @@ function manejarCambioFiltro() {
       });
     }
 
-      // Función para agregar una fila de factura a la tabla
-      function agregarFilaFactura(factura, nombreCliente, claveUnica) {
-      const tbody = document.getElementById('informe-body');
-      const row = document.createElement('tr');
-      row.setAttribute('data-identificacion', factura.identificacion);
-      row.setAttribute('data-documento', factura.documento);
-      row.setAttribute('data-clave-unica', claveUnica);
-      
-      const saldoSinVencer = parseFloat(factura.saldo_sin_vencer) || 0;
-      const vencido1_30 = parseFloat(factura.vencido_1_30) || 0;
-      const vencido31_60 = parseFloat(factura.vencido_31_60) || 0;
-      const mayor60 = parseFloat(factura.mayor_60) || 0;
-      
-      row.innerHTML = `
-          <td>${factura.identificacion}</td>
-          <td>${nombreCliente}</td>
-          <td>${factura.documento}</td>
-          <td>${formatearFecha(factura.fecha_vencimiento)}</td>
-          <td>${factura.dias_mora}</td>
-          <td class="saldo-sin-vencer" data-value="${saldoSinVencer}">${formatearMoneda(saldoSinVencer)}</td>
-          <td class="vencido-1-30" data-value="${vencido1_30}">${formatearMoneda(vencido1_30)}</td>
-          <td class="vencido-31-60" data-value="${vencido31_60}">${formatearMoneda(vencido31_60)}</td>
-          <td class="mayor-60" data-value="${mayor60}">${formatearMoneda(mayor60)}</td>
-          <td>
-              <button type="button" class="btn-eliminar" onclick="eliminarFactura('${factura.identificacion}', '${factura.documento}', '${claveUnica}')">
-                  <i class="fas fa-trash"></i> Eliminar
-              </button>
-          </td>
-      `;
-      
-      tbody.appendChild(row);
-  }
+function agregarFilaFactura(factura, nombreCliente, claveUnica) {
+    const tbody = document.getElementById('informe-body');
+    const row = document.createElement('tr');
+    row.setAttribute('data-identificacion', factura.identificacion);
+    row.setAttribute('data-documento', factura.documento);
+    row.setAttribute('data-clave-unica', claveUnica);
+    
+    const saldoSinVencer = parseFloat(factura.saldo_sin_vencer) || 0;
+    const vencido1_30 = parseFloat(factura.vencido_1_30) || 0;
+    const vencido31_60 = parseFloat(factura.vencido_31_60) || 0;
+    const mayor60 = parseFloat(factura.mayor_60) || 0;
+    
+    row.innerHTML = `
+        <td>${factura.identificacion}</td>
+        <td>${nombreCliente}</td>
+        <td>${factura.documento}</td>
+        <td>${formatearFecha(factura.fecha_vencimiento)}</td>
+        <td>${factura.dias_mora}</td>
+        <td class="saldo-sin-vencer" data-value="${saldoSinVencer}">${formatearMoneda(saldoSinVencer)}</td>
+        <td class="vencido-1-30" data-value="${vencido1_30}">${formatearMoneda(vencido1_30)}</td>
+        <td class="vencido-31-60" data-value="${vencido31_60}">${formatearMoneda(vencido31_60)}</td>
+        <td class="mayor-60" data-value="${mayor60}">${formatearMoneda(mayor60)}</td>
+        <td>
+            <button type="button" class="btn-eliminar" onclick="eliminarFactura('${factura.identificacion}', '${factura.documento}', '${claveUnica}')">
+                <i class="fas fa-trash"></i> Eliminar
+            </button>
+        </td>
+    `;
+    
+    tbody.appendChild(row);
+    
+    // Actualizar totales después de agregar
+    actualizarTotales();
+}
 
   // Función para eliminar factura (modificada)
   function eliminarFactura(identificacion, documento, claveUnica) {
@@ -934,73 +1010,217 @@ function manejarCambioFiltro() {
   }
 
   // Función para limpiar toda la tabla (modificada)
-  function limpiarTabla() {
-      if (datosAgregados.size === 0) {
-          Swal.fire({
-              icon: 'info',
-              title: 'Tabla vacía',
-              text: 'No hay datos en la tabla para limpiar'
-          });
-          return;
-      }
+function limpiarTabla() {
+    // Verificar si hay datos antes de mostrar la alerta
+    const tbody = document.getElementById('informe-body');
+    if (!tbody || tbody.children.length === 0) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Tabla vacía',
+            text: 'No hay datos en la tabla para limpiar'
+        });
+        return;
+    }
 
-      Swal.fire({
-          title: '¿Está seguro?',
-          text: "Se eliminarán todos los datos de la tabla",
-          icon: 'warning',
-          showCancelButton: true,
-          confirmButtonColor: '#3085d6',
-          cancelButtonColor: '#d33',
-          confirmButtonText: 'Sí, limpiar',
-          cancelButtonText: 'Cancelar'
-      }).then((result) => {
-          if (result.isConfirmed) {
-              datosAgregados.clear();
-              document.getElementById('informe-body').innerHTML = '';
-              actualizarTotales();
-              
-              Swal.fire(
-                  'Limpiado',
-                  'La tabla ha sido limpiada',
-                  'success'
-              );
-          }
-      });
-  }
+    Swal.fire({
+        title: '¿Está seguro?',
+        text: "Se eliminarán todos los datos de la tabla",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Sí, limpiar',
+        cancelButtonText: 'Cancelar'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Limpiar datos
+            datosAgregados.clear();
+            
+            // Limpiar cuerpo de la tabla
+            document.getElementById('informe-body').innerHTML = '';
+            
+            // Resetear los totales a cero
+            resetearTotales();
+            
+            Swal.fire(
+                'Limpiado',
+                'La tabla ha sido limpiada',
+                'success'
+            );
+        }
+    });
+}
 
-    // Función para actualizar totales
-    function actualizarTotales() {
-        let totalSinVencer = 0;
-        let total1_30 = 0;
-        let total31_60 = 0;
-        let totalMayor60 = 0;
+// Función para resetear totales a cero
+function resetearTotales() {
+    // Resetear valores mostrados
+    document.getElementById('total-sin-vencer').textContent = '0.00';
+    document.getElementById('total-1-30').textContent = '0.00';
+    document.getElementById('total-31-60').textContent = '0.00';
+    document.getElementById('total-mayor-60').textContent = '0.00';
+    
+    // Resetear data attributes
+    document.getElementById('total-sin-vencer').setAttribute('data-value', '0');
+    document.getElementById('total-1-30').setAttribute('data-value', '0');
+    document.getElementById('total-31-60').setAttribute('data-value', '0');
+    document.getElementById('total-mayor-60').setAttribute('data-value', '0');
+}
 
-        const filas = document.querySelectorAll('#informe-body tr');
-        filas.forEach(fila => {
-            // Usar el atributo data-value para obtener el valor numérico exacto
-            const sinVencer = parseFloat(fila.querySelector('.saldo-sin-vencer').getAttribute('data-value')) || 0;
-            const vencido1_30 = parseFloat(fila.querySelector('.vencido-1-30').getAttribute('data-value')) || 0;
-            const vencido31_60 = parseFloat(fila.querySelector('.vencido-31-60').getAttribute('data-value')) || 0;
-            const mayor60 = parseFloat(fila.querySelector('.mayor-60').getAttribute('data-value')) || 0;
+function calcularTotalesPorCliente() {
+    const clientes = {};
+    
+    const filas = document.querySelectorAll('#informe-body tr');
+    
+    filas.forEach(fila => {
+        // Verificar si esta fila tiene las celdas necesarias
+        const celdaIdentificacion = fila.cells[0];
+        const celdaNombre = fila.cells[1];
+        const celdaSaldoSinVencer = fila.querySelector('.saldo-sin-vencer');
+        const celdaVencido1_30 = fila.querySelector('.vencido-1-30');
+        const celdaVencido31_60 = fila.querySelector('.vencido-31-60');
+        const celdaMayor60 = fila.querySelector('.mayor-60');
+        
+        // Si no tiene celdas necesarias, saltar esta fila
+        if (!celdaIdentificacion || !celdaSaldoSinVencer) {
+            return; // Saltar esta iteración
+        }
+        
+        const identificacion = celdaIdentificacion.textContent;
+        const nombre = celdaNombre ? celdaNombre.textContent : '';
+        
+        const sinVencer = parseFloat(celdaSaldoSinVencer.getAttribute('data-value')) || 0;
+        const vencido1_30 = celdaVencido1_30 ? parseFloat(celdaVencido1_30.getAttribute('data-value')) || 0 : 0;
+        const vencido31_60 = celdaVencido31_60 ? parseFloat(celdaVencido31_60.getAttribute('data-value')) || 0 : 0;
+        const mayor60 = celdaMayor60 ? parseFloat(celdaMayor60.getAttribute('data-value')) || 0 : 0;
+        
+        const totalCliente = sinVencer + vencido1_30 + vencido31_60 + mayor60;
+        
+        if (!clientes[identificacion]) {
+            clientes[identificacion] = {
+                nombre: nombre,
+                total: 0,
+                sinVencer: 0,
+                vencido1_30: 0,
+                vencido31_60: 0,
+                mayor60: 0
+            };
+        }
+        
+        clientes[identificacion].total += totalCliente;
+        clientes[identificacion].sinVencer += sinVencer;
+        clientes[identificacion].vencido1_30 += vencido1_30;
+        clientes[identificacion].vencido31_60 += vencido31_60;
+        clientes[identificacion].mayor60 += mayor60;
+    });
+    
+    return clientes;
+}
+
+// Modifica la función actualizarTotales para incluir los totales por cliente
+function actualizarTotales() {
+    let totalSinVencer = 0;
+    let total1_30 = 0;
+    let total31_60 = 0;
+    let totalMayor60 = 0;
+
+    // Solo sumar filas que sean facturas (no totales de cliente ni separadores)
+    const filas = document.querySelectorAll('#informe-body tr:not(.total-cliente-row):not(.cliente-separator)');
+    
+    filas.forEach(fila => {
+        // Verificar si la fila tiene las celdas necesarias
+        const celdaSinVencer = fila.querySelector('.saldo-sin-vencer');
+        if (celdaSinVencer) {
+            const sinVencer = parseFloat(celdaSinVencer.getAttribute('data-value')) || 0;
+            const vencido1_30 = fila.querySelector('.vencido-1-30') ? 
+                               parseFloat(fila.querySelector('.vencido-1-30').getAttribute('data-value')) || 0 : 0;
+            const vencido31_60 = fila.querySelector('.vencido-31-60') ? 
+                                parseFloat(fila.querySelector('.vencido-31-60').getAttribute('data-value')) || 0 : 0;
+            const mayor60 = fila.querySelector('.mayor-60') ? 
+                           parseFloat(fila.querySelector('.mayor-60').getAttribute('data-value')) || 0 : 0;
 
             totalSinVencer += sinVencer;
             total1_30 += vencido1_30;
             total31_60 += vencido31_60;
             totalMayor60 += mayor60;
-        });
+        }
+    });
 
-        // Actualizar las celdas de totales
-        document.getElementById('total-sin-vencer').textContent = formatearMoneda(totalSinVencer);
-        document.getElementById('total-1-30').textContent = formatearMoneda(total1_30);
-        document.getElementById('total-31-60').textContent = formatearMoneda(total31_60);
-        document.getElementById('total-mayor-60').textContent = formatearMoneda(totalMayor60);
-        
-        // También guardar los valores numéricos en data attributes
-        document.getElementById('total-sin-vencer').setAttribute('data-value', totalSinVencer);
-        document.getElementById('total-1-30').setAttribute('data-value', total1_30);
-        document.getElementById('total-31-60').setAttribute('data-value', total31_60);
-        document.getElementById('total-mayor-60').setAttribute('data-value', totalMayor60);
+    // Actualizar las celdas de totales
+    actualizarCeldasTotales(totalSinVencer, total1_30, total31_60, totalMayor60);
+}
+
+// Función auxiliar para actualizar celdas de totales
+function actualizarCeldasTotales(sinVencer, vencido1_30, vencido31_60, mayor60) {
+    const celdaSinVencer = document.getElementById('total-sin-vencer');
+    const celda1_30 = document.getElementById('total-1-30');
+    const celda31_60 = document.getElementById('total-31-60');
+    const celdaMayor60 = document.getElementById('total-mayor-60');
+    
+    if (celdaSinVencer) {
+        celdaSinVencer.textContent = formatearMoneda(sinVencer);
+        celdaSinVencer.setAttribute('data-value', sinVencer);
     }
+    
+    if (celda1_30) {
+        celda1_30.textContent = formatearMoneda(vencido1_30);
+        celda1_30.setAttribute('data-value', vencido1_30);
+    }
+    
+    if (celda31_60) {
+        celda31_60.textContent = formatearMoneda(vencido31_60);
+        celda31_60.setAttribute('data-value', vencido31_60);
+    }
+    
+    if (celdaMayor60) {
+        celdaMayor60.textContent = formatearMoneda(mayor60);
+        celdaMayor60.setAttribute('data-value', mayor60);
+    }
+}
+
+// Nueva función para mostrar totales por cliente
+function mostrarTotalesPorCliente(totalGeneral) {
+    const container = document.getElementById('total-cliente-container');
+    const infoContainer = document.getElementById('total-cliente-info');
+    
+    const clientes = calcularTotalesPorCliente();
+    
+    if (Object.keys(clientes).length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+    
+    container.style.display = 'block';
+    
+    let html = '';
+    
+    // Mostrar total por cada cliente
+    Object.keys(clientes).forEach(identificacion => {
+        const cliente = clientes[identificacion];
+        html += `
+            <div class="cliente-total-item">
+                <div>
+                    <span class="cliente-identificacion">${identificacion}</span> - 
+                    ${cliente.nombre}
+                </div>
+                <div class="cliente-total-monto">${formatearMoneda(cliente.total)}</div>
+            </div>
+        `;
+    });
+    
+    // Agregar total general
+    html += `
+        <div class="total-general-cliente">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div><strong>TOTAL GENERAL:</strong></div>
+                <div style="color: #dc3545; font-size: 1.2em; font-weight: bold;">
+                    ${formatearMoneda(totalGeneral)}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    infoContainer.innerHTML = html;
+}
 
     // Función para formatear fecha
     function formatearFecha(fecha) {
@@ -1106,26 +1326,61 @@ function manejarCambioFiltro() {
                 vencido31_60: parseFloat(document.getElementById('total-31-60').getAttribute('data-value')) || 0,
                 mayor60: parseFloat(document.getElementById('total-mayor-60').getAttribute('data-value')) || 0
             },
+            totalesPorCliente: {},
+            filasEspeciales: [],
             fechaGeneracion: new Date().toLocaleDateString('es-ES'),
             titulo: 'Informe de Edades de Cartera'
         };
 
-        // Recopilar todas las facturas de la tabla
+        // Recopilar todas las facturas y detectar filas especiales
         const filas = document.querySelectorAll('#informe-body tr');
+        
         filas.forEach(fila => {
-            const factura = {
-                identificacion: fila.cells[0].textContent,
-                nombre: fila.cells[1].textContent,
-                documento: fila.cells[2].textContent,
-                fecha_vencimiento: fila.cells[3].textContent,
-                dias_mora: fila.cells[4].textContent,
-                saldo_sin_vencer: parseFloat(fila.querySelector('.saldo-sin-vencer').getAttribute('data-value')) || 0,
-                vencido_1_30: parseFloat(fila.querySelector('.vencido-1-30').getAttribute('data-value')) || 0,
-                vencido_31_60: parseFloat(fila.querySelector('.vencido-31-60').getAttribute('data-value')) || 0,
-                mayor_60: parseFloat(fila.querySelector('.mayor-60').getAttribute('data-value')) || 0
-            };
-            datos.facturas.push(factura);
+            // Verificar si es una fila de "TOTAL CLIENTE"
+            if (fila.classList.contains('total-cliente-row')) {
+                const texto = fila.cells[0] ? fila.cells[0].textContent : '';
+                const valor = fila.querySelector('.total-general-cliente') ? 
+                              fila.querySelector('.total-general-cliente').textContent : '0.00';
+                
+                const filaEspecial = {
+                    tipo: 'total_cliente',
+                    texto: texto,
+                    valor: valor
+                };
+                datos.filasEspeciales.push(filaEspecial);
+            }
+            // Verificar si es un separador
+            else if (fila.classList.contains('cliente-separator')) {
+                const filaEspecial = {
+                    tipo: 'separador'
+                };
+                datos.filasEspeciales.push(filaEspecial);
+            }
+            // Es una factura normal - verificar que tenga celdas de saldo
+            else {
+                const celdaSinVencer = fila.querySelector('.saldo-sin-vencer');
+                if (celdaSinVencer && fila.cells[0] && fila.cells[1]) {
+                    const factura = {
+                        identificacion: fila.cells[0].textContent || '',
+                        nombre: fila.cells[1].textContent || '',
+                        documento: fila.cells[2] ? fila.cells[2].textContent : '',
+                        fecha_vencimiento: fila.cells[3] ? fila.cells[3].textContent : '',
+                        dias_mora: fila.cells[4] ? fila.cells[4].textContent : '0',
+                        saldo_sin_vencer: parseFloat(celdaSinVencer.getAttribute('data-value')) || 0,
+                        vencido_1_30: fila.querySelector('.vencido-1-30') ? 
+                                    parseFloat(fila.querySelector('.vencido-1-30').getAttribute('data-value')) || 0 : 0,
+                        vencido_31_60: fila.querySelector('.vencido-31-60') ? 
+                                      parseFloat(fila.querySelector('.vencido-31-60').getAttribute('data-value')) || 0 : 0,
+                        mayor_60: fila.querySelector('.mayor-60') ? 
+                                parseFloat(fila.querySelector('.mayor-60').getAttribute('data-value')) || 0 : 0
+                    };
+                    datos.facturas.push(factura);
+                }
+            }
         });
+
+        // Calcular totales por cliente
+        datos.totalesPorCliente = calcularTotalesPorCliente();
 
         return datos;
     }

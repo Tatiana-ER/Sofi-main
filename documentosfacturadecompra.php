@@ -642,7 +642,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="col-md-3">
               <label for="fecha" class="form-label fw-bold">Fecha del documento</label>
               <input type="date" class="form-control" id="fecha" name="fecha"
-                    value="<?php echo $fecha; ?>" required readonly>
+                    value="<?php echo $fecha; ?>" required>
             </div>
 
             <div class="col-md-3">
@@ -890,10 +890,11 @@ document.addEventListener("DOMContentLoaded", () => {
                     .catch(error => console.error('Error al obtener consecutivo:', error));
             }
             
-            // Establecer fecha actual
+            // Permitir seleccionar cualquier fecha (pasada o futura)
             const fechaInput = document.getElementById("fecha");
             const hoy = new Date().toISOString().split('T')[0];
-            fechaInput.setAttribute('max', hoy);
+
+            // Solo establecer fecha por defecto si está vacía
             if (!fechaInput.value) {
                 fechaInput.value = hoy;
             }
@@ -956,16 +957,18 @@ document.addEventListener("DOMContentLoaded", () => {
                 retencionContainer.classList.remove('col-md-6');
                 retencionContainer.classList.add('col-md-12');
                 
-                // Establecer fecha mínima como hoy
-                const hoy = new Date().toISOString().split('T')[0];
-                fechaVencimientoInput.setAttribute('min', hoy);
-                
-                // Si no hay fecha establecida, poner 30 días desde hoy por defecto
-                if (!fechaVencimientoInput.value) {
-                    const fechaDefault = new Date();
-                    fechaDefault.setDate(fechaDefault.getDate() + 30);
-                    fechaVencimientoInput.value = fechaDefault.toISOString().split('T')[0];
-                }
+            // Establecer fecha mínima como la fecha del documento
+            const fechaDocumento = document.getElementById('fecha').value;
+            if (fechaDocumento) {
+                fechaVencimientoInput.setAttribute('min', fechaDocumento);
+            }
+
+            // Si no hay fecha establecida, poner 30 días desde la fecha del documento
+            if (!fechaVencimientoInput.value && fechaDocumento) {
+                const fechaDefault = new Date(fechaDocumento);
+                fechaDefault.setDate(fechaDefault.getDate() + 30);
+                fechaVencimientoInput.value = fechaDefault.toISOString().split('T')[0];
+            }
             } else {
                 fechaVencimientoContainer.style.display = 'none';
                 retencionContainer.classList.remove('col-md-12');
@@ -1421,7 +1424,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const fechaLocal = `${year}-${month}-${day}`;
             
             fechaInput.value = fechaLocal;
-            fechaInput.setAttribute('max', fechaLocal);
           }
         });
 
