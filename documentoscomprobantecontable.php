@@ -356,7 +356,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="col-md-4">
               <label for="fecha" class="form-label fw-bold">Fecha del documento*</label>
               <input type="date" class="form-control" id="fecha" name="fecha"
-                    value="<?php echo $fecha ? $fecha : date('Y-m-d'); ?>" readonly required>
+                    value="<?php echo $fecha ? $fecha : date('Y-m-d'); ?>" required>
             </div>
 
             <div class="col-md-4">
@@ -927,7 +927,6 @@ window.addEventListener('DOMContentLoaded', function() {
     const fechaLocal = `${year}-${month}-${day}`;
    
     fechaInput.value = fechaLocal;
-    fechaInput.setAttribute('max', fechaLocal);
   }
   
   // OBTENER CONSECUTIVO AL INICIO

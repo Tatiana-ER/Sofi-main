@@ -659,7 +659,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <div class="col-md-6">
             <label for="fecha" class="form-label fw-bold">Fecha del Recibo*</label>
             <input type="date" class="form-control" id="fecha" name="fecha"
-              value="<?php echo htmlspecialchars($fecha); ?>" required readonly>
+              value="<?php echo htmlspecialchars($fecha); ?>" required>
           </div>
           <div class="col-md-6">
             <label for="consecutivo" class="form-label fw-bold">Consecutivo*</label>
@@ -1233,7 +1233,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const fechaLocal = `${year}-${month}-${day}`;
         
         fechaInput.value = fechaLocal;
-        fechaInput.setAttribute('max', fechaLocal);
       }
     });
   </script>

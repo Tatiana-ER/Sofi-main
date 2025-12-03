@@ -1130,7 +1130,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const fechaLocal = `${year}-${month}-${day}`;
            
             fechaInput.value = fechaLocal;
-            fechaInput.setAttribute('max', fechaLocal);
         }
     });
 
