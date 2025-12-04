@@ -14,27 +14,57 @@ $codigos_unicos = [];
 if (!empty($id)) {
     // Buscar en cuentas_contables en cualquier nivel
     $sql_id = "
-        SELECT 
-            COALESCE(nivel6, nivel5, nivel4, nivel3, nivel2, nivel1) as cuenta_completa
-        FROM cuentas_contables 
-        WHERE nivel1 = :id1 
-           OR nivel2 = :id2 
-           OR nivel3 = :id3 
-           OR nivel4 = :id4 
-           OR nivel5 = :id5 
-           OR nivel6 = :id6 
+        SELECT DISTINCT
+            nivel_completo,
+            nivel_orden
+        FROM (
+            SELECT 
+                nivel1 as nivel_completo,
+                1 as nivel_orden
+            FROM cuentas_contables 
+            WHERE nivel1 LIKE CONCAT(:id, '%')
+            UNION
+            SELECT 
+                nivel2 as nivel_completo,
+                2 as nivel_orden
+            FROM cuentas_contables 
+            WHERE nivel2 LIKE CONCAT(:id, '%')
+            UNION
+            SELECT 
+                nivel3 as nivel_completo,
+                3 as nivel_orden
+            FROM cuentas_contables 
+            WHERE nivel3 LIKE CONCAT(:id, '%')
+            UNION
+            SELECT 
+                nivel4 as nivel_completo,
+                4 as nivel_orden
+            FROM cuentas_contables 
+            WHERE nivel4 LIKE CONCAT(:id, '%')
+            UNION
+            SELECT 
+                nivel5 as nivel_completo,
+                5 as nivel_orden
+            FROM cuentas_contables 
+            WHERE nivel5 LIKE CONCAT(:id, '%')
+            UNION
+            SELECT 
+                nivel6 as nivel_completo,
+                6 as nivel_orden
+            FROM cuentas_contables 
+            WHERE nivel6 LIKE CONCAT(:id, '%')
+        ) as todos_niveles
+        WHERE nivel_completo IS NOT NULL AND nivel_completo <> ''
+        ORDER BY nivel_orden, nivel_completo
         LIMIT 1
     ";
     
     $stmt = $pdo->prepare($sql_id);
-    for ($i = 1; $i <= 6; $i++) {
-        $stmt->bindValue(":id{$i}", $id);
-    }
-    $stmt->execute();
+    $stmt->execute([':id' => $id . '%']);
     $resultado = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    if ($resultado && !empty($resultado['cuenta_completa'])) {
-        $cuenta_completa = $resultado['cuenta_completa'];
+    if ($resultado && !empty($resultado['nivel_completo'])) {
+        $cuenta_completa = $resultado['nivel_completo'];
         $partes = explode('-', $cuenta_completa, 2);
         $codigo = trim($partes[0] ?? '');
         $nombre = isset($partes[1]) ? trim($partes[1]) : '';
@@ -66,42 +96,60 @@ if (!empty($id)) {
 
 // Búsqueda general (cuando el usuario escribe en el select)
 if (!empty($search)) {
-    // Primero, buscar por código (antes del guión)
+    // Buscar en TODOS los niveles de cuentas_contables
     $sql_busqueda = "
         SELECT DISTINCT
-            COALESCE(nivel6, nivel5, nivel4, nivel3, nivel2, nivel1) as cuenta_completa
-        FROM cuentas_contables 
-        WHERE 
-            -- Buscar en el código (parte antes del guión)
-            (SUBSTRING_INDEX(nivel1, '-', 1) LIKE :search1 AND nivel1 IS NOT NULL AND nivel1 <> '')
-            OR (SUBSTRING_INDEX(nivel2, '-', 1) LIKE :search2 AND nivel2 IS NOT NULL AND nivel2 <> '')
-            OR (SUBSTRING_INDEX(nivel3, '-', 1) LIKE :search3 AND nivel3 IS NOT NULL AND nivel3 <> '')
-            OR (SUBSTRING_INDEX(nivel4, '-', 1) LIKE :search4 AND nivel4 IS NOT NULL AND nivel4 <> '')
-            OR (SUBSTRING_INDEX(nivel5, '-', 1) LIKE :search5 AND nivel5 IS NOT NULL AND nivel5 <> '')
-            OR (SUBSTRING_INDEX(nivel6, '-', 1) LIKE :search6 AND nivel6 IS NOT NULL AND nivel6 <> '')
-            -- Buscar en el nombre (parte después del guión)
-            OR (SUBSTRING_INDEX(nivel1, '-', -1) LIKE :search7 AND nivel1 IS NOT NULL AND nivel1 <> '')
-            OR (SUBSTRING_INDEX(nivel2, '-', -1) LIKE :search8 AND nivel2 IS NOT NULL AND nivel2 <> '')
-            OR (SUBSTRING_INDEX(nivel3, '-', -1) LIKE :search9 AND nivel3 IS NOT NULL AND nivel3 <> '')
-            OR (SUBSTRING_INDEX(nivel4, '-', -1) LIKE :search10 AND nivel4 IS NOT NULL AND nivel4 <> '')
-            OR (SUBSTRING_INDEX(nivel5, '-', -1) LIKE :search11 AND nivel5 IS NOT NULL AND nivel5 <> '')
-            OR (SUBSTRING_INDEX(nivel6, '-', -1) LIKE :search12 AND nivel6 IS NOT NULL AND nivel6 <> '')
-            -- Buscar en texto completo (incluyendo guión)
-            OR (nivel1 LIKE :search13 AND nivel1 IS NOT NULL AND nivel1 <> '')
-            OR (nivel2 LIKE :search14 AND nivel2 IS NOT NULL AND nivel2 <> '')
-            OR (nivel3 LIKE :search15 AND nivel3 IS NOT NULL AND nivel3 <> '')
-            OR (nivel4 LIKE :search16 AND nivel4 IS NOT NULL AND nivel4 <> '')
-            OR (nivel5 LIKE :search17 AND nivel5 IS NOT NULL AND nivel5 <> '')
-            OR (nivel6 LIKE :search18 AND nivel6 IS NOT NULL AND nivel6 <> '')
-        ORDER BY 
-            -- Ordenar primero por coincidencias exactas en código
+            nivel_completo,
+            nivel_orden,
+            SUBSTRING_INDEX(nivel_completo, '-', 1) as codigo,
             CASE 
-                WHEN SUBSTRING_INDEX(COALESCE(nivel6, nivel5, nivel4, nivel3, nivel2, nivel1), '-', 1) = :search_exact THEN 1
-                WHEN SUBSTRING_INDEX(COALESCE(nivel6, nivel5, nivel4, nivel3, nivel2, nivel1), '-', 1) LIKE :search_start THEN 2
-                ELSE 3
-            END,
-            LENGTH(COALESCE(nivel6, nivel5, nivel4, nivel3, nivel2, nivel1)),
-            COALESCE(nivel6, nivel5, nivel4, nivel3, nivel2, nivel1)
+                WHEN SUBSTRING_INDEX(nivel_completo, '-', 1) = :search_exact THEN 1
+                WHEN SUBSTRING_INDEX(nivel_completo, '-', 1) LIKE :search_start THEN 2
+                WHEN nivel_completo LIKE :search_full THEN 3
+                ELSE 4
+            END as prioridad
+        FROM (
+            SELECT 
+                nivel1 as nivel_completo,
+                1 as nivel_orden
+            FROM cuentas_contables 
+            WHERE (nivel1 LIKE :search_pattern1 AND nivel1 IS NOT NULL AND nivel1 <> '')
+            UNION
+            SELECT 
+                nivel2 as nivel_completo,
+                2 as nivel_orden
+            FROM cuentas_contables 
+            WHERE (nivel2 LIKE :search_pattern2 AND nivel2 IS NOT NULL AND nivel2 <> '')
+            UNION
+            SELECT 
+                nivel3 as nivel_completo,
+                3 as nivel_orden
+            FROM cuentas_contables 
+            WHERE (nivel3 LIKE :search_pattern3 AND nivel3 IS NOT NULL AND nivel3 <> '')
+            UNION
+            SELECT 
+                nivel4 as nivel_completo,
+                4 as nivel_orden
+            FROM cuentas_contables 
+            WHERE (nivel4 LIKE :search_pattern4 AND nivel4 IS NOT NULL AND nivel4 <> '')
+            UNION
+            SELECT 
+                nivel5 as nivel_completo,
+                5 as nivel_orden
+            FROM cuentas_contables 
+            WHERE (nivel5 LIKE :search_pattern5 AND nivel5 IS NOT NULL AND nivel5 <> '')
+            UNION
+            SELECT 
+                nivel6 as nivel_completo,
+                6 as nivel_orden
+            FROM cuentas_contables 
+            WHERE (nivel6 LIKE :search_pattern6 AND nivel6 IS NOT NULL AND nivel6 <> '')
+        ) as todos_niveles
+        WHERE nivel_completo IS NOT NULL AND nivel_completo <> ''
+        ORDER BY 
+            prioridad,
+            nivel_orden,
+            nivel_completo
         LIMIT 50
     ";
 
@@ -111,24 +159,20 @@ if (!empty($search)) {
     $searchPattern = "%$search%";
     $searchExact = $search;
     $searchStart = "$search%";
+    $searchFull = "%$search%";
     
     for ($i = 1; $i <= 6; $i++) {
-        $stmt->bindValue(":search{$i}", $searchPattern);
-    }
-    for ($i = 7; $i <= 12; $i++) {
-        $stmt->bindValue(":search{$i}", $searchPattern);
-    }
-    for ($i = 13; $i <= 18; $i++) {
-        $stmt->bindValue(":search{$i}", $searchPattern);
+        $stmt->bindValue(":search_pattern{$i}", $searchPattern);
     }
     $stmt->bindValue(":search_exact", $searchExact);
     $stmt->bindValue(":search_start", $searchStart);
+    $stmt->bindValue(":search_full", $searchFull);
     
     $stmt->execute();
     $resultados = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($resultados as $row) {
-        $cuenta_completa = $row['cuenta_completa'];
+        $cuenta_completa = $row['nivel_completo'];
         if (!empty($cuenta_completa) && !isset($codigos_unicos[$cuenta_completa])) {
             $partes = explode('-', $cuenta_completa, 2);
             $codigo = trim($partes[0] ?? '');
@@ -139,7 +183,8 @@ if (!empty($search)) {
                 $cuentas_completas[] = [
                     'valor' => $codigo,
                     'texto' => $cuenta_completa,
-                    'nombre' => $nombre
+                    'nombre' => $nombre,
+                    'nivel' => $row['nivel_orden']
                 ];
                 $codigos_unicos[$cuenta_completa] = true;
             }
@@ -176,7 +221,8 @@ if (!empty($search)) {
                 $cuentas_completas[] = [
                     'valor' => $auxiliar,
                     'texto' => $texto_completo,
-                    'nombre' => $nombre_catalogo
+                    'nombre' => $nombre_catalogo,
+                    'nivel' => 7 // Para diferenciar que viene de catalogoscuentascontables
                 ];
                 $codigos_unicos[$auxiliar] = true;
             }
