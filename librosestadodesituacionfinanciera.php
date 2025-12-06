@@ -4,6 +4,24 @@ include("connection.php");
 $conn = new connection();
 $pdo = $conn->connect();
 
+// ================== OBTENER DATOS DEL PERFIL ==================
+$sql_perfil = "SELECT persona, nombres, apellidos, razon, cedula, digito FROM perfil LIMIT 1";
+$stmt_perfil = $pdo->query($sql_perfil);
+$perfil = $stmt_perfil->fetch(PDO::FETCH_ASSOC);
+
+// Determinar qué mostrar como nombre de empresa
+if ($perfil) {
+    if ($perfil['persona'] == 'juridica' && !empty($perfil['razon'])) {
+        $nombre_empresa = $perfil['razon'];
+    } else {
+        $nombre_empresa = trim($perfil['nombres'] . ' ' . $perfil['apellidos']);
+    }
+    $nit_empresa = $perfil['cedula'] . ($perfil['digito'] > 0 ? '-' . $perfil['digito'] : '');
+} else {
+    $nombre_empresa = 'Nombre de la Empresa';
+    $nit_empresa = 'NIT de la Empresa';
+}
+
 // ================== FILTROS ==================
 $periodo_fiscal = isset($_GET['periodo_fiscal']) ? $_GET['periodo_fiscal'] : date('Y');
 $fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-01-01');
@@ -635,7 +653,23 @@ $esta_equilibrado = abs($diferencia) < 0.01;
     <div class="container" data-aos="fade-up">
       <div class="section-title">
         <h2><i class="fa-solid fa-balance-scale"></i> ESTADO DE SITUACIÓN FINANCIERA</h2>
-        <p>Balance General al <?= date('d/m/Y', strtotime($fecha_hasta)) ?></p>
+
+        <!-- Información de la empresa centrada -->
+        <div class="text-center empresa-info mt-3 p-3" style="border-radius: 5px;">
+            <div style="margin-bottom: 10px;">
+                <strong>NOMBRE DE LA EMPRESA:</strong><br>
+                <?= htmlspecialchars($nombre_empresa) ?>
+            </div>
+            
+            <div style="margin-bottom: 10px;">
+                <strong>NIT DE LA EMPRESA:</strong><br>
+                <?= htmlspecialchars($nit_empresa) ?>
+            </div>
+            
+            <div style="margin-bottom: 5px;">
+                <strong>PERIODO:</strong> <?= date('d/m/Y', strtotime($fecha_desde)) ?> A <?= date('d/m/Y', strtotime($fecha_hasta)) ?>
+            </div>
+        </div>
       </div>
 
       <!-- Formulario de filtros -->

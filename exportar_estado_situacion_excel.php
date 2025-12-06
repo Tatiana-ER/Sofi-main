@@ -4,6 +4,23 @@ include("connection.php");
 $conn = new connection();
 $pdo = $conn->connect();
 
+// ================== OBTENER DATOS DEL PERFIL ==================
+$sql_perfil = "SELECT persona, nombres, apellidos, razon, cedula, digito FROM perfil LIMIT 1";
+$stmt_perfil = $pdo->query($sql_perfil);
+$perfil = $stmt_perfil->fetch(PDO::FETCH_ASSOC);
+
+if ($perfil) {
+    if ($perfil['persona'] == 'juridica' && !empty($perfil['razon'])) {
+        $nombre_empresa = $perfil['razon'];
+    } else {
+        $nombre_empresa = trim($perfil['nombres'] . ' ' . $perfil['apellidos']);
+    }
+    $nit_empresa = $perfil['cedula'] . ($perfil['digito'] > 0 ? '-' . $perfil['digito'] : '');
+} else {
+    $nombre_empresa = 'Nombre de la Empresa';
+    $nit_empresa = 'NIT de la Empresa';
+}
+
 // ================== FILTROS ==================
 $periodo_fiscal = isset($_GET['periodo_fiscal']) ? $_GET['periodo_fiscal'] : date('Y');
 $fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-01-01');
@@ -348,6 +365,19 @@ header('Cache-Control: max-age=0');
 echo '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">';
 echo '<head>';
 echo '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">';
+echo '<style>';
+echo 'td, th { border: 1px solid #ddd; padding: 4px; font-family: Arial, sans-serif; }';
+echo '.centered { text-align: center; }';
+echo '.right { text-align: right; }';
+echo '.left { text-align: left; }';
+echo '.bold { font-weight: bold; }';
+echo '.total-row { background-color: #f8f9fa; font-weight: bold; }';
+echo '.header-blue { background-color: #054a85; color: white; }';
+echo '.section-header { background-color: #e3f2fd; }';
+echo '.equilibrio-ok { background-color: #d1ecf1; }';
+echo '.equilibrio-error { background-color: #f8d7da; }';
+echo '.valor-negativo { color: #000000; }'; // MEJORA: Negro en lugar de rojo
+echo '</style>';
 echo '<!--[if gte mso 9]>';
 echo '<xml>';
 echo '<x:ExcelWorkbook>';
@@ -356,6 +386,11 @@ echo '<x:ExcelWorksheet>';
 echo '<x:Name>Estado Situación Financiera</x:Name>';
 echo '<x:WorksheetOptions>';
 echo '<x:DisplayGridlines/>';
+echo '<x:FitToPage/>';
+echo '<x:Print>';
+echo '<x:FitWidth>1</x:FitWidth>';
+echo '<x:FitHeight>1</x:FitHeight>';
+echo '</x:Print>';
 echo '</x:WorksheetOptions>';
 echo '</x:ExcelWorksheet>';
 echo '</x:ExcelWorksheets>';
@@ -365,21 +400,46 @@ echo '<![endif]-->';
 echo '</head>';
 echo '<body>';
 
-echo '<table border="1" style="border-collapse: collapse;">';
-echo '<tr><th colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" style="background-color: #054a85; color: white; font-size: 16px; padding: 10px;">ESTADO DE SITUACIÓN FINANCIERA</th></tr>';
-echo '<tr><th colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" style="background-color: #f0f0f0; padding: 8px;">Período: ' . date('d/m/Y', strtotime($fecha_desde)) . ' - ' . date('d/m/Y', strtotime($fecha_hasta)) . '</th></tr>';
-echo '<tr><td colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '">&nbsp;</td></tr>';
+echo '<table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; width: 100%;">';
+
+// TÍTULO PRINCIPAL Y DATOS DE EMPRESA (MEJORA SOLICITADA)
+echo '<tr>';
+echo '<th colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" class="header-blue" style="font-size: 16px; padding: 10px;">ESTADO DE SITUACIÓN FINANCIERA</th>';
+echo '</tr>';
+
+echo '<tr>';
+echo '<td colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" class="centered bold" style="background-color: #f0f0f0; padding: 8px;">';
+echo 'NOMBRE DE LA EMPRESA: ' . htmlspecialchars($nombre_empresa, ENT_QUOTES, 'UTF-8');
+echo '</td>';
+echo '</tr>';
+
+echo '<tr>';
+echo '<td colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" class="centered bold" style="background-color: #f0f0f0; padding: 8px;">';
+echo 'NIT DE LA EMPRESA: ' . htmlspecialchars($nit_empresa, ENT_QUOTES, 'UTF-8');
+echo '</td>';
+echo '</tr>';
+
+echo '<tr>';
+echo '<td colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" class="centered" style="background-color: #f0f0f0; padding: 8px;">';
+echo 'PERÍODO: ' . date('d/m/Y', strtotime($fecha_desde)) . ' - ' . date('d/m/Y', strtotime($fecha_hasta));
+echo '</td>';
+echo '</tr>';
+
+echo '<tr><td colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" style="padding: 10px;">&nbsp;</td></tr>';
 
 // ACTIVOS
-echo '<tr><th colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" style="background-color: #e3f2fd; padding: 8px;">ACTIVOS</th></tr>';
-echo '<tr style="background-color: #054a85; color: white;">';
-echo '<th style="padding: 6px;">Código</th>';
+echo '<tr>';
+echo '<th colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" class="section-header bold" style="padding: 8px;">ACTIVOS</th>';
+echo '</tr>';
+
+echo '<tr class="header-blue">';
+echo '<th style="padding: 6px; width: 80px;">Código</th>';
 echo '<th style="padding: 6px;">Nombre de la cuenta</th>';
 if ($mostrar_saldo_inicial) {
-    echo '<th style="padding: 6px; text-align: right;">Saldo Inicial</th>';
-    echo '<th style="padding: 6px; text-align: right;">Saldo</th>';
+    echo '<th style="padding: 6px; width: 120px; text-align: right;">Saldo Inicial</th>';
+    echo '<th style="padding: 6px; width: 120px; text-align: right;">Saldo</th>';
 } else {
-    echo '<th style="padding: 6px; text-align: right;">Saldo</th>';
+    echo '<th style="padding: 6px; width: 120px; text-align: right;">Saldo</th>';
 }
 echo '</tr>';
 
@@ -397,7 +457,7 @@ foreach ($activos as $fila) {
     echo '</tr>';
 }
 
-echo '<tr style="background-color: #f8f9fa; font-weight: bold;">';
+echo '<tr class="total-row">';
 echo '<td colspan="' . ($mostrar_saldo_inicial ? '2' : '2') . '" style="padding: 6px;">TOTAL ACTIVOS</td>';
 if ($mostrar_saldo_inicial) {
     echo '<td style="padding: 6px; text-align: right;">' . number_format($totalSaldoInicialActivos, 2, ',', '.') . '</td>';
@@ -407,18 +467,21 @@ if ($mostrar_saldo_inicial) {
 }
 echo '</tr>';
 
-echo '<tr><td colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '">&nbsp;</td></tr>';
+echo '<tr><td colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" style="padding: 15px;">&nbsp;</td></tr>';
 
 // PASIVOS
-echo '<tr><th colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" style="background-color: #e3f2fd; padding: 8px;">PASIVOS</th></tr>';
-echo '<tr style="background-color: #054a85; color: white;">';
-echo '<th style="padding: 6px;">Código</th>';
+echo '<tr>';
+echo '<th colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" class="section-header bold" style="padding: 8px;">PASIVOS</th>';
+echo '</tr>';
+
+echo '<tr class="header-blue">';
+echo '<th style="padding: 6px; width: 80px;">Código</th>';
 echo '<th style="padding: 6px;">Nombre de la cuenta</th>';
 if ($mostrar_saldo_inicial) {
-    echo '<th style="padding: 6px; text-align: right;">Saldo Inicial</th>';
-    echo '<th style="padding: 6px; text-align: right;">Saldo</th>';
+    echo '<th style="padding: 6px; width: 120px; text-align: right;">Saldo Inicial</th>';
+    echo '<th style="padding: 6px; width: 120px; text-align: right;">Saldo</th>';
 } else {
-    echo '<th style="padding: 6px; text-align: right;">Saldo</th>';
+    echo '<th style="padding: 6px; width: 120px; text-align: right;">Saldo</th>';
 }
 echo '</tr>';
 
@@ -436,7 +499,7 @@ foreach ($pasivos as $fila) {
     echo '</tr>';
 }
 
-echo '<tr style="background-color: #f8f9fa; font-weight: bold;">';
+echo '<tr class="total-row">';
 echo '<td colspan="' . ($mostrar_saldo_inicial ? '2' : '2') . '" style="padding: 6px;">TOTAL PASIVOS</td>';
 if ($mostrar_saldo_inicial) {
     echo '<td style="padding: 6px; text-align: right;">' . number_format($totalSaldoInicialPasivos, 2, ',', '.') . '</td>';
@@ -446,25 +509,28 @@ if ($mostrar_saldo_inicial) {
 }
 echo '</tr>';
 
-echo '<tr><td colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '">&nbsp;</td></tr>';
+echo '<tr><td colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" style="padding: 15px;">&nbsp;</td></tr>';
 
 // PATRIMONIO
-echo '<tr><th colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" style="background-color: #e3f2fd; padding: 8px;">PATRIMONIO</th></tr>';
-echo '<tr style="background-color: #054a85; color: white;">';
-echo '<th style="padding: 6px;">Código</th>';
+echo '<tr>';
+echo '<th colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" class="section-header bold" style="padding: 8px;">PATRIMONIO</th>';
+echo '</tr>';
+
+echo '<tr class="header-blue">';
+echo '<th style="padding: 6px; width: 80px;">Código</th>';
 echo '<th style="padding: 6px;">Nombre de la cuenta</th>';
 if ($mostrar_saldo_inicial) {
-    echo '<th style="padding: 6px; text-align: right;">Saldo Inicial</th>';
-    echo '<th style="padding: 6px; text-align: right;">Saldo</th>';
+    echo '<th style="padding: 6px; width: 120px; text-align: right;">Saldo Inicial</th>';
+    echo '<th style="padding: 6px; width: 120px; text-align: right;">Saldo</th>';
 } else {
-    echo '<th style="padding: 6px; text-align: right;">Saldo</th>';
+    echo '<th style="padding: 6px; width: 120px; text-align: right;">Saldo</th>';
 }
 echo '</tr>';
 
 foreach ($patrimonios as $fila) {
     $padding_left = ($fila['nivel'] - 1) * 15;
-    // Añadir clase de color rojo si es valor negativo
-    $color_style = ($fila['saldo'] < 0) ? 'color: #dc3545;' : '';
+    // MEJORA: Valores negativos en negro, no rojo
+    $color_style = 'color: #000000;'; // Siempre negro
     
     echo '<tr>';
     echo '<td style="padding: 5px;">' . htmlspecialchars($fila['codigo'], ENT_QUOTES, 'UTF-8') . '</td>';
@@ -478,7 +544,7 @@ foreach ($patrimonios as $fila) {
     echo '</tr>';
 }
 
-echo '<tr style="background-color: #f8f9fa; font-weight: bold;">';
+echo '<tr class="total-row">';
 echo '<td colspan="' . ($mostrar_saldo_inicial ? '2' : '2') . '" style="padding: 6px;">TOTAL PATRIMONIO</td>';
 if ($mostrar_saldo_inicial) {
     echo '<td style="padding: 6px; text-align: right;">' . number_format($totalSaldoInicialPatrimonios, 2, ',', '.') . '</td>';
@@ -488,14 +554,17 @@ if ($mostrar_saldo_inicial) {
 }
 echo '</tr>';
 
-echo '<tr><td colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '">&nbsp;</td></tr>';
+echo '<tr><td colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" style="padding: 15px;">&nbsp;</td></tr>';
 
 // EQUILIBRIO CONTABLE
 $total_pasivo_patrimonio = $totalPasivos + $totalPatrimonios;
 $diferencia = $totalActivos - $total_pasivo_patrimonio;
 $esta_equilibrado = abs($diferencia) < 0.01;
 
-echo '<tr style="background-color: ' . ($esta_equilibrado ? '#d4edda' : '#f8d7da') . '; font-weight: bold;">';
+// MEJORA: Color acorde (no verde que sobresale)
+$equilibrio_class = $esta_equilibrado ? 'equilibrio-ok' : 'equilibrio-error';
+
+echo '<tr class="' . $equilibrio_class . ' bold">';
 echo '<td colspan="' . ($mostrar_saldo_inicial ? '2' : '2') . '" style="padding: 8px;">';
 echo $esta_equilibrado ? '✓ ACTIVOS = PASIVOS + PATRIMONIO' : '✗ DESEQUILIBRIO CONTABLE';
 echo '</td>';
@@ -508,18 +577,26 @@ if ($mostrar_saldo_inicial) {
 echo '</tr>';
 
 if (!$esta_equilibrado) {
-    echo '<tr style="background-color: #f8d7da; color: #721c24;">';
+    echo '<tr class="equilibrio-error">';
     echo '<td colspan="' . ($mostrar_saldo_inicial ? '4' : '3') . '" style="padding: 6px; text-align: center;">Diferencia: ' . number_format($diferencia, 2, ',', '.') . '</td>';
     echo '</tr>';
 }
 
 echo '</table>';
 
+// INFORMACIÓN ADICIONAL (MEJORA: añadir información del reporte)
 echo '<br><br>';
-echo '<table border="0" style="width: 100%;">';
+echo '<table border="0" style="width: 100%; border-collapse: collapse; background-color: #f8f9fa;">';
 echo '<tr>';
-echo '<td width="50%" style="text-align: center;">________________________<br>CONTADOR PÚBLICO</td>';
-echo '<td width="50%" style="text-align: center;">________________________<br>REPRESENTANTE LEGAL</td>';
+echo '<td colspan="2" style="padding: 5px; font-style: italic;"><strong>Información del Reporte:</strong></td>';
+echo '</tr>';
+echo '<tr>';
+echo '<td style="padding: 3px;">Generado el:</td>';
+echo '<td style="padding: 3px;">' . date('Y-m-d H:i:s') . '</td>';
+echo '</tr>';
+echo '<tr>';
+echo '<td style="padding: 3px;">Período fiscal:</td>';
+echo '<td style="padding: 3px;">' . date('Y', strtotime($fecha_desde)) . '</td>';
 echo '</tr>';
 echo '</table>';
 

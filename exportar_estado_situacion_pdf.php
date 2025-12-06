@@ -6,6 +6,23 @@ include("connection.php");
 $conn = new connection();
 $pdo = $conn->connect();
 
+// ================== OBTENER DATOS DEL PERFIL ==================
+$sql_perfil = "SELECT persona, nombres, apellidos, razon, cedula, digito FROM perfil LIMIT 1";
+$stmt_perfil = $pdo->query($sql_perfil);
+$perfil = $stmt_perfil->fetch(PDO::FETCH_ASSOC);
+
+if ($perfil) {
+    if ($perfil['persona'] == 'juridica' && !empty($perfil['razon'])) {
+        $nombre_empresa = $perfil['razon'];
+    } else {
+        $nombre_empresa = trim($perfil['nombres'] . ' ' . $perfil['apellidos']);
+    }
+    $nit_empresa = $perfil['cedula'] . ($perfil['digito'] > 0 ? '-' . $perfil['digito'] : '');
+} else {
+    $nombre_empresa = 'Nombre de la Empresa';
+    $nit_empresa = 'NIT de la Empresa';
+}
+
 // ================== FILTROS ==================
 $periodo_fiscal = isset($_GET['periodo_fiscal']) ? $_GET['periodo_fiscal'] : date('Y');
 $fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-01-01');
@@ -349,24 +366,42 @@ $patrimonios = agregarAgrupaciones($patrimonios, $cuentas_procesadas, $nombres_c
 
 // ================== CREAR PDF CON FPDF ==================
 class PDF extends FPDF {
-    private $title = 'ESTADO DE SITUACIÓN FINANCIERA';
     private $mostrar_saldo_inicial;
+    private $nombre_empresa;
+    private $nit_empresa;
+    private $fecha_desde;
+    private $fecha_hasta;
     
-    function __construct($mostrar_saldo_inicial = false) {
+    function __construct($mostrar_saldo_inicial = false, $nombre_empresa = '', $nit_empresa = '', $fecha_desde = '', $fecha_hasta = '') {
         parent::__construct();
         $this->mostrar_saldo_inicial = $mostrar_saldo_inicial;
+        $this->nombre_empresa = $nombre_empresa;
+        $this->nit_empresa = $nit_empresa;
+        $this->fecha_desde = $fecha_desde;
+        $this->fecha_hasta = $fecha_hasta;
     }
     
     function Header() {
-        if (file_exists('./Img/sofilogo5pequeño.png')) {
-            $this->Image('./Img/sofilogo5pequeño.png', 10, 8, 20);
+        // Logo (si existe)
+        if (file_exists('assets/img/logo.png')) {
+            $this->Image('assets/img/logo.png', 10, 8, 33);
+        } elseif (file_exists('./Img/sofilogo5pequeño.png')) {
+            $this->Image('./Img/sofilogo5pequeño.png', 10, 8, 33);
         }
         
-        $this->SetFont('Arial', 'B', 16);
-        $this->Cell(0, 10, convertText($this->title), 0, 1, 'C');
+        $this->SetFont('Arial', 'B', 14);
+        $this->Cell(0, 8, convertText('ESTADO DE SITUACIÓN FINANCIERA'), 0, 1, 'C');
+        
+        // Información de la empresa centrada (MEJORA SOLICITADA)
+        $this->SetFont('Arial', 'B', 10);
+        $this->Cell(0, 6, convertText('NOMBRE DE LA EMPRESA: ') . convertText($this->nombre_empresa), 0, 1, 'C');
+        $this->Cell(0, 6, convertText('NIT DE LA EMPRESA: ') . $this->nit_empresa, 0, 1, 'C');
+        
+        $this->SetFont('Arial', '', 9);
+        $this->Cell(0, 6, convertText('PERÍODO: ') . date('d/m/Y', strtotime($this->fecha_desde)) . ' - ' . date('d/m/Y', strtotime($this->fecha_hasta)), 0, 1, 'C');
         
         $this->SetLineWidth(0.5);
-        $this->Line(10, 30, 200, 30);
+        $this->Line(10, 40, 200, 40);
         $this->Ln(5);
     }
     
@@ -389,26 +424,20 @@ class PDF extends FPDF {
         $this->SetTextColor(255, 255, 255);
         
         if ($this->mostrar_saldo_inicial) {
-            $this->Cell(25, 8, convertText('Código'), 1, 0, 'C', true);
-            $this->Cell(85, 8, convertText('Nombre de la cuenta'), 1, 0, 'C', true);
+            $this->Cell(30, 8, convertText('Código'), 1, 0, 'C', true);
+            $this->Cell(80, 8, convertText('Nombre de la cuenta'), 1, 0, 'C', true);
             $this->Cell(40, 8, convertText('Saldo Inicial'), 1, 0, 'C', true);
             $this->Cell(40, 8, convertText('Saldo'), 1, 1, 'C', true);
         } else {
-            $this->Cell(25, 8, convertText('Código'), 1, 0, 'C', true);
-            $this->Cell(125, 8, convertText('Nombre de la cuenta'), 1, 0, 'C', true);
-            $this->Cell(40, 8, convertText('Saldo'), 1, 1, 'C', true);
+            $this->Cell(30, 8, convertText('Código'), 1, 0, 'C', true);
+            $this->Cell(100, 8, convertText('Nombre de la cuenta'), 1, 0, 'C', true);
+            $this->Cell(60, 8, convertText('Saldo'), 1, 1, 'C', true);
         }
     }
     
     function TableRow($fila, $fill) {
         $this->SetFont('Arial', '', 9);
         $this->SetTextColor(0, 0, 0);
-        
-        // Si es valor negativo, usar color rojo
-        $es_negativo = $fila['saldo'] < 0;
-        if ($es_negativo) {
-            $this->SetTextColor(220, 53, 69); // Color rojo
-        }
         
         $font_style = '';
         $indent = ($fila['nivel'] - 1) * 3;
@@ -426,15 +455,147 @@ class PDF extends FPDF {
         
         $this->SetFont('Arial', $font_style, 9);
         
+        // Texto indentado
+        $nombre_texto = convertText(str_repeat('  ', $indent) . $fila['nombre']);
+        
         if ($this->mostrar_saldo_inicial) {
-            $this->Cell(25, 7, $fila['codigo'], 1, 0, 'L', $fill);
-            $this->Cell(85, 7, convertText(str_repeat('  ', $indent) . $fila['nombre']), 1, 0, 'L', $fill);
-            $this->Cell(40, 7, number_format($fila['saldo_inicial'], 2, ',', '.'), 1, 0, 'R', $fill);
-            $this->Cell(40, 7, number_format($fila['saldo'], 2, ',', '.'), 1, 1, 'R', $fill);
+            // Anchos de columna
+            $ancho_codigo = 30;
+            $ancho_nombre = 80;
+            $ancho_saldo_inicial = 40;
+            $ancho_saldo = 40;
+            
+            // Dividir el nombre en líneas que caben en el ancho disponible
+            $nombre_largo = $this->GetStringWidth($nombre_texto);
+            $max_ancho_nombre = $ancho_nombre - 1; // Margen pequeño
+            
+            if ($nombre_largo > $max_ancho_nombre) {
+                // Dividir el texto en múltiples líneas
+                $lineas = [];
+                $palabras = explode(' ', $nombre_texto);
+                $linea_actual = '';
+                
+                foreach ($palabras as $palabra) {
+                    $prueba_linea = $linea_actual . ($linea_actual ? ' ' : '') . $palabra;
+                    if ($this->GetStringWidth($prueba_linea) <= $max_ancho_nombre) {
+                        $linea_actual = $prueba_linea;
+                    } else {
+                        if ($linea_actual) {
+                            $lineas[] = $linea_actual;
+                        }
+                        $linea_actual = $palabra;
+                    }
+                }
+                if ($linea_actual) {
+                    $lineas[] = $linea_actual;
+                }
+                
+                $num_lineas = count($lineas);
+                
+                // Imprimir cada línea con bordes apropiados
+                for ($i = 0; $i < $num_lineas; $i++) {
+                    // Definir bordes para cada línea
+                    $borde_izquierdo = ($i == 0) ? 'LTR' : 'LR';
+                    $borde_nombre = ($i == 0) ? 'TR' : 'R';
+                    $borde_saldo_inicial = ($i == 0) ? 'TR' : 'R';
+                    $borde_saldo = ($i == 0) ? 'TR' : 'R';
+                    $borde_derecho_final = ($i == 0 && $num_lineas == 1) ? 'R' : 'R';
+                    
+                    // Si es la última línea, agregar borde inferior
+                    if ($i == $num_lineas - 1) {
+                        $borde_izquierdo = ($i == 0) ? 'LTRB' : 'LRB';
+                        $borde_nombre = ($i == 0) ? 'TRB' : 'RB';
+                        $borde_saldo_inicial = ($i == 0) ? 'TRB' : 'RB';
+                        $borde_saldo = ($i == 0) ? 'TRB' : 'RB';
+                    }
+                    
+                    // Si es la primera línea, mostrar código, saldo inicial y saldo
+                    if ($i == 0) {
+                        $this->Cell($ancho_codigo, 7, $fila['codigo'], $borde_izquierdo, 0, 'L', $fill);
+                        $this->Cell($ancho_nombre, 7, $lineas[$i], $borde_nombre, 0, 'L', $fill);
+                        $this->Cell($ancho_saldo_inicial, 7, number_format($fila['saldo_inicial'], 2, ',', '.'), $borde_saldo_inicial, 0, 'R', $fill);
+                        $this->Cell($ancho_saldo, 7, number_format($fila['saldo'], 2, ',', '.'), $borde_saldo, 1, 'R', $fill);
+                    } else {
+                        // Líneas adicionales: código en blanco, solo el texto, saldos en blanco
+                        $this->Cell($ancho_codigo, 7, '', $borde_izquierdo, 0, 'L', $fill);
+                        $this->Cell($ancho_nombre, 7, $lineas[$i], $borde_nombre, 0, 'L', $fill);
+                        $this->Cell($ancho_saldo_inicial, 7, '', $borde_saldo_inicial, 0, 'R', $fill);
+                        $this->Cell($ancho_saldo, 7, '', $borde_saldo, 1, 'R', $fill);
+                    }
+                }
+            } else {
+                // Si el nombre cabe en una línea
+                $this->Cell($ancho_codigo, 7, $fila['codigo'], 1, 0, 'L', $fill);
+                $this->Cell($ancho_nombre, 7, $nombre_texto, 1, 0, 'L', $fill);
+                $this->Cell($ancho_saldo_inicial, 7, number_format($fila['saldo_inicial'], 2, ',', '.'), 1, 0, 'R', $fill);
+                $this->Cell($ancho_saldo, 7, number_format($fila['saldo'], 2, ',', '.'), 1, 1, 'R', $fill);
+            }
+            
         } else {
-            $this->Cell(25, 7, $fila['codigo'], 1, 0, 'L', $fill);
-            $this->Cell(125, 7, convertText(str_repeat('  ', $indent) . $fila['nombre']), 1, 0, 'L', $fill);
-            $this->Cell(40, 7, number_format($fila['saldo'], 2, ',', '.'), 1, 1, 'R', $fill);
+            // Anchos de columna sin saldo inicial
+            $ancho_codigo = 30;
+            $ancho_nombre = 100;
+            $ancho_saldo = 60;
+            
+            // Dividir el nombre en líneas que caben en el ancho disponible
+            $nombre_largo = $this->GetStringWidth($nombre_texto);
+            $max_ancho_nombre = $ancho_nombre - 1; // Margen pequeño
+            
+            if ($nombre_largo > $max_ancho_nombre) {
+                // Dividir el texto en múltiples líneas
+                $lineas = [];
+                $palabras = explode(' ', $nombre_texto);
+                $linea_actual = '';
+                
+                foreach ($palabras as $palabra) {
+                    $prueba_linea = $linea_actual . ($linea_actual ? ' ' : '') . $palabra;
+                    if ($this->GetStringWidth($prueba_linea) <= $max_ancho_nombre) {
+                        $linea_actual = $prueba_linea;
+                    } else {
+                        if ($linea_actual) {
+                            $lineas[] = $linea_actual;
+                        }
+                        $linea_actual = $palabra;
+                    }
+                }
+                if ($linea_actual) {
+                    $lineas[] = $linea_actual;
+                }
+                
+                $num_lineas = count($lineas);
+                
+                // Imprimir cada línea con bordes apropiados
+                for ($i = 0; $i < $num_lineas; $i++) {
+                    // Definir bordes para cada línea
+                    $borde_izquierdo = ($i == 0) ? 'LTR' : 'LR';
+                    $borde_nombre = ($i == 0) ? 'TR' : 'R';
+                    $borde_saldo = ($i == 0) ? 'TR' : 'R';
+                    
+                    // Si es la última línea, agregar borde inferior
+                    if ($i == $num_lineas - 1) {
+                        $borde_izquierdo = ($i == 0) ? 'LTRB' : 'LRB';
+                        $borde_nombre = ($i == 0) ? 'TRB' : 'RB';
+                        $borde_saldo = ($i == 0) ? 'TRB' : 'RB';
+                    }
+                    
+                    // Si es la primera línea, mostrar código y saldo
+                    if ($i == 0) {
+                        $this->Cell($ancho_codigo, 7, $fila['codigo'], $borde_izquierdo, 0, 'L', $fill);
+                        $this->Cell($ancho_nombre, 7, $lineas[$i], $borde_nombre, 0, 'L', $fill);
+                        $this->Cell($ancho_saldo, 7, number_format($fila['saldo'], 2, ',', '.'), $borde_saldo, 1, 'R', $fill);
+                    } else {
+                        // Líneas adicionales: código en blanco, solo el texto, saldo en blanco
+                        $this->Cell($ancho_codigo, 7, '', $borde_izquierdo, 0, 'L', $fill);
+                        $this->Cell($ancho_nombre, 7, $lineas[$i], $borde_nombre, 0, 'L', $fill);
+                        $this->Cell($ancho_saldo, 7, '', $borde_saldo, 1, 'R', $fill);
+                    }
+                }
+            } else {
+                // Si el nombre cabe en una línea
+                $this->Cell($ancho_codigo, 7, $fila['codigo'], 1, 0, 'L', $fill);
+                $this->Cell($ancho_nombre, 7, $nombre_texto, 1, 0, 'L', $fill);
+                $this->Cell($ancho_saldo, 7, number_format($fila['saldo'], 2, ',', '.'), 1, 1, 'R', $fill);
+            }
         }
         
         // Restaurar color de texto
@@ -450,21 +611,16 @@ class PDF extends FPDF {
             $this->Cell(40, 8, number_format($total_saldo_inicial, 2, ',', '.'), 1, 0, 'R', true);
             $this->Cell(40, 8, number_format($total, 2, ',', '.'), 1, 1, 'R', true);
         } else {
-            $this->Cell(150, 8, convertText($label), 1, 0, 'R', true);
-            $this->Cell(40, 8, number_format($total, 2, ',', '.'), 1, 1, 'R', true);
+            $this->Cell(130, 8, convertText($label), 1, 0, 'R', true);
+            $this->Cell(60, 8, number_format($total, 2, ',', '.'), 1, 1, 'R', true);
         }
     }
 }
 
-// Crear instancia del PDF
-$pdf = new PDF($mostrar_saldo_inicial);
+// Crear instancia del PDF con datos de la empresa
+$pdf = new PDF($mostrar_saldo_inicial, $nombre_empresa, $nit_empresa, $fecha_desde, $fecha_hasta);
 $pdf->AliasNbPages();
 $pdf->AddPage();
-
-// Información del período
-$pdf->SetFont('Arial', 'B', 12);
-$pdf->Cell(0, 10, convertText('Período: ') . date('d/m/Y', strtotime($fecha_desde)) . ' - ' . date('d/m/Y', strtotime($fecha_hasta)), 0, 1, 'C');
-$pdf->Ln(5);
 
 // ACTIVOS
 $pdf->ChapterTitle('ACTIVOS');
@@ -539,40 +695,49 @@ $total_pasivo_patrimonio = $totalPasivos + $totalPatrimonios;
 $diferencia = $totalActivos - $total_pasivo_patrimonio;
 $esta_equilibrado = abs($diferencia) < 0.01;
 
-$pdf->SetFont('Arial', 'B', 12);
+// MEJORA: Fuente más pequeña para que quepa en la línea
+$pdf->SetFont('Arial', 'B', 9); // Reducido de 12 a 9
+
 if ($esta_equilibrado) {
-    $pdf->SetFillColor(200, 255, 200);
-    $equilibrio_texto = '✓ ACTIVOS = PASIVOS + PATRIMONIO';
+    // MEJORA: Color acorde (no verde que sobresale)
+    $pdf->SetFillColor(220, 240, 255); // Azul claro en lugar de verde
+    $equilibrio_texto = 'ACTIVOS = PASIVOS + PATRIMONIO';
 } else {
-    $pdf->SetFillColor(255, 200, 200);
-    $equilibrio_texto = '✗ DESEQUILIBRIO CONTABLE';
+    $pdf->SetFillColor(255, 220, 220);
+    $equilibrio_texto = 'DESEQUILIBRIO CONTABLE';
 }
 
+// MEJORA: Texto más corto para mejor visualización
+$texto_corto = $esta_equilibrado ? 'ACTIVOS = PASIVOS + PATRIMONIO' : 'DESEQUILIBRIO';
+
 if ($mostrar_saldo_inicial) {
-    $pdf->Cell(95, 10, convertText($equilibrio_texto), 1, 0, 'C', true);
-    $pdf->Cell(45, 10, number_format($totalSaldoInicialActivos, 2, ',', '.') . ' = ' . 
+    $pdf->Cell(95, 8, convertText($texto_corto), 1, 0, 'C', true);
+    $pdf->SetFont('Arial', '', 8); // Fuente aún más pequeña para números
+    $pdf->Cell(45, 8, number_format($totalSaldoInicialActivos, 2, ',', '.') . ' = ' . 
                 number_format($totalSaldoInicialPasivos + $totalSaldoInicialPatrimonios, 2, ',', '.'), 1, 0, 'C', true);
-    $pdf->Cell(50, 10, number_format($totalActivos, 2, ',', '.') . ' = ' . 
+    $pdf->Cell(50, 8, number_format($totalActivos, 2, ',', '.') . ' = ' . 
                 number_format($total_pasivo_patrimonio, 2, ',', '.'), 1, 1, 'C', true);
 } else {
-    $pdf->Cell(140, 10, convertText($equilibrio_texto), 1, 0, 'C', true);
-    $pdf->Cell(50, 10, number_format($totalActivos, 2, ',', '.') . ' = ' . 
+    $pdf->Cell(100, 8, convertText($texto_corto), 1, 0, 'C', true);
+    $pdf->SetFont('Arial', '', 8);
+    $pdf->Cell(90, 8, number_format($totalActivos, 2, ',', '.') . ' = ' . 
                 number_format($total_pasivo_patrimonio, 2, ',', '.'), 1, 1, 'C', true);
 }
 
 if (!$esta_equilibrado) {
-    $pdf->SetFont('Arial', 'B', 10);
-    $pdf->Cell(0, 8, convertText('Diferencia: ') . number_format($diferencia, 2, ',', '.'), 0, 1, 'C');
+    $pdf->SetFont('Arial', 'B', 8);
+    $pdf->Cell(0, 6, convertText('Diferencia: ') . number_format($diferencia, 2, ',', '.'), 0, 1, 'C');
 }
 
 $pdf->Ln(15);
 
-// FIRMAS
-$pdf->SetFont('Arial', '', 10);
-$pdf->Cell(95, 5, '________________________', 0, 0, 'C');
-$pdf->Cell(95, 5, '________________________', 0, 1, 'C');
-$pdf->Cell(95, 5, convertText('CONTADOR PÚBLICO'), 0, 0, 'C');
-$pdf->Cell(95, 5, convertText('REPRESENTANTE LEGAL'), 0, 1, 'C');
+// INFORMACIÓN ADICIONAL (MEJORA: añadir pie de página con información)
+$pdf->Ln(5);
+$pdf->SetFont('Arial', 'I', 8);
+$pdf->SetFillColor(240, 240, 240);
+$pdf->Cell(0, 5, convertText('Información del Reporte:'), 0, 1, 'L', true);
+$pdf->Cell(0, 4, convertText('Generado el: ').date('Y-m-d H:i:s'), 0, 1, 'L');
+$pdf->Cell(0, 4, convertText('Período fiscal: ').date('Y', strtotime($fecha_desde)), 0, 1, 'L');
 
 // Salida del PDF
 $pdf->Output('I', 'Estado_Situacion_Financiera_' . date('Y-m-d') . '.pdf');

@@ -195,20 +195,20 @@ break;
         $deleteDetalle->bindParam(':factura_id', $txtId);
         $deleteDetalle->execute();
 
-        // Insertar nuevos detalles - MODIFICADO: actualizar costo
+        // Insertar detalles y actualizar inventario
         if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
             $sqlDetalle = "INSERT INTO detallefacturac 
                           (factura_id, codigoProducto, nombreProducto, cantidad, precioUnitario, iva, valorTotal)
                           VALUES (:factura_id, :codigoProducto, :nombreProducto, :cantidad, :precioUnitario, :iva, :valorTotal)";
             $stmtDetalle = $pdo->prepare($sqlDetalle);
 
-            $checkItem = $pdo->prepare("SELECT tipoItem, cantidad FROM productoinventarios WHERE codigoProducto = :codigo");
-            $updateStockAndCost = $pdo->prepare("UPDATE productoinventarios SET 
-                                                cantidad = cantidad + :cantidad,
-                                                costoUnitario = :costoUnitario
-                                                WHERE codigoProducto = :codigo");
+            $checkItem = $pdo->prepare("SELECT tipoItem, cantidad, costoUnitario FROM productoinventarios WHERE codigoProducto = :codigo");
+            
+            // <CHANGE> Preparar UPDATE de forma más segura - Se prepara DENTRO del foreach para evitar reutilización
+            // que puede causar duplicación de updates
 
             foreach ($_POST['detalles'] as $detalle) {
+                // Validar que el producto existe
                 $checkItem->execute([':codigo' => $detalle['codigoProducto']]);
                 $item = $checkItem->fetch(PDO::FETCH_ASSOC);
 
@@ -216,18 +216,9 @@ break;
                     throw new Exception("El código {$detalle['codigoProducto']} no existe en el inventario.");
                 }
 
-                // Solo aumentar stock y actualizar costo si es PRODUCTO (no servicio)
-                if (strtolower($item['tipoItem']) === 'producto') {
-                    $nuevoCosto = $detalle['precio'];
-                    $updateStockAndCost->execute([
-                        ':cantidad' => $detalle['cantidad'],
-                        ':costoUnitario' => $nuevoCosto,
-                        ':codigo' => $detalle['codigoProducto']
-                    ]);
-                }
-
+                // Insertar detalle PRIMERO
                 $stmtDetalle->execute([
-                    ':factura_id' => $txtId,
+                    ':factura_id' => $idFactura,
                     ':codigoProducto' => $detalle['codigoProducto'],
                     ':nombreProducto' => $detalle['nombreProducto'],
                     ':cantidad' => $detalle['cantidad'],
@@ -235,6 +226,34 @@ break;
                     ':iva' => $detalle['iva'],
                     ':valorTotal' => $detalle['precioTotal']
                 ]);
+
+                // <CHANGE> Actualizar inventario SOLO para productos (no servicios)
+                // Preparar el UPDATE cada vez para evitar problemas de reutilización de statements
+                if (strtolower($item['tipoItem']) === 'producto') {
+                    $nuevoCosto = $detalle['precio'];
+                    
+                    $updateStockAndCost = $pdo->prepare("UPDATE productoinventarios SET 
+                                                        cantidad = cantidad + :cantidad,
+                                                        costoUnitario = :costoUnitario
+                                                        WHERE codigoProducto = :codigo");
+                    
+                    $resultUpdate = $updateStockAndCost->execute([
+                        ':cantidad' => $detalle['cantidad'],
+                        ':costoUnitario' => $nuevoCosto,
+                        ':codigo' => $detalle['codigoProducto']
+                    ]);
+
+                    // <CHANGE> Validar que el UPDATE se ejecutó correctamente
+                    if (!$resultUpdate) {
+                        throw new Exception("Error al actualizar el inventario del producto {$detalle['codigoProducto']}");
+                    }
+
+                    // <CHANGE> Verificar que se actualizó al menos una fila
+                    $rowsAffected = $updateStockAndCost->rowCount();
+                    if ($rowsAffected === 0) {
+                        throw new Exception("No se pudo actualizar el inventario: producto {$detalle['codigoProducto']} no encontrado");
+                    }
+                }
             }
         }
 

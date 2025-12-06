@@ -6,6 +6,23 @@ include("connection.php");
 $conn = new connection();
 $pdo = $conn->connect();
 
+// ================== OBTENER DATOS DEL PERFIL ==================
+$sql_perfil = "SELECT persona, nombres, apellidos, razon, cedula, digito FROM perfil LIMIT 1";
+$stmt_perfil = $pdo->query($sql_perfil);
+$perfil = $stmt_perfil->fetch(PDO::FETCH_ASSOC);
+
+if ($perfil) {
+    if ($perfil['persona'] == 'juridica' && !empty($perfil['razon'])) {
+        $nombre_empresa = $perfil['razon'];
+    } else {
+        $nombre_empresa = trim($perfil['nombres'] . ' ' . $perfil['apellidos']);
+    }
+    $nit_empresa = $perfil['cedula'] . ($perfil['digito'] > 0 ? '-' . $perfil['digito'] : '');
+} else {
+    $nombre_empresa = 'Nombre de la Empresa';
+    $nit_empresa = 'NIT de la Empresa';
+}
+
 // ================== FILTROS ==================
 $periodo_fiscal = isset($_GET['periodo_fiscal']) ? $_GET['periodo_fiscal'] : date('Y');
 $fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-01-01');
@@ -225,10 +242,21 @@ $utilidad_operacional = $utilidad_bruta - $totalGastos;
 // ================== CREAR PDF CON FPDF ==================
 class PDF extends FPDF
 {
-    // Variables para almacenar los totales
+    private $nombre_empresa;
+    private $nit_empresa;
+    private $fecha_desde;
+    private $fecha_hasta;
     private $utilidad_bruta;
     private $utilidad_operacional;
-
+    
+    function __construct($nombre_empresa = '', $nit_empresa = '', $fecha_desde = '', $fecha_hasta = '') {
+        parent::__construct();
+        $this->nombre_empresa = $nombre_empresa;
+        $this->nit_empresa = $nit_empresa;
+        $this->fecha_desde = $fecha_desde;
+        $this->fecha_hasta = $fecha_hasta;
+    }
+    
     // Función para establecer los valores de utilidad
     public function setUtilidades($utilidad_bruta, $utilidad_operacional) {
         $this->utilidad_bruta = $utilidad_bruta;
@@ -242,14 +270,23 @@ class PDF extends FPDF
         if (file_exists('assets/img/logo.png')) {
             $this->Image('assets/img/logo.png', 10, 8, 33);
         }
-        // Arial bold 15
-        $this->SetFont('Arial', 'B', 15);
-        // Título
+        
+        // Título principal
+        $this->SetFont('Arial', 'B', 16);
         $this->Cell(0, 10, convertir_texto('ESTADO DE RESULTADOS'), 0, 1, 'C');
-        // Fecha
-        $this->SetFont('Arial', '', 10);
-        $this->Cell(0, 5, convertir_texto('SOFI - Software Financiero'), 0, 1, 'C');
-        // Salto de línea
+        
+        // MEJORA: Información de la empresa centrada
+        $this->SetFont('Arial', 'B', 10);
+        $this->Cell(0, 6, convertir_texto('NOMBRE DE LA EMPRESA: ') . convertir_texto($this->nombre_empresa), 0, 1, 'C');
+        $this->Cell(0, 6, convertir_texto('NIT DE LA EMPRESA: ') . $this->nit_empresa, 0, 1, 'C');
+        
+        // Período
+        $this->SetFont('Arial', '', 9);
+        $this->Cell(0, 6, convertir_texto('PERÍODO: ') . date('d/m/Y', strtotime($this->fecha_desde)) . ' al ' . date('d/m/Y', strtotime($this->fecha_hasta)), 0, 1, 'C');
+        
+        // Línea separadora
+        $this->SetLineWidth(0.5);
+        $this->Line(10, 40, 200, 40);
         $this->Ln(5);
     }
 
@@ -264,89 +301,93 @@ class PDF extends FPDF
         $this->Cell(0, 10, convertir_texto('Página ') . $this->PageNo() . '/{nb}', 0, 0, 'C');
     }
 
-    // Función para agregar sección
+    // MEJORA: Función mejorada para agregar sección con bordes definidos
     function agregarSeccion($titulo, $datos, $total, $tipo_seccion = 'normal')
     {
-        // Título de sección
+        // Título de sección - Color más suave
         $this->SetFont('Arial', 'B', 12);
-        $this->SetFillColor(227, 242, 253);
-        $this->Cell(0, 8, convertir_texto($titulo), 0, 1, 'L', true);
+        $this->SetFillColor(230, 240, 255); // Color más suave
+        $this->Cell(0, 8, convertir_texto($titulo), 1, 1, 'L', true);
         $this->Ln(2);
 
-        // Cabecera de tabla
+        // Encabezados de tabla - Color más suave
         $this->SetFont('Arial', 'B', 10);
-        $this->SetFillColor(5, 74, 133);
+        $this->SetFillColor(5, 74, 133); // Azul más suave (SteelBlue)
         $this->SetTextColor(255, 255, 255);
-        $this->Cell(25, 8, convertir_texto('Código'), 0, 0, 'L', true);
-        $this->Cell(115, 8, convertir_texto('Nombre de la cuenta'), 0, 0, 'L', true);
-        $this->Cell(40, 8, convertir_texto('Saldo'), 0, 1, 'R', true);
+        $this->Cell(30, 8, convertir_texto('Código'), 1, 0, 'C', true);
+        $this->Cell(110, 8, convertir_texto('Nombre de la cuenta'), 1, 0, 'C', true);
+        $this->Cell(50, 8, convertir_texto('Saldo'), 1, 1, 'C', true);
         $this->SetTextColor(0, 0, 0);
 
         // Datos
         $this->SetFont('Arial', '', 9);
+        $fill = false;
+        
         if (count($datos) > 0) {
             foreach($datos as $fila) {
-                $this->Cell(25, 6, $fila['codigo'], 0, 0, 'L');
+                $this->SetTextColor(0, 0, 0);
                 
-                // Aplicar sangría según nivel
+                // Solo aplicar fondo a las celdas que tienen datos
+                $fill_color = $fill ? array(245, 245, 245) : array(255, 255, 255); // Gris muy claro / blanco
+                
+                // Código con borde
+                $this->SetFillColor($fill_color[0], $fill_color[1], $fill_color[2]);
+                $this->Cell(30, 7, $fila['codigo'], 1, 0, 'L', true);
+                
+                // Nombre con sangría y borde
                 $sangria = ($fila['nivel'] - 2) * 3;
                 $nombre = convertir_texto($fila['nombre']);
+                $this->SetFillColor($fill_color[0], $fill_color[1], $fill_color[2]);
                 if ($sangria > 0) {
-                    $this->Cell(115, 6, str_repeat(' ', $sangria) . $nombre, 0, 0, 'L');
+                    $this->Cell(110, 7, str_repeat(' ', $sangria) . $nombre, 1, 0, 'L', true);
                 } else {
-                    $this->Cell(115, 6, $nombre, 0, 0, 'L');
+                    $this->Cell(110, 7, $nombre, 1, 0, 'L', true);
                 }
                 
-                $this->Cell(40, 6, number_format($fila['saldo'], 2, ',', '.'), 0, 1, 'R');
+                // Saldo con borde
+                $this->SetFillColor($fill_color[0], $fill_color[1], $fill_color[2]);
+                $this->Cell(50, 7, number_format($fila['saldo'], 2, ',', '.'), 1, 1, 'R', true);
+                
+                $fill = !$fill;
             }
             
-            // Total de sección
+            // MEJORA: Total de sección - Color gris claro
             $this->SetFont('Arial', 'B', 10);
-            $this->SetFillColor(248, 249, 250);
-            $this->Cell(140, 8, convertir_texto('TOTAL ' . $titulo), 0, 0, 'L', true);
-            $this->Cell(40, 8, number_format($total, 2, ',', '.'), 0, 1, 'R', true);
+            $this->SetFillColor(220, 220, 220); // Gris claro
+            $this->Cell(140, 8, convertir_texto('TOTAL ' . $titulo), 1, 0, 'L', true);
+            $this->Cell(50, 8, number_format($total, 2, ',', '.'), 1, 1, 'R', true);
             
-            // Agregar utilidad bruta después de costos
-            if ($tipo_seccion == 'costos') {
+            // MEJORA: Agregar utilidad bruta - Color azul muy claro
+            if ($tipo_seccion == 'costos' && isset($this->utilidad_bruta)) {
                 $this->SetFont('Arial', 'BI', 10);
-                $this->SetFillColor(232, 244, 248);
-                $this->Cell(140, 8, convertir_texto('UTILIDAD BRUTA (Ingresos - Costos)'), 0, 0, 'L', true);
-                $this->Cell(40, 8, number_format($this->utilidad_bruta, 2, ',', '.'), 0, 1, 'R', true);
+                $this->SetFillColor(240, 248, 255); // Azul muy claro
+                $this->Cell(140, 8, convertir_texto('UTILIDAD BRUTA (Ingresos - Costos)'), 1, 0, 'L', true);
+                $this->Cell(50, 8, number_format($this->utilidad_bruta, 2, ',', '.'), 1, 1, 'R', true);
             }
             
-            // Agregar utilidad operacional después de gastos
-            if ($tipo_seccion == 'gastos') {
+            // MEJORA: Agregar utilidad operacional - Color verde muy claro
+            if ($tipo_seccion == 'gastos' && isset($this->utilidad_operacional)) {
                 $this->SetFont('Arial', 'BI', 10);
-                $this->SetFillColor(232, 244, 248);
-                $this->Cell(140, 8, convertir_texto('UTILIDAD OPERACIONAL (Utilidad Bruta - Gastos)'), 0, 0, 'L', true);
-                $this->Cell(40, 8, number_format($this->utilidad_operacional, 2, ',', '.'), 0, 1, 'R', true);
+                $this->SetFillColor(240, 248, 255); // Verde muy claro
+                $this->Cell(140, 8, convertir_texto('UTILIDAD OPERACIONAL (Utilidad Bruta - Gastos)'), 1, 0, 'L', true);
+                $this->Cell(50, 8, number_format($this->utilidad_operacional, 2, ',', '.'), 1, 1, 'R', true);
             }
         } else {
-            $this->Cell(0, 8, convertir_texto('No hay datos en el período seleccionado'), 0, 1, 'C');
+            $this->SetFillColor(255, 255, 255);
+            $this->Cell(190, 8, convertir_texto('No hay datos en el período seleccionado'), 1, 1, 'C', true);
         }
         
-        $this->Ln(5);
+        $this->Ln(8);
     }
 }
 
-// Crear instancia de PDF
-$pdf = new PDF();
+// MEJORA: Crear instancia de PDF con datos de la empresa
+$pdf = new PDF($nombre_empresa, $nit_empresa, $fecha_desde, $fecha_hasta);
 $pdf->AliasNbPages();
 $pdf->AddPage();
 
 // Establecer las utilidades en la clase PDF
 $pdf->setUtilidades($utilidad_bruta, $utilidad_operacional);
-
-// Información del período
-$pdf->SetFont('Arial', '', 10);
-$pdf->Cell(0, 5, convertir_texto('Período: ') . $fecha_desde . ' al ' . $fecha_hasta, 0, 1, 'L');
-if ($cuenta_codigo != '') {
-    $pdf->Cell(0, 5, convertir_texto('Cuenta filtrada: ') . $cuenta_codigo, 0, 1, 'L');
-}
-if ($tercero != '') {
-    $pdf->Cell(0, 5, convertir_texto('Tercero filtrado: ') . $tercero, 0, 1, 'L');
-}
-$pdf->Ln(5);
 
 // INGRESOS
 $pdf->agregarSeccion('INGRESOS', $ingresos, $totalIngresos, 'normal');
@@ -359,42 +400,28 @@ $pdf->agregarSeccion('GASTOS', $gastos, $totalGastos, 'gastos');
 
 $pdf->Ln(8);
 
-// RESULTADO FINAL
+// RESULTADO FINAL - MEJORA: Con bordes y alineación correcta
 $pdf->SetFont('Arial', 'B', 12);
 $pdf->SetFillColor(5, 74, 133);
 $pdf->SetTextColor(255, 255, 255);
-$pdf->Cell(0, 10, convertir_texto('RESULTADO DEL EJERCICIO'), 0, 1, 'C', true);
+$pdf->Cell(0, 10, convertir_texto('RESULTADO DEL EJERCICIO'), 1, 1, 'C', true);
 $pdf->Ln(2);
 
+// MEJORA: Con bordes y columnas uniformes
 $pdf->SetFont('Arial', 'B', 14);
-$pdf->SetFillColor(5, 74, 133);
-$pdf->SetTextColor(255, 255, 255);
-$pdf->Cell(140, 12, convertir_texto($resultado_ejercicio >= 0 ? 'UTILIDAD DEL EJERCICIO' : 'PÉRDIDA DEL EJERCICIO'), 0, 0, 'L', true);
-$pdf->Cell(40, 12, number_format(abs($resultado_ejercicio), 2, ',', '.'), 0, 1, 'R', true);
+$pdf->SetFillColor(240, 240, 240);
 $pdf->SetTextColor(0, 0, 0);
+$pdf->Cell(140, 12, convertir_texto($resultado_ejercicio >= 0 ? 'UTILIDAD DEL EJERCICIO' : 'PÉRDIDA DEL EJERCICIO'), 1, 0, 'L', true);
+$pdf->Cell(50, 12, number_format(abs($resultado_ejercicio), 2, ',', '.'), 1, 1, 'R', true);
 
 $pdf->Ln(15);
 
-// FIRMAS
-$pdf->SetFont('Arial', '', 10);
-$pdf->Cell(90, 5, '_________________________', 0, 0, 'C');
-$pdf->Cell(20, 5, '', 0, 0, 'C');
-$pdf->Cell(90, 5, '_________________________', 0, 1, 'C');
-
-$pdf->Cell(90, 5, convertir_texto('CONTADOR PÚBLICO'), 0, 0, 'C');
-$pdf->Cell(20, 5, '', 0, 0, 'C');
-$pdf->Cell(90, 5, convertir_texto('REPRESENTANTE LEGAL'), 0, 1, 'C');
-
-$pdf->Cell(90, 5, convertir_texto('T.P. __________'), 0, 0, 'C');
-$pdf->Cell(20, 5, '', 0, 0, 'C');
-$pdf->Cell(90, 5, convertir_texto('C.C. __________'), 0, 1, 'C');
-
 $pdf->Ln(10);
 
-// INFORMACIÓN ADICIONAL
+// INFORMACIÓN ADICIONAL - MEJORA: Con bordes definidos
 $pdf->SetFont('Arial', 'I', 8);
 $pdf->SetFillColor(240, 240, 240);
-$pdf->Cell(0, 5, convertir_texto('Información del Reporte:'), 0, 1, 'L', true);
+$pdf->Cell(0, 5, convertir_texto('Información del Reporte:'), 1, 1, 'L', true);
 $pdf->Cell(0, 4, convertir_texto('Generado el: ') . date('Y-m-d H:i:s'), 0, 1, 'L');
 $pdf->Cell(0, 4, convertir_texto('Período fiscal: ') . $periodo_fiscal, 0, 1, 'L');
 if ($cuenta_codigo != '') $pdf->Cell(0, 4, convertir_texto('Cuenta filtrada: ') . $cuenta_codigo, 0, 1, 'L');

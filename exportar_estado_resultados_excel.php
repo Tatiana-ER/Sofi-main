@@ -4,17 +4,29 @@ include("connection.php");
 $conn = new connection();
 $pdo = $conn->connect();
 
+// ================== OBTENER DATOS DEL PERFIL ==================
+$sql_perfil = "SELECT persona, nombres, apellidos, razon, cedula, digito FROM perfil LIMIT 1";
+$stmt_perfil = $pdo->query($sql_perfil);
+$perfil = $stmt_perfil->fetch(PDO::FETCH_ASSOC);
+
+if ($perfil) {
+    if ($perfil['persona'] == 'juridica' && !empty($perfil['razon'])) {
+        $nombre_empresa = $perfil['razon'];
+    } else {
+        $nombre_empresa = trim($perfil['nombres'] . ' ' . $perfil['apellidos']);
+    }
+    $nit_empresa = $perfil['cedula'] . ($perfil['digito'] > 0 ? '-' . $perfil['digito'] : '');
+} else {
+    $nombre_empresa = 'Nombre de la Empresa';
+    $nit_empresa = 'NIT de la Empresa';
+}
+
 // ================== FILTROS ==================
 $periodo_fiscal = isset($_GET['periodo_fiscal']) ? $_GET['periodo_fiscal'] : date('Y');
 $fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-01-01');
 $fecha_hasta = isset($_GET['hasta']) ? $_GET['hasta'] : date('Y-m-t');
 $cuenta_codigo = isset($_GET['cuenta']) ? $_GET['cuenta'] : '';
 $tercero = isset($_GET['tercero']) ? $_GET['tercero'] : '';
-
-// ================== FUNCIÓN PARA CONVERTIR TEXTO ==================
-function convertir_texto($texto) {
-    return mb_convert_encoding($texto, 'ISO-8859-1', 'UTF-8');
-}
 
 // ================== FUNCIÓN PARA CALCULAR SALDOS POR CUENTA ==================
 function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $tercero = '') {
@@ -42,7 +54,7 @@ function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
 
-// ================== OBTENER NOMBRES DE CUENTAS DESDE LA TABLA cuentas_contables ==================
+// ================== OBTENER NOMBRES DE CUENTAS ==================
 function obtenerNombresCuentas($pdo) {
     $sql = "SELECT nivel1, nivel2, nivel3, nivel4, nivel5, nivel6 FROM cuentas_contables";
     $stmt = $pdo->prepare($sql);
@@ -66,9 +78,10 @@ function obtenerNombresCuentas($pdo) {
     return $nombres;
 }
 
+// Obtener nombres de cuentas
 $nombres_cuentas = obtenerNombresCuentas($pdo);
 
-// ================== OBTENER TODAS LAS CUENTAS DE INGRESOS (4), COSTOS (6) Y GASTOS (5) ==================
+// ================== OBTENER DATOS ==================
 $sql_cuentas = "SELECT DISTINCT 
                     codigo_cuenta, 
                     nombre_cuenta,
@@ -211,146 +224,224 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuen
     return $resultado;
 }
 
+// Aplicar agrupaciones
 $ingresos = agregarAgrupaciones($ingresos, $cuentas_procesadas, $nombres_cuentas);
 $costos = agregarAgrupaciones($costos, $cuentas_procesadas, $nombres_cuentas);
 $gastos = agregarAgrupaciones($gastos, $cuentas_procesadas, $nombres_cuentas);
 
-// ================== RESULTADO DEL EJERCICIO ==================
+// ================== RESULTADOS ==================
 $resultado_ejercicio = $totalIngresos - $totalCostos - $totalGastos;
 $utilidad_bruta = $totalIngresos - $totalCostos;
 $utilidad_operacional = $utilidad_bruta - $totalGastos;
 
-// ================== CONFIGURACIÓN EXCEL ==================
-header('Content-Type: application/vnd.ms-excel; charset=ISO-8859-1');
-header('Content-Disposition: attachment;filename="estado_resultados_' . date('Y-m-d') . '.xls"');
-header('Cache-Control: max-age=0');
-header('Pragma: no-cache');
-
 // ================== GENERAR EXCEL ==================
-echo '<html>';
+header('Content-Type: application/vnd.ms-excel; charset=utf-8');
+header('Content-Disposition: attachment;filename="Estado_Resultados_' . date('Y-m-d') . '.xls"');
+header('Cache-Control: max-age=0');
+
+echo '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">';
 echo '<head>';
-echo '<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">';
+echo '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">';
 echo '<style>';
-echo 'td { mso-number-format:"\\@"; padding: 3px; }';
-echo '.titulo { background-color: #054a85; color: white; font-size: 16px; height: 30px; text-align: center; }';
-echo '.subtitulo { background-color: #e3f2fd; font-weight: bold; font-size: 14px; }';
-echo '.encabezado { background-color: #054a85; color: white; font-weight: bold; }';
-echo '.total { background-color: #f8f9fa; font-weight: bold; }';
-echo '.utilidad { background-color: #e8f4f8; font-weight: bold; font-style: italic; }';
-echo '.resultado { background-color: #054a85; color: white; font-weight: bold; font-size: 14px; height: 40px; }';
-echo '.info { background-color: #f0f0f0; font-size: 12px; }';
+echo 'td, th { border: 1px solid #ddd; padding: 4px; font-family: Arial, sans-serif; }';
+echo '.centered { text-align: center; }';
+echo '.right { text-align: right; }';
+echo '.left { text-align: left; }';
+echo '.bold { font-weight: bold; }';
+echo '.total-row { background-color: #f8f9fa; font-weight: bold; }';
+echo '.header-blue { background-color: #054a85; color: white; }';
+echo '.section-header { background-color: #e3f2fd; }';
+echo '.ingresos-header { background-color: #d1e7dd; }'; // Verde claro para ingresos
+echo '.costos-header { background-color: #f8d7da; }';   // Rojo claro para costos
+echo '.gastos-header { background-color: #fff3cd; }';   // Amarillo claro para gastos
+echo '.utilidad-bruta { background-color: #cfe2ff; }';  // Azul claro
+echo '.utilidad-operacional { background-color: #d1ecf1; }'; // Cyan claro
+echo '.resultado-final { background-color: #054a85; color: white; }';
+echo '.valor-negativo { color: #000000; }';
 echo '</style>';
+echo '<!--[if gte mso 9]>';
+echo '<xml>';
+echo '<x:ExcelWorkbook>';
+echo '<x:ExcelWorksheets>';
+echo '<x:ExcelWorksheet>';
+echo '<x:Name>Estado de Resultados</x:Name>';
+echo '<x:WorksheetOptions>';
+echo '<x:DisplayGridlines/>';
+echo '<x:FitToPage/>';
+echo '<x:Print>';
+echo '<x:FitWidth>1</x:FitWidth>';
+echo '<x:FitHeight>1</x:FitHeight>';
+echo '</x:Print>';
+echo '</x:WorksheetOptions>';
+echo '</x:ExcelWorksheet>';
+echo '</x:ExcelWorksheets>';
+echo '</x:ExcelWorkbook>';
+echo '</xml>';
+echo '<![endif]-->';
 echo '</head>';
 echo '<body>';
 
-echo '<table border="1" cellpadding="3" cellspacing="0" width="100%">';
-echo '<tr><td colspan="3" class="titulo">' . convertir_texto('ESTADO DE RESULTADOS') . '</td></tr>';
-echo '<tr><td colspan="3" class="info">' . convertir_texto('Período: ') . $fecha_desde . ' al ' . $fecha_hasta . '</td></tr>';
+echo '<table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; width: 100%;">';
+
+// TÍTULO PRINCIPAL Y DATOS DE EMPRESA
+echo '<tr>';
+echo '<th colspan="3" class="header-blue" style="font-size: 16px; padding: 10px;">ESTADO DE RESULTADOS</th>';
+echo '</tr>';
+
+echo '<tr>';
+echo '<td colspan="3" class="centered bold" style="background-color: #f0f0f0; padding: 8px;">';
+echo 'NOMBRE DE LA EMPRESA: ' . htmlspecialchars($nombre_empresa, ENT_QUOTES, 'UTF-8');
+echo '</td>';
+echo '</tr>';
+
+echo '<tr>';
+echo '<td colspan="3" class="centered bold" style="background-color: #f0f0f0; padding: 8px;">';
+echo 'NIT DE LA EMPRESA: ' . htmlspecialchars($nit_empresa, ENT_QUOTES, 'UTF-8');
+echo '</td>';
+echo '</tr>';
+
+echo '<tr>';
+echo '<td colspan="3" class="centered" style="background-color: #f0f0f0; padding: 8px;">';
+echo 'PERÍODO: ' . date('d/m/Y', strtotime($fecha_desde)) . ' - ' . date('d/m/Y', strtotime($fecha_hasta));
+echo '</td>';
+echo '</tr>';
+
+echo '<tr><td colspan="3" style="padding: 10px;">&nbsp;</td></tr>';
 
 // INGRESOS
-echo '<tr><td colspan="3" class="subtitulo">' . convertir_texto('INGRESOS') . '</td></tr>';
-echo '<tr class="encabezado">';
-echo '<td width="150">' . convertir_texto('Código') . '</td>';
-echo '<td width="400">' . convertir_texto('Nombre de la cuenta') . '</td>';
-echo '<td width="150" align="right">' . convertir_texto('Saldo') . '</td>';
+echo '<tr>';
+echo '<th colspan="3" class="ingresos-header bold" style="padding: 8px;">INGRESOS</th>';
 echo '</tr>';
 
-if (count($ingresos) > 0) {
-    foreach($ingresos as $fila) {
-        $padding = ($fila['nivel'] - 2) * 10;
-        echo '<tr>';
-        echo '<td>' . htmlspecialchars($fila['codigo']) . '</td>';
-        echo '<td style="padding-left: ' . $padding . 'px;">' . convertir_texto($fila['nombre']) . '</td>';
-        echo '<td align="right">' . number_format($fila['saldo'], 2, ',', '.') . '</td>';
-        echo '</tr>';
-    }
-    echo '<tr class="total">';
-    echo '<td colspan="2">' . convertir_texto('TOTAL INGRESOS') . '</td>';
-    echo '<td align="right">' . number_format($totalIngresos, 2, ',', '.') . '</td>';
+echo '<tr class="header-blue">';
+echo '<th style="padding: 6px; width: 80px;">Código</th>';
+echo '<th style="padding: 6px;">Nombre de la cuenta</th>';
+echo '<th style="padding: 6px; width: 120px; text-align: right;">Saldo</th>';
+echo '</tr>';
+
+foreach ($ingresos as $fila) {
+    $padding_left = ($fila['nivel'] - 2) * 3; // Ajuste de sangría similar al PDF
+    echo '<tr>';
+    echo '<td style="padding: 5px;">' . htmlspecialchars($fila['codigo'], ENT_QUOTES, 'UTF-8') . '</td>';
+    echo '<td style="padding: 5px; padding-left: ' . $padding_left . 'px;">' . htmlspecialchars($fila['nombre'], ENT_QUOTES, 'UTF-8') . '</td>';
+    echo '<td style="padding: 5px; text-align: right;">' . number_format($fila['saldo'], 2, ',', '.') . '</td>';
     echo '</tr>';
-} else {
-    echo '<tr><td colspan="3" align="center">' . convertir_texto('No hay ingresos en el período seleccionado') . '</td></tr>';
 }
+
+echo '<tr class="total-row">';
+echo '<td colspan="2" style="padding: 6px;">TOTAL INGRESOS</td>';
+echo '<td style="padding: 6px; text-align: right;">' . number_format($totalIngresos, 2, ',', '.') . '</td>';
+echo '</tr>';
+
+echo '<tr><td colspan="3" style="padding: 10px;">&nbsp;</td></tr>';
 
 // COSTOS
-echo '<tr><td colspan="3" style="height: 10px; border: none;"></td></tr>';
-echo '<tr><td colspan="3" class="subtitulo">' . convertir_texto('COSTOS DE VENTAS') . '</td></tr>';
-echo '<tr class="encabezado">';
-echo '<td>' . convertir_texto('Código') . '</td>';
-echo '<td>' . convertir_texto('Nombre de la cuenta') . '</td>';
-echo '<td align="right">' . convertir_texto('Saldo') . '</td>';
+echo '<tr>';
+echo '<th colspan="3" class="costos-header bold" style="padding: 8px;">COSTOS DE VENTAS</th>';
 echo '</tr>';
 
-if (count($costos) > 0) {
-    foreach($costos as $fila) {
-        $padding = ($fila['nivel'] - 2) * 10;
-        echo '<tr>';
-        echo '<td>' . htmlspecialchars($fila['codigo']) . '</td>';
-        echo '<td style="padding-left: ' . $padding . 'px;">' . convertir_texto($fila['nombre']) . '</td>';
-        echo '<td align="right">' . number_format($fila['saldo'], 2, ',', '.') . '</td>';
-        echo '</tr>';
-    }
-    echo '<tr class="total">';
-    echo '<td colspan="2">' . convertir_texto('TOTAL COSTOS') . '</td>';
-    echo '<td align="right">' . number_format($totalCostos, 2, ',', '.') . '</td>';
+echo '<tr class="header-blue">';
+echo '<th style="padding: 6px; width: 80px;">Código</th>';
+echo '<th style="padding: 6px;">Nombre de la cuenta</th>';
+echo '<th style="padding: 6px; width: 120px; text-align: right;">Saldo</th>';
+echo '</tr>';
+
+foreach ($costos as $fila) {
+    $padding_left = ($fila['nivel'] - 2) * 3;
+    echo '<tr>';
+    echo '<td style="padding: 5px;">' . htmlspecialchars($fila['codigo'], ENT_QUOTES, 'UTF-8') . '</td>';
+    echo '<td style="padding: 5px; padding-left: ' . $padding_left . 'px;">' . htmlspecialchars($fila['nombre'], ENT_QUOTES, 'UTF-8') . '</td>';
+    echo '<td style="padding: 5px; text-align: right;">' . number_format($fila['saldo'], 2, ',', '.') . '</td>';
     echo '</tr>';
-    echo '<tr class="utilidad">';
-    echo '<td colspan="2">' . convertir_texto('UTILIDAD BRUTA (Ingresos - Costos)') . '</td>';
-    echo '<td align="right">' . number_format($utilidad_bruta, 2, ',', '.') . '</td>';
-    echo '</tr>';
-} else {
-    echo '<tr><td colspan="3" align="center">' . convertir_texto('No hay costos en el período seleccionado') . '</td></tr>';
 }
+
+echo '<tr class="total-row">';
+echo '<td colspan="2" style="padding: 6px;">TOTAL COSTOS</td>';
+echo '<td style="padding: 6px; text-align: right;">' . number_format($totalCostos, 2, ',', '.') . '</td>';
+echo '</tr>';
+
+// UTILIDAD BRUTA (como en el PDF)
+echo '<tr class="utilidad-bruta bold">';
+echo '<td colspan="2" style="padding: 8px;">UTILIDAD BRUTA (Ingresos - Costos)</td>';
+echo '<td style="padding: 8px; text-align: right;">' . number_format($utilidad_bruta, 2, ',', '.') . '</td>';
+echo '</tr>';
+
+echo '<tr><td colspan="3" style="padding: 10px;">&nbsp;</td></tr>';
 
 // GASTOS
-echo '<tr><td colspan="3" style="height: 10px; border: none;"></td></tr>';
-echo '<tr><td colspan="3" class="subtitulo">' . convertir_texto('GASTOS') . '</td></tr>';
-echo '<tr class="encabezado">';
-echo '<td>' . convertir_texto('Código') . '</td>';
-echo '<td>' . convertir_texto('Nombre de la cuenta') . '</td>';
-echo '<td align="right">' . convertir_texto('Saldo') . '</td>';
+echo '<tr>';
+echo '<th colspan="3" class="gastos-header bold" style="padding: 8px;">GASTOS</th>';
 echo '</tr>';
 
-if (count($gastos) > 0) {
-    foreach($gastos as $fila) {
-        $padding = ($fila['nivel'] - 2) * 10;
-        echo '<tr>';
-        echo '<td>' . htmlspecialchars($fila['codigo']) . '</td>';
-        echo '<td style="padding-left: ' . $padding . 'px;">' . convertir_texto($fila['nombre']) . '</td>';
-        echo '<td align="right">' . number_format($fila['saldo'], 2, ',', '.') . '</td>';
-        echo '</tr>';
-    }
-    echo '<tr class="total">';
-    echo '<td colspan="2">' . convertir_texto('TOTAL GASTOS') . '</td>';
-    echo '<td align="right">' . number_format($totalGastos, 2, ',', '.') . '</td>';
+echo '<tr class="header-blue">';
+echo '<th style="padding: 6px; width: 80px;">Código</th>';
+echo '<th style="padding: 6px;">Nombre de la cuenta</th>';
+echo '<th style="padding: 6px; width: 120px; text-align: right;">Saldo</th>';
+echo '</tr>';
+
+foreach ($gastos as $fila) {
+    $padding_left = ($fila['nivel'] - 2) * 3;
+    echo '<tr>';
+    echo '<td style="padding: 5px;">' . htmlspecialchars($fila['codigo'], ENT_QUOTES, 'UTF-8') . '</td>';
+    echo '<td style="padding: 5px; padding-left: ' . $padding_left . 'px;">' . htmlspecialchars($fila['nombre'], ENT_QUOTES, 'UTF-8') . '</td>';
+    echo '<td style="padding: 5px; text-align: right;">' . number_format($fila['saldo'], 2, ',', '.') . '</td>';
     echo '</tr>';
-    echo '<tr class="utilidad">';
-    echo '<td colspan="2">' . convertir_texto('UTILIDAD OPERACIONAL (Utilidad Bruta - Gastos)') . '</td>';
-    echo '<td align="right">' . number_format($utilidad_operacional, 2, ',', '.') . '</td>';
-    echo '</tr>';
-} else {
-    echo '<tr><td colspan="3" align="center">' . convertir_texto('No hay gastos en el período seleccionado') . '</td></tr>';
 }
 
-// RESULTADO FINAL
-echo '<tr><td colspan="3" style="height: 10px; border: none;"></td></tr>';
-echo '<tr><td colspan="3" class="resultado">' . convertir_texto('RESULTADO DEL EJERCICIO') . '</td></tr>';
-echo '<tr class="resultado">';
-echo '<td colspan="2">' . convertir_texto($resultado_ejercicio >= 0 ? 'UTILIDAD DEL EJERCICIO' : 'PÉRDIDA DEL EJERCICIO') . '</td>';
-echo '<td align="right">' . number_format(abs($resultado_ejercicio), 2, ',', '.') . '</td>';
+echo '<tr class="total-row">';
+echo '<td colspan="2" style="padding: 6px;">TOTAL GASTOS</td>';
+echo '<td style="padding: 6px; text-align: right;">' . number_format($totalGastos, 2, ',', '.') . '</td>';
 echo '</tr>';
 
-// INFORMACIÓN ADICIONAL
-echo '<tr><td colspan="3" style="height: 20px; border: none;"></td></tr>';
-echo '<tr><td colspan="3" class="info">';
-echo '<strong>' . convertir_texto('Información del Reporte:') . '</strong><br>';
-echo convertir_texto('Generado el: ') . date('Y-m-d H:i:s') . '<br>';
-echo convertir_texto('Período fiscal: ') . $periodo_fiscal . '<br>';
-if ($cuenta_codigo != '') echo convertir_texto('Cuenta filtrada: ') . $cuenta_codigo . '<br>';
-if ($tercero != '') echo convertir_texto('Tercero filtrado: ') . $tercero . '<br>';
-echo '</td></tr>';
+// UTILIDAD OPERACIONAL (como en el PDF)
+echo '<tr class="utilidad-operacional bold">';
+echo '<td colspan="2" style="padding: 8px;">UTILIDAD OPERACIONAL (Utilidad Bruta - Gastos)</td>';
+echo '<td style="padding: 8px; text-align: right;">' . number_format($utilidad_operacional, 2, ',', '.') . '</td>';
+echo '</tr>';
+
+echo '<tr><td colspan="3" style="padding: 10px;">&nbsp;</td></tr>';
+
+// RESULTADO FINAL DEL EJERCICIO
+echo '<tr class="resultado-final bold">';
+echo '<td colspan="3" class="centered" style="padding: 10px; font-size: 14px;">RESULTADO DEL EJERCICIO</td>';
+echo '</tr>';
+
+echo '<tr class="total-row">';
+echo '<td colspan="2" style="padding: 10px; font-size: 12px;">';
+echo $resultado_ejercicio >= 0 ? 'UTILIDAD DEL EJERCICIO' : 'PÉRDIDA DEL EJERCICIO';
+echo '</td>';
+echo '<td style="padding: 10px; text-align: right; font-size: 12px;">' . number_format(abs($resultado_ejercicio), 2, ',', '.') . '</td>';
+echo '</tr>';
 
 echo '</table>';
-echo '</body>';
-echo '</html>';
+
+// INFORMACIÓN ADICIONAL
+echo '<br><br>';
+echo '<table border="0" style="width: 100%; border-collapse: collapse; background-color: #f8f9fa;">';
+echo '<tr>';
+echo '<td colspan="2" style="padding: 5px; font-style: italic;"><strong>Información del Reporte:</strong></td>';
+echo '</tr>';
+echo '<tr>';
+echo '<td style="padding: 3px;">Generado el:</td>';
+echo '<td style="padding: 3px;">' . date('Y-m-d H:i:s') . '</td>';
+echo '</tr>';
+echo '<tr>';
+echo '<td style="padding: 3px;">Período fiscal:</td>';
+echo '<td style="padding: 3px;">' . $periodo_fiscal . '</td>';
+echo '</tr>';
+if ($cuenta_codigo != '') {
+    echo '<tr>';
+    echo '<td style="padding: 3px;">Cuenta filtrada:</td>';
+    echo '<td style="padding: 3px;">' . htmlspecialchars($cuenta_codigo, ENT_QUOTES, 'UTF-8') . '</td>';
+    echo '</tr>';
+}
+if ($tercero != '') {
+    echo '<tr>';
+    echo '<td style="padding: 3px;">Tercero filtrado:</td>';
+    echo '<td style="padding: 3px;">' . htmlspecialchars($tercero, ENT_QUOTES, 'UTF-8') . '</td>';
+    echo '</tr>';
+}
+echo '</table>';
+
+echo '</body></html>';
 ?>

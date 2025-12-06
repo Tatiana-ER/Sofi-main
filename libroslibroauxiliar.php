@@ -4,6 +4,24 @@ include("connection.php");
 $conn = new connection();
 $pdo = $conn->connect();
 
+// ================== OBTENER DATOS DEL PERFIL ==================
+$sql_perfil = "SELECT persona, nombres, apellidos, razon, cedula, digito FROM perfil LIMIT 1";
+$stmt_perfil = $pdo->query($sql_perfil);
+$perfil = $stmt_perfil->fetch(PDO::FETCH_ASSOC);
+
+// Determinar qué mostrar como nombre de empresa
+if ($perfil) {
+    if ($perfil['persona'] == 'juridica' && !empty($perfil['razon'])) {
+        $nombre_empresa = $perfil['razon'];
+    } else {
+        $nombre_empresa = trim($perfil['nombres'] . ' ' . $perfil['apellidos']);
+    }
+    $nit_empresa = $perfil['cedula'] . ($perfil['digito'] > 0 ? '-' . $perfil['digito'] : '');
+} else {
+    $nombre_empresa = 'Nombre de la Empresa';
+    $nit_empresa = 'NIT de la Empresa';
+}
+
 // ================== FILTROS ==================
 $fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-01-01');
 $fecha_hasta = isset($_GET['hasta']) ? $_GET['hasta'] : date('Y-12-31');
@@ -283,6 +301,11 @@ $lista_terceros = array_values($terceros_unificados);
   <link href="assets/css/improved-style.css" rel="stylesheet">
   
   <style>
+    .empresa-info {
+        border-radius: 5px;
+        font-size: 0.95rem;
+    }
+
     .btn-ir {
       background-color: #054a85;
       color: white;
@@ -459,8 +482,24 @@ $lista_terceros = array_values($terceros_unificados);
     <div class="container" data-aos="fade-up">
 
       <div class="section-title">
-        <h2><i class="fa-solid fa-book"></i> Libro Auxiliar</h2>
-        <p>Consulte los movimientos contables por cuenta y tercero</p>
+          <h2><i class="fa-solid fa-book"></i> Libro Auxiliar</h2>
+          
+          <!-- Información de la empresa centrada -->
+          <div class="text-center empresa-info mt-3 p-3" style="border-radius: 5px;">
+              <div style="margin-bottom: 10px;">
+                  <strong>NOMBRE DE LA EMPRESA:</strong><br>
+                  <?= htmlspecialchars($nombre_empresa) ?>
+              </div>
+              
+              <div style="margin-bottom: 10px;">
+                  <strong>NIT DE LA EMPRESA:</strong><br>
+                  <?= htmlspecialchars($nit_empresa) ?>
+              </div>
+              
+              <div style="margin-bottom: 5px;">
+                  <strong>PERIODO:</strong> <?= date('d/m/Y', strtotime($fecha_desde)) ?> A <?= date('d/m/Y', strtotime($fecha_hasta)) ?>
+              </div>
+          </div>
       </div>
 
       <form method="get" class="row g-3 mb-4">

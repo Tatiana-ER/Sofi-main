@@ -4,6 +4,23 @@ include("connection.php");
 $conn = new connection();
 $pdo = $conn->connect();
 
+// ================== OBTENER DATOS DEL PERFIL ==================
+$sql_perfil = "SELECT persona, nombres, apellidos, razon, cedula, digito FROM perfil LIMIT 1";
+$stmt_perfil = $pdo->query($sql_perfil);
+$perfil = $stmt_perfil->fetch(PDO::FETCH_ASSOC);
+
+if ($perfil) {
+    if ($perfil['persona'] == 'juridica' && !empty($perfil['razon'])) {
+        $nombre_empresa = $perfil['razon'];
+    } else {
+        $nombre_empresa = trim($perfil['nombres'] . ' ' . $perfil['apellidos']);
+    }
+    $nit_empresa = $perfil['cedula'] . ($perfil['digito'] > 0 ? '-' . $perfil['digito'] : '');
+} else {
+    $nombre_empresa = 'Nombre de la Empresa';
+    $nit_empresa = 'NIT de la Empresa';
+}
+
 // ================== FILTROS ==================
 $fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-01-01');
 $fecha_hasta = isset($_GET['hasta']) ? $_GET['hasta'] : date('Y-12-31');
@@ -106,7 +123,8 @@ function obtenerMovimientosCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_has
 
     return [
         'saldo_inicial' => $saldo_inicial,
-        'movimientos' => $movimientos
+        'movimientos' => $movimientos,
+        'saldo_final_cuenta' => $saldo
     ];
 }
 
@@ -129,19 +147,38 @@ header('Cache-Control: max-age=0');
         .header-info { margin-bottom: 20px; font-family: Arial, sans-serif; }
         .header-info h2 { color: #0d6efd; margin-bottom: 10px; }
         .header-info p { margin: 5px 0; }
+        .texto-numerico { mso-number-format:"\@"; } /* Forzar texto para números largos */
+        .nit-formato { mso-number-format:"0"; } /* Formato específico para NIT */
     </style>
 </head>
 <body>
     <div class="header-info">
-        <h2>LIBRO AUXILIAR</h2>
-        <p><strong>Período:</strong> <?= date('d/m/Y', strtotime($fecha_desde)) ?> al <?= date('d/m/Y', strtotime($fecha_hasta)) ?></p>
+        <h2 style="text-align: center; margin-bottom: 20px;">LIBRO AUXILIAR</h2>
+        
+        <div style="text-align: center; margin: 20px 0; padding: 15px; background-color: #f8f9fa; border: 1px solid #dee2e6;">
+            <div style="margin-bottom: 10px;">
+                <strong>NOMBRE DE LA EMPRESA:</strong><br>
+                <?= htmlspecialchars($nombre_empresa) ?>
+            </div>
+            
+            <div style="margin-bottom: 10px;">
+                <strong>NIT DE LA EMPRESA:</strong><br>
+                <!-- Prefijar con un apóstrofe para forzar texto en Excel -->
+                <span>'<?= htmlspecialchars($nit_empresa) ?></span>
+            </div>
+            
+            <div style="margin-bottom: 5px;">
+                <strong>PERIODO:</strong> <?= date('d/m/Y', strtotime($fecha_desde)) ?> A <?= date('d/m/Y', strtotime($fecha_hasta)) ?>
+            </div>
+        </div>
+        
         <?php if ($cuenta_codigo != ''): ?>
-            <p><strong>Cuenta:</strong> <?= htmlspecialchars($cuenta_codigo) ?></p>
+            <p style="text-align: center;"><strong>Cuenta:</strong> <?= htmlspecialchars($cuenta_codigo) ?></p>
         <?php endif; ?>
         <?php if ($tercero != ''): ?>
-            <p><strong>Tercero:</strong> <?= htmlspecialchars($tercero) ?></p>
+            <p style="text-align: center;"><strong>Tercero:</strong> <?= htmlspecialchars($tercero) ?></p>
         <?php endif; ?>
-        <p><strong>Fecha de generación:</strong> <?= date('d/m/Y H:i:s') ?></p>
+        <p style="text-align: center;"><strong>Fecha de generación:</strong> <?= date('d/m/Y H:i:s') ?></p>
     </div>
     
     <table>
@@ -167,6 +204,8 @@ header('Cache-Control: max-age=0');
             } else {
                 $total_debito = 0;
                 $total_credito = 0;
+                $total_saldo_final = 0;
+                $ultimo_saldo_final = 0;
                 
                 foreach ($cuentas as $cuenta) {
                     $datos = obtenerMovimientosCuenta($pdo, $cuenta['codigo_cuenta'], $fecha_desde, $fecha_hasta, $tercero);
@@ -176,6 +215,7 @@ header('Cache-Control: max-age=0');
                             // Acumular totales
                             $total_debito += floatval($mov['debito']);
                             $total_credito += floatval($mov['credito']);
+                            $ultimo_saldo_final = floatval($mov['saldo_final_fila']);
                             
                             // Separar identificación y nombre si están concatenados
                             $tercero_id = $mov['tercero_identificacion'] ?? '';
@@ -203,31 +243,35 @@ header('Cache-Control: max-age=0');
                             }
                             $comprobante = $tipo_comp . ' ' . $mov['numero_documento'];
 
-                            echo "<tr>
-                                    <td>" . htmlspecialchars($cuenta['codigo_cuenta']) . "</td>
-                                    <td>" . htmlspecialchars($cuenta['nombre_cuenta']) . "</td>
-                                    <td>" . htmlspecialchars($tercero_id) . "</td>
-                                    <td>" . htmlspecialchars($tercero_nombre) . "</td>
-                                    <td>" . date('d/m/Y', strtotime($mov['fecha'])) . "</td>
-                                    <td>" . htmlspecialchars($comprobante) . "</td>
-                                    <td>" . htmlspecialchars($mov['concepto']) . "</td>
-                                    <td class='numero'>" . number_format($mov['saldo_inicial_fila'], 2, '.', ',') . "</td>
-                                    <td class='numero'>" . ($mov['debito'] > 0 ? number_format($mov['debito'], 2, '.', ',') : '') . "</td>
-                                    <td class='numero'>" . ($mov['credito'] > 0 ? number_format($mov['credito'], 2, '.', ',') : '') . "</td>
-                                    <td class='numero'>" . number_format($mov['saldo_final_fila'], 2, '.', ',') . "</td>
-                                  </tr>";
+                            echo "<tr>";
+                            // Código contable - forzar como texto
+                            echo "<td style=\"mso-number-format:'\\@';\">" . htmlspecialchars($cuenta['codigo_cuenta']) . "</td>";
+                            echo "<td>" . htmlspecialchars($cuenta['nombre_cuenta']) . "</td>";
+                            // Identificación tercero - forzar como texto
+                            echo "<td style=\"mso-number-format:'\\@';\">" . htmlspecialchars($tercero_id) . "</td>";
+                            echo "<td>" . htmlspecialchars($tercero_nombre) . "</td>";
+                            echo "<td>" . date('d/m/Y', strtotime($mov['fecha'])) . "</td>";
+                            echo "<td>" . htmlspecialchars($comprobante) . "</td>";
+                            echo "<td>" . htmlspecialchars($mov['concepto']) . "</td>";
+                            echo "<td class='numero'>" . number_format($mov['saldo_inicial_fila'], 2, '.', ',') . "</td>";
+                            echo "<td class='numero'>" . ($mov['debito'] > 0 ? number_format($mov['debito'], 2, '.', ',') : '') . "</td>";
+                            echo "<td class='numero'>" . ($mov['credito'] > 0 ? number_format($mov['credito'], 2, '.', ',') : '') . "</td>";
+                            echo "<td class='numero'>" . number_format($mov['saldo_final_fila'], 2, '.', ',') . "</td>";
+                            echo "</tr>";
                         }
+                        // Sumar el último saldo final de cada cuenta
+                        $total_saldo_final += $ultimo_saldo_final;
                     }
                 }
                 
-                // Fila de totales
-                echo "<tr style='background-color: #D9E1F2; font-weight: bold;'>
-                        <td colspan='7' style='text-align: right;'>TOTALES:</td>
-                        <td class='numero'></td>
-                        <td class='numero'>" . number_format($total_debito, 2, '.', ',') . "</td>
-                        <td class='numero'>" . number_format($total_credito, 2, '.', ',') . "</td>
-                        <td class='numero'></td>
-                      </tr>";
+                // Fila de totales - CON los 3 totales
+                echo "<tr style='background-color: #D9E1F2; font-weight: bold;'>";
+                echo "<td colspan='7' style='text-align: right;'>TOTALES:</td>";
+                echo "<td class='numero'></td>"; // Saldo inicial vacío
+                echo "<td class='numero'>" . number_format($total_debito, 2, '.', ',') . "</td>";
+                echo "<td class='numero'>" . number_format($total_credito, 2, '.', ',') . "</td>";
+                echo "<td class='numero'>" . number_format($total_saldo_final, 2, '.', ',') . "</td>"; // Saldo final total
+                echo "</tr>";
             }
             ?>
         </tbody>

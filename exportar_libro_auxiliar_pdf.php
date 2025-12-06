@@ -6,6 +6,23 @@ include("connection.php");
 $conn = new connection();
 $pdo = $conn->connect();
 
+// ================== OBTENER DATOS DEL PERFIL ==================
+$sql_perfil = "SELECT persona, nombres, apellidos, razon, cedula, digito FROM perfil LIMIT 1";
+$stmt_perfil = $pdo->query($sql_perfil);
+$perfil = $stmt_perfil->fetch(PDO::FETCH_ASSOC);
+
+if ($perfil) {
+    if ($perfil['persona'] == 'juridica' && !empty($perfil['razon'])) {
+        $nombre_empresa = $perfil['razon'];
+    } else {
+        $nombre_empresa = trim($perfil['nombres'] . ' ' . $perfil['apellidos']);
+    }
+    $nit_empresa = $perfil['cedula'] . ($perfil['digito'] > 0 ? '-' . $perfil['digito'] : '');
+} else {
+    $nombre_empresa = 'Nombre de la Empresa';
+    $nit_empresa = 'NIT de la Empresa';
+}
+
 // ================== FILTROS ==================
 $fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-01-01');
 $fecha_hasta = isset($_GET['hasta']) ? $_GET['hasta'] : date('Y-12-31');
@@ -102,7 +119,8 @@ function obtenerMovimientosCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_has
 
     return [
         'saldo_inicial' => $saldo_inicial,
-        'movimientos' => $movimientos
+        'movimientos' => $movimientos,
+        'saldo_final_cuenta' => $saldo
     ];
 }
 
@@ -112,13 +130,17 @@ class PDF extends FPDF {
     private $fecha_hasta;
     private $cuenta_codigo;
     private $tercero;
+    private $nombre_empresa;
+    private $nit_empresa;
     
-    function __construct($desde, $hasta, $cuenta, $terc) {
+    function __construct($desde, $hasta, $cuenta, $terc, $nombre_emp, $nit_emp) {
         parent::__construct('L','mm','A4');
         $this->fecha_desde = $desde;
         $this->fecha_hasta = $hasta;
         $this->cuenta_codigo = $cuenta;
         $this->tercero = $terc;
+        $this->nombre_empresa = $nombre_emp;
+        $this->nit_empresa = $nit_emp;
     }
     
     function Header() {
@@ -130,33 +152,40 @@ class PDF extends FPDF {
         $this->SetFont('Arial','B',14);
         $this->Cell(0,8,convertir_texto('LIBRO AUXILIAR'),0,1,'C');
         
+        // Información de la empresa centrada
+        $this->SetFont('Arial','B',10);
+        $this->Cell(0,6,convertir_texto('NOMBRE DE LA EMPRESA: ') . convertir_texto($this->nombre_empresa),0,1,'C');
+        $this->Cell(0,6,convertir_texto('NIT DE LA EMPRESA: ') . $this->nit_empresa,0,1,'C');
+        
         $this->SetFont('Arial','',9);
-        $this->Cell(0,5,convertir_texto('Período: ') . date('d/m/Y', strtotime($this->fecha_desde)) . ' al ' . date('d/m/Y', strtotime($this->fecha_hasta)),0,1,'C');
+        $this->Cell(0,6,convertir_texto('PERIODO: ') . date('d/m/Y', strtotime($this->fecha_desde)) . ' A ' . date('d/m/Y', strtotime($this->fecha_hasta)),0,1,'C');
         
         if ($this->cuenta_codigo != '') {
-            $this->Cell(0,5,convertir_texto('Cuenta: ') . $this->cuenta_codigo,0,1,'C');
+            $this->Cell(0,6,convertir_texto('CUENTA: ') . $this->cuenta_codigo,0,1,'C');
         }
         if ($this->tercero != '') {
-            $this->Cell(0,5,convertir_texto('Tercero: ') . $this->tercero,0,1,'C');
+            $this->Cell(0,6,convertir_texto('TERCERO: ') . $this->tercero,0,1,'C');
         }
         
-        $this->Ln(3);
+        $this->Ln(5);
         
-        // Encabezados de columnas
+        // Encabezados de columnas - AJUSTAR ANCHOS
         $this->SetFont('Arial','B',7);
         $this->SetFillColor(5,74,133);
         $this->SetTextColor(255,255,255);
         
-        $this->Cell(20,6,convertir_texto('Código'),1,0,'C',true);
-        $this->Cell(40,6,convertir_texto('Nombre Cuenta'),1,0,'C',true);
-        $this->Cell(20,6,convertir_texto('ID Tercero'),1,0,'C',true);
-        $this->Cell(35,6,convertir_texto('Nombre Tercero'),1,0,'C',true);
-        $this->Cell(18,6,convertir_texto('Fecha'),1,0,'C',true);
-        $this->Cell(30,6,convertir_texto('Comprobante'),1,0,'C',true);
-        $this->Cell(25,6,convertir_texto('Saldo Inicial'),1,0,'C',true);
-        $this->Cell(25,6,convertir_texto('Débito'),1,0,'C',true);
-        $this->Cell(25,6,convertir_texto('Crédito'),1,0,'C',true);
-        $this->Cell(25,6,convertir_texto('Saldo Final'),1,1,'C',true);
+        // Ajustar anchos para que sumen 280mm (ancho A4 landscape)
+        $this->Cell(18,6,convertir_texto('Código'),1,0,'C',true);           // 18
+        $this->Cell(35,6,convertir_texto('Nombre Cuenta'),1,0,'C',true);    // 35
+        $this->Cell(18,6,convertir_texto('ID Tercero'),1,0,'C',true);       // 18
+        $this->Cell(32,6,convertir_texto('Nombre Tercero'),1,0,'C',true);   // 32
+        $this->Cell(15,6,convertir_texto('Fecha'),1,0,'C',true);            // 15
+        $this->Cell(28,6,convertir_texto('Comprobante'),1,0,'C',true);      // 28
+        $this->Cell(28,6,convertir_texto('Concepto'),1,0,'C',true);         // 28
+        $this->Cell(22,6,convertir_texto('Saldo Inicial'),1,0,'C',true);    // 22
+        $this->Cell(22,6,convertir_texto('Débito'),1,0,'C',true);           // 22
+        $this->Cell(22,6,convertir_texto('Crédito'),1,0,'C',true);          // 22
+        $this->Cell(20,6,convertir_texto('Saldo Final'),1,1,'C',true);      // 20
         
         $this->SetTextColor(0,0,0);
     }
@@ -168,13 +197,16 @@ class PDF extends FPDF {
     }
 }
 
-$pdf = new PDF($fecha_desde, $fecha_hasta, $cuenta_codigo, $tercero);
-$pdf->AliasNbPages(); // Agregar esta línea para el número total de páginas
+$pdf = new PDF($fecha_desde, $fecha_hasta, $cuenta_codigo, $tercero, $nombre_empresa, $nit_empresa);
+$pdf->AliasNbPages();
 $pdf->AddPage();
 $pdf->SetFont('Arial','',6);
 
 $total_debito = 0;
 $total_credito = 0;
+$total_saldo_final = 0;
+$ultimo_saldo_final = 0;
+$total_movimientos = 0;
 
 if (count($cuentas) == 0) {
     $pdf->SetFont('Arial','I',9);
@@ -187,6 +219,8 @@ if (count($cuentas) == 0) {
             foreach ($datos['movimientos'] as $mov) {
                 $total_debito += floatval($mov['debito']);
                 $total_credito += floatval($mov['credito']);
+                $ultimo_saldo_final = floatval($mov['saldo_final_fila']);
+                $total_movimientos++;
                 
                 // Separar identificación y nombre
                 $tercero_id = $mov['tercero_identificacion'] ?? '';
@@ -214,28 +248,33 @@ if (count($cuentas) == 0) {
                 }
                 $comprobante = $tipo_comp . $mov['numero_documento'];
 
-                $pdf->Cell(20,5,convertir_texto(substr($cuenta['codigo_cuenta'], 0, 12)),1,0,'L');
-                $pdf->Cell(40,5,convertir_texto(substr($cuenta['nombre_cuenta'], 0, 25)),1,0,'L');
-                $pdf->Cell(20,5,convertir_texto(substr($tercero_id, 0, 15)),1,0,'L');
-                $pdf->Cell(35,5,convertir_texto(substr($tercero_nombre, 0, 22)),1,0,'L');
-                $pdf->Cell(18,5,date('d/m/Y', strtotime($mov['fecha'])),1,0,'C');
-                $pdf->Cell(30,5,convertir_texto(substr($comprobante, 0, 20)),1,0,'L');
-                $pdf->Cell(25,5,number_format($mov['saldo_inicial_fila'], 2, '.', ','),1,0,'R');
-                $pdf->Cell(25,5,$mov['debito'] > 0 ? number_format($mov['debito'], 2, '.', ',') : '',1,0,'R');
-                $pdf->Cell(25,5,$mov['credito'] > 0 ? number_format($mov['credito'], 2, '.', ',') : '',1,0,'R');
-                $pdf->Cell(25,5,number_format($mov['saldo_final_fila'], 2, '.', ','),1,1,'R');
+                $pdf->Cell(18,5,convertir_texto(substr($cuenta['codigo_cuenta'], 0, 10)),1,0,'L');
+                $pdf->Cell(35,5,convertir_texto(substr($cuenta['nombre_cuenta'], 0, 22)),1,0,'L');
+                $pdf->Cell(18,5,convertir_texto(substr($tercero_id, 0, 12)),1,0,'L');
+                $pdf->Cell(32,5,convertir_texto(substr($tercero_nombre, 0, 20)),1,0,'L');
+                $pdf->Cell(15,5,date('d/m/Y', strtotime($mov['fecha'])),1,0,'C');
+                $pdf->Cell(28,5,convertir_texto(substr($comprobante, 0, 18)),1,0,'L');
+                $pdf->Cell(28,5,convertir_texto(substr($mov['concepto'], 0, 20)),1,0,'L');
+                $pdf->Cell(22,5,number_format($mov['saldo_inicial_fila'], 2, '.', ','),1,0,'R');
+                $pdf->Cell(22,5,$mov['debito'] > 0 ? number_format($mov['debito'], 2, '.', ',') : '',1,0,'R');
+                $pdf->Cell(22,5,$mov['credito'] > 0 ? number_format($mov['credito'], 2, '.', ',') : '',1,0,'R');
+                $pdf->Cell(20,5,number_format($mov['saldo_final_fila'], 2, '.', ','),1,1,'R'); // Ajustado a 20
             }
+            // Sumar el último saldo final de cada cuenta
+            $total_saldo_final += $ultimo_saldo_final;
         }
     }
     
-    // Totales
+    // Totales - CON los 3 totales - AJUSTAR ANCHOS
     $pdf->SetFont('Arial','B',7);
     $pdf->SetFillColor(217,225,242);
-    $pdf->Cell(163,6,convertir_texto('TOTALES:'),1,0,'R',true);
-    $pdf->Cell(25,6,'',1,0,'R',true);
-    $pdf->Cell(25,6,number_format($total_debito, 2, '.', ','),1,0,'R',true);
-    $pdf->Cell(25,6,number_format($total_credito, 2, '.', ','),1,0,'R',true);
-    $pdf->Cell(25,6,'',1,1,'R',true);
+    
+    // Suma de las primeras 7 columnas: 18+35+18+32+15+28+28 = 174
+    $pdf->Cell(174,6,convertir_texto('TOTALES:'),1,0,'R',true);
+    $pdf->Cell(22,6,'',1,0,'R',true); // Saldo inicial vacío (22)
+    $pdf->Cell(22,6,number_format($total_debito, 2, '.', ','),1,0,'R',true); // Débito (22)
+    $pdf->Cell(22,6,number_format($total_credito, 2, '.', ','),1,0,'R',true); // Crédito (22)
+    $pdf->Cell(20,6,number_format($total_saldo_final, 2, '.', ','),1,1,'R',true); // Saldo final (20)
 }
 
 // INFORMACIÓN ADICIONAL
@@ -244,8 +283,6 @@ $pdf->SetFont('Arial','I',8);
 $pdf->SetFillColor(240,240,240);
 $pdf->Cell(0,5,convertir_texto('Información del Reporte:'),0,1,'L',true);
 $pdf->Cell(0,4,convertir_texto('Generado el: ').date('Y-m-d H:i:s'),0,1,'L');
-$pdf->Cell(0,4,convertir_texto('Total de movimientos: ').$total_debito,0,1,'L');
+$pdf->Cell(0,4,convertir_texto('Total de movimientos: ').$total_movimientos,0,1,'L');
 
-// Cambiar 'D' por 'I' para abrir en el navegador en lugar de descargar
 $pdf->Output('I', 'Libro_Auxiliar_' . date('Ymd_His') . '.pdf');
-?>
