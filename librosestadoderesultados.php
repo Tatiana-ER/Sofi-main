@@ -583,13 +583,11 @@ $lista_terceros = array_values($terceros_unificados);
         <!-- Información de la empresa centrada -->
         <div class="text-center empresa-info mt-3 p-3" style="border-radius: 5px;">
             <div style="margin-bottom: 10px;">
-                <strong>NOMBRE DE LA EMPRESA:</strong><br>
-                <?= htmlspecialchars($nombre_empresa) ?>
+                <strong><?= htmlspecialchars($nombre_empresa) ?></strong><br>
             </div>
             
             <div style="margin-bottom: 10px;">
-                <strong>NIT DE LA EMPRESA:</strong><br>
-                <?= htmlspecialchars($nit_empresa) ?>
+                <strong><?= htmlspecialchars($nit_empresa) ?></strong><br>
             </div>
             
             <div style="margin-bottom: 5px;">

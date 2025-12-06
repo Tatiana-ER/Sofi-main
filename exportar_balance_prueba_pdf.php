@@ -430,8 +430,9 @@ class PDF extends FPDF
         $this->Cell(0, 10, convertir_texto('BALANCE DE PRUEBA'), 0, 1, 'C');
         
         $this->SetFont('Arial', 'B', 12);
-        $this->Cell(0, 6, convertir_texto('NOMBRE DE LA EMPRESA: ') . convertir_texto($this->nombre_empresa), 0, 1, 'C');
-        $this->Cell(0, 6, convertir_texto('NIT DE LA EMPRESA: ') . $this->nit_empresa, 0, 1, 'C');
+        $this->Cell(0, 6, convertir_texto('') . convertir_texto($this->nombre_empresa), 0, 1, 'C');
+        $this->Cell(0, 6, convertir_texto('') . $this->nit_empresa, 0, 1, 'C');
+        $this->Cell(0, 6, convertir_texto('Expresados en pesos Colombianos'), 0, 1, 'C');
         
         $this->Ln(5);
     }

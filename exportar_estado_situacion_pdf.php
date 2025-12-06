@@ -394,15 +394,13 @@ class PDF extends FPDF {
         
         // Información de la empresa centrada (MEJORA SOLICITADA)
         $this->SetFont('Arial', 'B', 10);
-        $this->Cell(0, 6, convertText('NOMBRE DE LA EMPRESA: ') . convertText($this->nombre_empresa), 0, 1, 'C');
-        $this->Cell(0, 6, convertText('NIT DE LA EMPRESA: ') . $this->nit_empresa, 0, 1, 'C');
+        $this->Cell(0, 6, convertText('') . convertText($this->nombre_empresa), 0, 1, 'C');
+        $this->Cell(0, 6, convertText('') . $this->nit_empresa, 0, 1, 'C');
+        $this->Cell(0, 6, convertText('Expresados en pesos Colombianos'), 0, 1, 'C');
         
         $this->SetFont('Arial', '', 9);
         $this->Cell(0, 6, convertText('PERÍODO: ') . date('d/m/Y', strtotime($this->fecha_desde)) . ' - ' . date('d/m/Y', strtotime($this->fecha_hasta)), 0, 1, 'C');
         
-        $this->SetLineWidth(0.5);
-        $this->Line(10, 40, 200, 40);
-        $this->Ln(5);
     }
     
     function Footer() {
