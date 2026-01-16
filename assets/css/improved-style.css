@@ -50,9 +50,9 @@ body {
 
 #header .logo a {
   font-family: "Poppins", sans-serif;
-  font-weight: 700;
+  font-weight: 800;
   font-size: 1.5rem;
-  background: #1841b3;
+  background: #0d3467;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -954,4 +954,22 @@ form {
     .cliente-header {
       background-color: #e3f2fd;
       font-weight: bold;
+    }
+
+    .logo {
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .logo a {
+      text-decoration: none;
+      color: inherit;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .logo-icon {
+      width: 40px;
+      height: auto;
     }

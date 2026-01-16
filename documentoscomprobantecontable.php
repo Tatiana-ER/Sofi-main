@@ -305,6 +305,27 @@ document.addEventListener("DOMContentLoaded", () => {
     .select2-container--default .select2-selection--single .select2-selection__arrow {
       height: 36px;
     }
+
+        /* Estilos específicos para la columna de acciones */
+    .acciones-col {
+        min-width: 280px; /* Ancho mínimo para que quepan todos los botones */
+        max-width: 320px;
+    }
+
+    .acciones-contenedor {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 4px;
+        justify-content: center;
+        align-items: center;
+        padding: 2px 0;
+    }
+
+    .acciones-contenedor form {
+        display: inline-flex;
+        margin: 0;
+        gap: 3px;
+    }
   </style>
 
 </head>
@@ -315,7 +336,7 @@ document.addEventListener("DOMContentLoaded", () => {
     <div class="container d-flex align-items-center justify-content-between">
       <h1 class="logo">
         <a href="dashboard.php">
-          <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
+          <img src="./Img/logosofi1.png" alt="Logo SOFI" class="logo-icon">
           Software Financiero
         </a>
       </h1>
@@ -499,20 +520,43 @@ document.addEventListener("DOMContentLoaded", () => {
                   <td><?php echo $comprobante['consecutivo']; ?></td>
                   <td><?php echo $comprobante['observaciones']; ?></td>
                   <td>
-                    <form action="" method="post">
-                      <input type="hidden" name="txtId" value="<?php echo $comprobante['id']; ?>" >
-                      <input type="hidden" name="fecha" value="<?php echo $comprobante['fecha']; ?>" >
-                      <input type="hidden" name="consecutivo" value="<?php echo $comprobante['consecutivo']; ?>" >
-                      <input type="hidden" name="observaciones" value="<?php echo $comprobante['observaciones']; ?>" >
-                      
-                      <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info" title="Editar">
-                        <i class="fas fa-edit"></i>
-                      </button>
-                      <button type="submit" name="accion" value="btnEliminar" class="btn btn-sm btn-danger" title="Eliminar">
-                        <i class="fas fa-trash-alt"></i>
-                      </button>
-                    </form>
-                  </td>
+                        <div class="acciones-contenedor">
+                            <!-- Formulario para editar y eliminar -->
+                            <form action="" method="post">
+                                <input type="hidden" name="txtId" value="<?php echo $comprobante['id']; ?>" >
+                                <input type="hidden" name="fecha" value="<?php echo $comprobante['fecha']; ?>" >
+                                <input type="hidden" name="consecutivo" value="<?php echo $comprobante['consecutivo']; ?>" >
+                                <input type="hidden" name="observaciones" value="<?php echo $comprobante['observaciones']; ?>" >
+                                
+                                <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info" title="Editar">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button type="submit" name="accion" value="btnEliminar" class="btn btn-sm btn-danger" title="Eliminar">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </form>
+
+                            <!-- Botones de visualización y descarga -->
+                            <a href="ver_comprobante_contable.php?id=<?php echo $comprobante['id']; ?>" 
+                                class="btn btn-sm btn-primary" 
+                                target="_blank" 
+                                title="Ver/Imprimir">
+                                <i class="fas fa-print"></i>
+                            </a>
+                            <a href="generar_pdf_comprobante_contable.php?id=<?php echo $comprobante['id']; ?>" 
+                                class="btn btn-sm btn-danger" 
+                                target="_blank" 
+                                title="Descargar PDF">
+                                <i class="fas fa-file-pdf"></i>
+                            </a>
+                            <a href="generar_excel_comprobante_contable.php?id=<?php echo $comprobante['id']; ?>" 
+                                class="btn btn-sm btn-success" 
+                                target="_blank" 
+                                title="Descargar Excel">
+                                <i class="fas fa-file-excel"></i>
+                            </a>
+                        </div>
+                    </td>
                 </tr>
               <?php } ?>
               </tbody>

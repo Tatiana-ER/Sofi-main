@@ -44,11 +44,11 @@
       color: inherit;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 9px;
     }
 
     .logo-icon {
-      width: 70px;
+      width: 40px;
       height: auto;
     }
 
@@ -126,7 +126,7 @@ document.addEventListener("DOMContentLoaded", function() {
       <!-- Nuevo logo -->
       <h1 class="logo">
         <a href="index.php">
-          <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
+          <img src="./Img/logosofi1.png" alt="Logo SOFI" class="logo-icon">
           Software Financiero
         </a>
       </h1>

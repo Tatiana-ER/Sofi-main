@@ -28,28 +28,6 @@
 
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
-  <!--Estilos del nuevo logo, incluido en el nav por la palabra SOFI, creado por Tatiana y Catalina -->
-  <style>
-    .logo {
-        font-size: 20px;
-        font-weight: bold;
-      }
-
-      .logo a {
-        text-decoration: none;
-        color: inherit; /* conserva el color del texto */
-        display: flex;
-        align-items: center;
-        gap: 5px; /* espacio entre el texto y la imagen */
-      }
-
-      .logo-icon {
-        width: 75px;   /* tamaño del logo */
-        height: auto;
-      }
-
-  </style>
-
 </head>
 
 <body>
@@ -61,7 +39,7 @@
     <!--Nuevo diseño del nav con el logo, creado por Tatiana y Catalina -->
       <h1 class="logo">
         <a href="dashboard.php">
-          <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
+          <img src="./Img/logosofi1.png" alt="Logo SOFI" class="logo-icon">
           Software Financiero
         </a>
       </h1>

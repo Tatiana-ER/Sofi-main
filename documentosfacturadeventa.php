@@ -63,47 +63,42 @@ switch($accion){
 
         $idFactura = $pdo->lastInsertId();
 
-        // Insertar detalles y actualizar inventario
+        // Insertar detalles - El trigger maneja la actualización de inventario
         if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
-            $sqlDetalle = "INSERT INTO factura_detalle 
-                          (id_factura, codigoProducto, nombreProducto, cantidad, precio_unitario, iva, total)
-                          VALUES (:id_factura, :codigoProducto, :nombreProducto, :cantidad, :precio_unitario, :iva, :total)";
-            $stmtDetalle = $pdo->prepare($sqlDetalle);
+          $sqlDetalle = "INSERT INTO factura_detalle 
+                        (id_factura, codigoProducto, nombreProducto, cantidad, precio_unitario, iva, total)
+                        VALUES (:id_factura, :codigoProducto, :nombreProducto, :cantidad, :precio_unitario, :iva, :total)";
+          $stmtDetalle = $pdo->prepare($sqlDetalle);
 
-            $checkItem = $pdo->prepare("SELECT tipoItem, cantidad FROM productoinventarios WHERE codigoProducto = :codigo");
-            $updateStock = $pdo->prepare("UPDATE productoinventarios SET cantidad = cantidad - :cantidad WHERE codigoProducto = :codigo");
+          $checkItem = $pdo->prepare("SELECT tipoItem, cantidad FROM productoinventarios WHERE codigoProducto = :codigo");
 
-            foreach ($_POST['detalles'] as $detalle) {
-                $checkItem->execute([':codigo' => $detalle['codigoProducto']]);
-                $item = $checkItem->fetch(PDO::FETCH_ASSOC);
+          foreach ($_POST['detalles'] as $detalle) {
+              $checkItem->execute([':codigo' => $detalle['codigoProducto']]);
+              $item = $checkItem->fetch(PDO::FETCH_ASSOC);
 
-                if (!$item) {
-                    throw new Exception("El código {$detalle['codigoProducto']} no existe en el inventario.");
-                }
+              if (!$item) {
+                  throw new Exception("El código {$detalle['codigoProducto']} no existe en el inventario.");
+              }
 
-                if (strtolower($item['tipoItem']) === 'producto') {
-                    if ($item['cantidad'] < $detalle['cantidad']) {
-                        throw new Exception("Stock insuficiente para {$detalle['nombreProducto']}. Disponible: {$item['cantidad']}, Solicitado: {$detalle['cantidad']}");
-                    }
+              // Validar stock disponible (pero NO actualizar - el trigger lo hace)
+              if (strtolower($item['tipoItem']) === 'producto') {
+                  if ($item['cantidad'] < $detalle['cantidad']) {
+                      throw new Exception("Stock insuficiente para {$detalle['nombreProducto']}. Disponible: {$item['cantidad']}, Solicitado: {$detalle['cantidad']}");
+                  }
+                  // NOTA: La cantidad se actualiza mediante un trigger en la base de datos
+              }
 
-                    $updateStock->execute([
-                        ':cantidad' => $detalle['cantidad'],
-                        ':codigo' => $detalle['codigoProducto']
-                    ]);
-                }
-
-                $stmtDetalle->execute([
-                    ':id_factura' => $idFactura,
-                    ':codigoProducto' => $detalle['codigoProducto'],
-                    ':nombreProducto' => $detalle['nombreProducto'],
-                    ':cantidad' => $detalle['cantidad'],
-                    ':precio_unitario' => $detalle['precio'],
-                    ':iva' => $detalle['iva'],
-                    ':total' => $detalle['precioTotal']
-                ]);
-            }
-        }
-
+              $stmtDetalle->execute([
+                  ':id_factura' => $idFactura,
+                  ':codigoProducto' => $detalle['codigoProducto'],
+                  ':nombreProducto' => $detalle['nombreProducto'],
+                  ':cantidad' => $detalle['cantidad'],
+                  ':precio_unitario' => $detalle['precio'],
+                  ':iva' => $detalle['iva'],
+                  ':total' => $detalle['precioTotal']
+              ]);
+          }
+      }
         // Registrar en Libro Diario (con retenciones)
         $libroDiario->registrarFacturaVenta($idFactura);
 
@@ -135,16 +130,7 @@ break;
         $stmtOldDetails->execute([':id_factura' => $txtId]);
         $oldDetails = $stmtOldDetails->fetchAll(PDO::FETCH_ASSOC);
 
-        // Restaurar inventario
-        $restoreStock = $pdo->prepare("UPDATE productoinventarios SET cantidad = cantidad + :cantidad WHERE codigoProducto = :codigo");
-        foreach ($oldDetails as $old) {
-            if (strtolower($old['tipoItem']) === 'producto') {
-                $restoreStock->execute([
-                    ':cantidad' => $old['cantidad'],
-                    ':codigo' => $old['codigoProducto']
-                ]);
-            }
-        }
+        // NOTA: No restaurar inventario manualmente - el trigger lo maneja cuando se eliminan los detalles
 
         // Actualizar factura (MODIFICADO: Se agregaron numero_factura y fecha_vencimiento)
         $sentencia = $pdo->prepare("UPDATE facturav 
@@ -192,7 +178,6 @@ break;
             $stmtDetalle = $pdo->prepare($sqlDetalle);
 
             $checkItem = $pdo->prepare("SELECT tipoItem, cantidad FROM productoinventarios WHERE codigoProducto = :codigo");
-            $updateStock = $pdo->prepare("UPDATE productoinventarios SET cantidad = cantidad - :cantidad WHERE codigoProducto = :codigo");
 
             foreach ($_POST['detalles'] as $detalle) {
                 $checkItem->execute([':codigo' => $detalle['codigoProducto']]);
@@ -202,15 +187,12 @@ break;
                     throw new Exception("El código {$detalle['codigoProducto']} no existe en el inventario.");
                 }
 
+                // Validar stock disponible (pero NO actualizar - el trigger lo hace)
                 if (strtolower($item['tipoItem']) === 'producto') {
                     if ($item['cantidad'] < $detalle['cantidad']) {
                         throw new Exception("Stock insuficiente para {$detalle['nombreProducto']}. Disponible: {$item['cantidad']}, Solicitado: {$detalle['cantidad']}");
                     }
-
-                    $updateStock->execute([
-                        ':cantidad' => $detalle['cantidad'],
-                        ':codigo' => $detalle['codigoProducto']
-                    ]);
+                    // NOTA: La cantidad se actualiza mediante un trigger en la base de datos
                 }
 
                 $stmtDetalle->execute([
@@ -567,7 +549,7 @@ document.addEventListener("DOMContentLoaded", () => {
     <div class="container d-flex align-items-center justify-content-between">
       <h1 class="logo">
         <a href="dashboard.php">
-          <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
+          <img src="./Img/logosofi1.png" alt="Logo SOFI" class="logo-icon">
           Software Financiero
         </a>
       </h1>
@@ -832,6 +814,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td><?php echo $usuario['valorTotal']; ?></td>
                 <td><?php echo $usuario['observaciones']; ?></td>
                 <td>
+                  <div style="display:flex; gap:5px;">
                   <form action="" method="post">
                     <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>" >
                     <input type="hidden" name="identificacion" value="<?php echo $usuario['identificacion']; ?>" >
@@ -855,6 +838,27 @@ document.addEventListener("DOMContentLoaded", () => {
                       <i class="fas fa-trash-alt"></i>
                     </button>
                   </form>
+
+                  <!-- NUEVOS BOTONES -->
+                  <a href="ver_factura_venta.php?id=<?php echo $usuario['id']; ?>" 
+                    class="btn btn-sm btn-primary" 
+                    target="_blank" 
+                    title="Ver/Imprimir">
+                    <i class="fas fa-print"></i>
+                  </a>
+                  <a href="generar_pdf_factura_venta.php?id=<?php echo $usuario['id']; ?>" 
+                    class="btn btn-sm btn-danger" 
+                    target="_blank" 
+                    title="Descargar PDF">
+                    <i class="fas fa-file-pdf"></i>
+                  </a>
+                  <a href="generar_excel_factura_venta.php?id=<?php echo $usuario['id']; ?>" 
+                    class="btn btn-sm btn-success" 
+                    target="_blank" 
+                    title="Descargar Excel">
+                    <i class="fas fa-file-excel"></i>
+                  </a>
+                  </div>
                 </td>
               </tr>
             <?php } ?>

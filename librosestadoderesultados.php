@@ -554,7 +554,7 @@ $lista_terceros = array_values($terceros_unificados);
     <div class="container d-flex align-items-center justify-content-between">
       <h1 class="logo">
         <a href="dashboard.php">
-          <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
+          <img src="./Img/logosofi1.png" alt="Logo SOFI" class="logo-icon">
           Software Financiero
         </a>
       </h1>

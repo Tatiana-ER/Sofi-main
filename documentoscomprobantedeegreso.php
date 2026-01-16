@@ -503,37 +503,27 @@ document.addEventListener("DOMContentLoaded", () => {
   <link href="assets/css/improved-style.css" rel="stylesheet">
  
   <style>
-    .table-container {
-      overflow-x: auto;
-      margin-top: 20px;
+        /* Estilos específicos para la columna de acciones */
+    .acciones-col {
+        min-width: 280px; /* Ancho mínimo para que quepan todos los botones */
+        max-width: 320px;
     }
-   
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+
+    .acciones-contenedor {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 4px;
+        justify-content: center;
+        align-items: center;
+        padding: 2px 0;
     }
-   
-    table th {
-      background: #0d6efd;
-      color: white;
-      padding: 12px;
-      text-align: left;
-      font-weight: 600;
-      font-size: 14px;
+
+    .acciones-contenedor form {
+        display: inline-flex;
+        margin: 0;
+        gap: 3px;
     }
-   
-    table td {
-      padding: 10px;
-      border-bottom: 1px solid #dee2e6;
-      font-size: 14px;
-    }
-   
-    table tbody tr:hover {
-      background: #f8f9fa;
-    }
-   
+
     .factura-row {
       background: #f8f9fa;
       transition: all 0.2s;
@@ -644,7 +634,7 @@ document.addEventListener("DOMContentLoaded", () => {
     <div class="container d-flex align-items-center justify-content-between">
       <h1 class="logo">
         <a href="dashboard.php">
-          <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
+          <img src="./Img/logosofi1.png" alt="Logo SOFI" class="logo-icon">
           Software Financiero
         </a>
       </h1>
@@ -820,26 +810,47 @@ document.addEventListener("DOMContentLoaded", () => {
                   <td><strong style="color: #dc3545;">$<?php echo number_format($comprobante['valorTotal'], 2); ?></strong></td>
                   <td><?php echo htmlspecialchars($comprobante['formaPago']); ?></td>
                   <td>
-                    <form action="" method="post" style="display:flex; gap:5px;">
-                      <input type="hidden" name="txtId" value="<?php echo $comprobante['id']; ?>">
-                      <input type="hidden" name="fecha" value="<?php echo $comprobante['fecha']; ?>">
-                      <input type="hidden" name="consecutivo" value="<?php echo $comprobante['consecutivo']; ?>">
-                      <input type="hidden" name="identificacion" value="<?php echo $comprobante['identificacion']; ?>">
-                      <input type="hidden" name="nombre" value="<?php echo $comprobante['nombre']; ?>">
-                      <input type="hidden" name="numeroFactura" value="<?php echo $comprobante['numeroFactura']; ?>">
-                      <input type="hidden" name="fechaVencimiento" value="<?php echo $comprobante['fechaVencimiento']; ?>">
-                      <input type="hidden" name="valor" value="<?php echo $comprobante['valor']; ?>">
-                      <input type="hidden" name="valorTotal" value="<?php echo $comprobante['valorTotal']; ?>">
-                      <input type="hidden" name="formaPago" value="<?php echo $comprobante['formaPago']; ?>">
-                      <input type="hidden" name="observaciones" value="<?php echo $comprobante['observaciones']; ?>">
- 
-                      <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info" title="Editar">
-                        <i class="fas fa-edit"></i>
-                      </button>
-                      <button type="submit" name="accion" value="btnEliminar" class="btn btn-sm btn-danger" title="Eliminar">
-                        <i class="fas fa-trash-alt"></i>
-                      </button>
-                    </form>
+                    <div class="acciones-contenedor">
+                      <form action="" method="post" style="display:flex; gap:5px;">
+                        <input type="hidden" name="txtId" value="<?php echo $comprobante['id']; ?>">
+                        <input type="hidden" name="fecha" value="<?php echo $comprobante['fecha']; ?>">
+                        <input type="hidden" name="consecutivo" value="<?php echo $comprobante['consecutivo']; ?>">
+                        <input type="hidden" name="identificacion" value="<?php echo $comprobante['identificacion']; ?>">
+                        <input type="hidden" name="nombre" value="<?php echo $comprobante['nombre']; ?>">
+                        <input type="hidden" name="numeroFactura" value="<?php echo $comprobante['numeroFactura']; ?>">
+                        <input type="hidden" name="fechaVencimiento" value="<?php echo $comprobante['fechaVencimiento']; ?>">
+                        <input type="hidden" name="valor" value="<?php echo $comprobante['valor']; ?>">
+                        <input type="hidden" name="valorTotal" value="<?php echo $comprobante['valorTotal']; ?>">
+                        <input type="hidden" name="formaPago" value="<?php echo $comprobante['formaPago']; ?>">
+                        <input type="hidden" name="observaciones" value="<?php echo $comprobante['observaciones']; ?>">
+  
+                        <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info" title="Editar">
+                          <i class="fas fa-edit"></i>
+                        </button>
+                        <button type="submit" name="accion" value="btnEliminar" class="btn btn-sm btn-danger" title="Eliminar">
+                          <i class="fas fa-trash-alt"></i>
+                        </button>
+                      </form>
+                      <!-- NUEVOS BOTONES -->
+                      <a href="ver_comprobante_egreso.php?id=<?php echo $comprobante['id']; ?>" 
+                        class="btn btn-sm btn-primary" 
+                        target="_blank" 
+                        title="Ver/Imprimir">
+                        <i class="fas fa-print"></i>
+                      </a>
+                      <a href="generar_pdf_comprobante_egreso.php?id=<?php echo $comprobante['id']; ?>" 
+                        class="btn btn-sm btn-danger" 
+                        target="_blank" 
+                        title="Descargar PDF">
+                        <i class="fas fa-file-pdf"></i>
+                      </a>
+                      <a href="generar_excel_comprobante_egreso.php?id=<?php echo $comprobante['id']; ?>" 
+                        class="btn btn-sm btn-success" 
+                        target="_blank" 
+                        title="Descargar Excel">
+                        <i class="fas fa-file-excel"></i>
+                      </a>
+                    </div>
                   </td>
                 </tr>
               <?php endforeach; ?>

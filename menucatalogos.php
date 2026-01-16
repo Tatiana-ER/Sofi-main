@@ -30,26 +30,6 @@
 
   <link href="assets/css/improved-style.css" rel="stylesheet">
 
-  <style>
-    .logo {
-      font-size: 20px;
-      font-weight: bold;
-    }
-
-    .logo a {
-      text-decoration: none;
-      color: inherit;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .logo-icon {
-      width: 70px;
-      height: auto;
-    }
-  </style>
-
 </head>
 
 <body>
@@ -59,7 +39,7 @@
     <div class="container d-flex align-items-center justify-content-between">
       <h1 class="logo">
         <a href="dashboard.php">
-          <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
+          <img src="./Img/logosofi1.png" alt="Logo SOFI" class="logo-icon">
           Software Financiero
         </a>
       </h1>

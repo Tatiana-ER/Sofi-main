@@ -118,17 +118,17 @@ switch($accion){
     break;
 
     case "btnModificarProducto":
-        // MODIFICADO: Se agregó costoUnitario
-        $sentencia=$pdo->prepare("UPDATE productoinventarios SET categoriaInventarios=:categoriaInventarios, codigoProducto=:codigoProducto, descripcionProducto=:descripcionProducto, unidadMedida=:unidadMedida, cantidad=:cantidad, precioUnitario=:precioUnitario, costoUnitario=:costoUnitario, productoIva=:productoIva, tipoItem=:tipoItem, facturacionCero=:facturacionCero, activo=:activo WHERE id=:idproducto");
+        // MODIFICADO: Se agregó costoUnitario, cantidad NO se actualiza (se maneja mediante facturas)
+        $sentencia=$pdo->prepare("UPDATE productoinventarios SET categoriaInventarios=:categoriaInventarios, codigoProducto=:codigoProducto, descripcionProducto=:descripcionProducto, unidadMedida=:unidadMedida, precioUnitario=:precioUnitario, costoUnitario=:costoUnitario, productoIva=:productoIva, tipoItem=:tipoItem, facturacionCero=:facturacionCero, activo=:activo WHERE id=:idproducto");
         
         $sentencia->bindParam(':idproducto',$idproducto);
         $sentencia->bindParam(':categoriaInventarios',$categoriaInventarios);
         $sentencia->bindParam(':codigoProducto',$codigoProducto);
         $sentencia->bindParam(':descripcionProducto',$descripcionProducto);
         $sentencia->bindParam(':unidadMedida',$unidadMedida);
-        $sentencia->bindParam(':cantidad',$cantidad);
+        // NO incluir cantidad aquí
         $sentencia->bindParam(':precioUnitario',$precioUnitario);
-        $sentencia->bindParam(':costoUnitario',$costoUnitario); // NUEVO CAMPO
+        $sentencia->bindParam(':costoUnitario',$costoUnitario);
         $sentencia->bindParam(':productoIva',$productoIva);
         $sentencia->bindParam(':tipoItem',$tipoItem);
         $sentencia->bindParam(':facturacionCero',$facturacionCero);
@@ -354,7 +354,7 @@ document.addEventListener("DOMContentLoaded", () => {
     <div class="container d-flex align-items-center justify-content-between">
       <h1 class="logo">
         <a href="dashboard.php">
-          <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
+          <img src="./Img/logosofi1.png" alt="Logo SOFI" class="logo-icon">
           Software Financiero
         </a>
       </h1>
@@ -612,10 +612,8 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
 
             <div class="row g-3 mt-2">
-              <div class="col-md-3">
-                <label for="cantidad" class="form-label fw-bold">Cantidad</label>
-                <input type="number" class="form-control" id="cantidad" name="cantidad" min="0">
-              </div>
+              <!-- Campo cantidad oculto - se maneja automáticamente mediante facturas -->
+              <input type="hidden" id="cantidad" name="cantidad" value="0">
 
               <div class="col-md-3">
                 <label for="precioUnitario" class="form-label fw-bold">Precio de Venta*</label>

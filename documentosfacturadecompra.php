@@ -66,49 +66,48 @@ switch($accion){
 
         // Insertar detalles y actualizar inventario - MODIFICADO: actualizar costo
         if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
-            $sqlDetalle = "INSERT INTO detallefacturac 
-                          (factura_id, codigoProducto, nombreProducto, cantidad, precioUnitario, iva, valorTotal)
-                          VALUES (:factura_id, :codigoProducto, :nombreProducto, :cantidad, :precioUnitario, :iva, :valorTotal)";
-            $stmtDetalle = $pdo->prepare($sqlDetalle);
+          $sqlDetalle = "INSERT INTO detallefacturac 
+                        (factura_id, codigoProducto, nombreProducto, cantidad, precioUnitario, iva, valorTotal)
+                        VALUES (:factura_id, :codigoProducto, :nombreProducto, :cantidad, :precioUnitario, :iva, :valorTotal)";
+          $stmtDetalle = $pdo->prepare($sqlDetalle);
 
-            $checkItem = $pdo->prepare("SELECT tipoItem, cantidad, costoUnitario FROM productoinventarios WHERE codigoProducto = :codigo");
-            
-            // NUEVO: preparar update para costo
-            $updateStockAndCost = $pdo->prepare("UPDATE productoinventarios SET 
-                                                cantidad = cantidad + :cantidad,
-                                                costoUnitario = :costoUnitario
-                                                WHERE codigoProducto = :codigo");
+          $checkItem = $pdo->prepare("SELECT tipoItem, cantidad, costoUnitario FROM productoinventarios WHERE codigoProducto = :codigo");
 
-            foreach ($_POST['detalles'] as $detalle) {
-                $checkItem->execute([':codigo' => $detalle['codigoProducto']]);
-                $item = $checkItem->fetch(PDO::FETCH_ASSOC);
+          foreach ($_POST['detalles'] as $detalle) {
+              $checkItem->execute([':codigo' => $detalle['codigoProducto']]);
+              $item = $checkItem->fetch(PDO::FETCH_ASSOC);
 
-                if (!$item) {
-                    throw new Exception("El código {$detalle['codigoProducto']} no existe en el inventario.");
-                }
+              if (!$item) {
+                  throw new Exception("El código {$detalle['codigoProducto']} no existe en el inventario.");
+              }
 
-                // Solo aumentar stock y actualizar costo si es PRODUCTO (no servicio)
-                if (strtolower($item['tipoItem']) === 'producto') {
-                    $nuevoCosto = $detalle['precio']; // El precio ingresado en la factura de compra es el nuevo costo
-                    
-                    $updateStockAndCost->execute([
-                        ':cantidad' => $detalle['cantidad'],
-                        ':costoUnitario' => $nuevoCosto,
-                        ':codigo' => $detalle['codigoProducto']
-                    ]);
-                }
+              // Solo actualizar costo si es PRODUCTO (no servicio)
+              // NOTA: La cantidad se actualiza mediante un trigger en la base de datos
+              if (strtolower($item['tipoItem']) === 'producto') {
+                  $nuevoCosto = $detalle['precio'];
+                  
+                  // Solo actualizar costo, NO cantidad (el trigger maneja la cantidad)
+                  $updateCost = $pdo->prepare("UPDATE productoinventarios SET 
+                                              costoUnitario = :costoUnitario
+                                              WHERE codigoProducto = :codigo");
+                  
+                  $updateCost->execute([
+                      ':costoUnitario' => $nuevoCosto,
+                      ':codigo' => $detalle['codigoProducto']
+                  ]);
+              }
 
-                $stmtDetalle->execute([
-                    ':factura_id' => $idFactura,
-                    ':codigoProducto' => $detalle['codigoProducto'],
-                    ':nombreProducto' => $detalle['nombreProducto'],
-                    ':cantidad' => $detalle['cantidad'],
-                    ':precioUnitario' => $detalle['precio'],
-                    ':iva' => $detalle['iva'],
-                    ':valorTotal' => $detalle['precioTotal']
-                ]);
-            }
-        }
+              $stmtDetalle->execute([
+                  ':factura_id' => $idFactura,
+                  ':codigoProducto' => $detalle['codigoProducto'],
+                  ':nombreProducto' => $detalle['nombreProducto'],
+                  ':cantidad' => $detalle['cantidad'],
+                  ':precioUnitario' => $detalle['precio'],
+                  ':iva' => $detalle['iva'],
+                  ':valorTotal' => $detalle['precioTotal']
+              ]);
+          }
+      }
 
         // Registrar en Libro Diario
         $libroDiario->registrarFacturaCompra($idFactura);
@@ -216,9 +215,9 @@ break;
                     throw new Exception("El código {$detalle['codigoProducto']} no existe en el inventario.");
                 }
 
-                // Insertar detalle PRIMERO
+               // Insertar detalle PRIMERO
                 $stmtDetalle->execute([
-                    ':factura_id' => $idFactura,
+                    ':factura_id' => $txtId,  // CORREGIDO: usar $txtId en lugar de $idFactura
                     ':codigoProducto' => $detalle['codigoProducto'],
                     ':nombreProducto' => $detalle['nombreProducto'],
                     ':cantidad' => $detalle['cantidad'],
@@ -600,7 +599,7 @@ document.addEventListener("DOMContentLoaded", () => {
     <div class="container d-flex align-items-center justify-content-between">
       <h1 class="logo">
         <a href="dashboard.php">
-          <img src="./Img/sofilogo5pequeño.png" alt="Logo SOFI" class="logo-icon">
+          <img src="./Img/logosofi1.png" alt="Logo SOFI" class="logo-icon">
           Software Financiero
         </a>
       </h1>
@@ -863,29 +862,50 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td><?php echo $usuario['valorTotal']; ?></td>
                 <td><?php echo $usuario['observaciones']; ?></td>
                 <td>
-                  <form action="" method="post">
-                    <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>" >
-                    <input type="hidden" name="identificacion" value="<?php echo $usuario['identificacion']; ?>" >
-                    <input type="hidden" name="nombre" value="<?php echo $usuario['nombre']; ?>" >
-                    <input type="hidden" name="fecha" value="<?php echo $usuario['fecha']; ?>" >
-                    <input type="hidden" name="consecutivo" value="<?php echo $usuario['consecutivo']; ?>" >
-                    <input type="hidden" name="numeroFactura" value="<?php echo $usuario['numeroFactura'] ?? ''; ?>" >
-                    <input type="hidden" name="formaPago" value="<?php echo $usuario['formaPago']; ?>" >
-                    <input type="hidden" name="fechaVencimiento" value="<?php echo $usuario['fecha_vencimiento'] ?? ''; ?>" >
-                    <input type="hidden" name="subtotal" value="<?php echo $usuario['subtotal']; ?>" >
-                    <input type="hidden" name="ivaTotal" value="<?php echo $usuario['ivaTotal']; ?>" >
-                    <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>" >
-                    <input type="hidden" name="valorTotal" value="<?php echo $usuario['valorTotal']; ?>" >
-                    <input type="hidden" name="observaciones" value="<?php echo $usuario['observaciones']; ?>" >
-                    <input type="hidden" name="selectRetencion" value="<?php echo $usuario['retencion_tarifa'] ?? ''; ?>" >
-                    
-                    <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info" title="Editar">
-                      <i class="fas fa-edit"></i>
-                    </button>
-                    <button type="submit" name="accion" value="btnEliminar" class="btn btn-sm btn-danger" title="Eliminar">
-                      <i class="fas fa-trash-alt"></i>
-                    </button>
-                  </form>
+                  <div style="display:flex; gap:5px;">
+                    <form action="" method="post">
+                      <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>" >
+                      <input type="hidden" name="identificacion" value="<?php echo $usuario['identificacion']; ?>" >
+                      <input type="hidden" name="nombre" value="<?php echo $usuario['nombre']; ?>" >
+                      <input type="hidden" name="fecha" value="<?php echo $usuario['fecha']; ?>" >
+                      <input type="hidden" name="consecutivo" value="<?php echo $usuario['consecutivo']; ?>" >
+                      <input type="hidden" name="numeroFactura" value="<?php echo $usuario['numeroFactura'] ?? ''; ?>" >
+                      <input type="hidden" name="formaPago" value="<?php echo $usuario['formaPago']; ?>" >
+                      <input type="hidden" name="fechaVencimiento" value="<?php echo $usuario['fecha_vencimiento'] ?? ''; ?>" >
+                      <input type="hidden" name="subtotal" value="<?php echo $usuario['subtotal']; ?>" >
+                      <input type="hidden" name="ivaTotal" value="<?php echo $usuario['ivaTotal']; ?>" >
+                      <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>" >
+                      <input type="hidden" name="valorTotal" value="<?php echo $usuario['valorTotal']; ?>" >
+                      <input type="hidden" name="observaciones" value="<?php echo $usuario['observaciones']; ?>" >
+                      <input type="hidden" name="selectRetencion" value="<?php echo $usuario['retencion_tarifa'] ?? ''; ?>" >
+                      
+                      <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info" title="Editar">
+                        <i class="fas fa-edit"></i>
+                      </button>
+                      <button type="submit" name="accion" value="btnEliminar" class="btn btn-sm btn-danger" title="Eliminar">
+                        <i class="fas fa-trash-alt"></i>
+                      </button>
+                    </form>
+                    <!-- NUEVOS BOTONES -->
+                    <a href="ver_factura_compra.php?id=<?php echo $usuario['id']; ?>" 
+                      class="btn btn-sm btn-primary" 
+                      target="_blank" 
+                      title="Ver/Imprimir">
+                      <i class="fas fa-print"></i>
+                    </a>
+                    <a href="generar_pdf_factura_compra.php?id=<?php echo $usuario['id']; ?>" 
+                      class="btn btn-sm btn-danger" 
+                      target="_blank" 
+                      title="Descargar PDF">
+                      <i class="fas fa-file-pdf"></i>
+                    </a>
+                    <a href="generar_excel_factura_compra.php?id=<?php echo $usuario['id']; ?>" 
+                      class="btn btn-sm btn-success" 
+                      target="_blank" 
+                      title="Descargar Excel">
+                      <i class="fas fa-file-excel"></i>
+                    </a>
+                  </div>
                 </td>
               </tr>
             <?php } ?>

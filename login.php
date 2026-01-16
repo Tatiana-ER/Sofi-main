@@ -22,19 +22,22 @@
         }
         .leftside img {
             max-width: 2000px;
-            margin-left: 170px;
-            margin-right: 100px;
-            margin-top: -60px;
+            margin-left: 200px;
+            margin-right: 120px;
+            margin-top: -40px;
         }
 
+        .forma {
+            background-color: #fbfbfb; /* el color que quieras */
+        }
     </style>
 </head>
-<body>
+<body class="forma">
 
     <div class="form">
         <div class="leftside">
             <!-- Nuevo logo SOFI UDES, creadro por Tatiana y Catalina-->
-            <img src="./Img/sofilogo5.png" alt="Bienvenido">
+            <img src="./Img/logonuevo3.jpeg" alt="Bienvenido">
             <!--<h1>SOFI UDES</h1>-->
         </div>
 
