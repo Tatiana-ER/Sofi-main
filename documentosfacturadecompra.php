@@ -37,16 +37,46 @@ if (isset($_POST['detalles'])) {
     $_POST['detalles'] = json_decode($_POST['detalles'], true);
 }
 
+// Procesar múltiples medios de pago
+$mediosPagoArray = [];
+if (isset($_POST['metodosPago']) && is_array($_POST['metodosPago'])) {
+    foreach ($_POST['metodosPago'] as $index => $metodoData) {
+        if (!empty($metodoData['metodo']) && !empty($metodoData['valor'])) {
+            $mediosPagoArray[] = [
+                'metodo' => $metodoData['metodo'],
+                'cuenta' => explode(' - ', $metodoData['metodo'])[1] ?? '',
+                'valor' => floatval($metodoData['valor'])
+            ];
+        }
+    }
+}
+
 switch($accion){
   case "btnAgregar":
     try {
         $pdo->beginTransaction();
 
-        // Insertar factura - CORREGIDO: Vincular todos los parámetros
+        // Validar suma de medios de pago
+        $sumaMediosPago = array_sum(array_column($mediosPagoArray, 'valor'));
+        $diferencia = abs($sumaMediosPago - floatval($valorTotal));
+        
+        if ($diferencia > 0.01) {
+            $mensajeError = "La suma de los medios de pago (".number_format($sumaMediosPago, 2).") ";
+            $mensajeError .= "no coincide con el valor total (".number_format($valorTotal, 2)."). ";
+            
+            if ($sumaMediosPago < floatval($valorTotal)) {
+                $mensajeError .= "Faltan ".number_format(floatval($valorTotal) - $sumaMediosPago, 2);
+            } else {
+                $mensajeError .= "Sobran ".number_format($sumaMediosPago - floatval($valorTotal), 2);
+            }
+            
+            throw new Exception($mensajeError);
+        }
+
+        // Insertar factura
         $sentencia=$pdo->prepare("INSERT INTO facturac(identificacion,nombre,fecha,consecutivo,numeroFactura,formaPago,fecha_vencimiento,subtotal,ivaTotal,retenciones,valorTotal,observaciones,retencion_tarifa) 
         VALUES (:identificacion,:nombre,:fecha,:consecutivo,:numeroFactura,:formaPago,:fecha_vencimiento,:subtotal,:ivaTotal,:retenciones,:valorTotal,:observaciones,:retencion_tarifa)");
         
-        // Vincular todos los parámetros - ESTO FALTABA
         $sentencia->bindParam(':identificacion',$identificacion);
         $sentencia->bindParam(':nombre',$nombre);
         $sentencia->bindParam(':fecha',$fecha);
@@ -64,7 +94,7 @@ switch($accion){
         $sentencia->execute();
         $idFactura = $pdo->lastInsertId();
 
-        // Insertar detalles y actualizar inventario - MODIFICADO: actualizar costo
+        // Insertar detalles y actualizar inventario
         if (isset($_POST['detalles']) && is_array($_POST['detalles'])) {
           $sqlDetalle = "INSERT INTO detallefacturac 
                         (factura_id, codigoProducto, nombreProducto, cantidad, precioUnitario, iva, valorTotal)
@@ -81,12 +111,9 @@ switch($accion){
                   throw new Exception("El código {$detalle['codigoProducto']} no existe en el inventario.");
               }
 
-              // Solo actualizar costo si es PRODUCTO (no servicio)
-              // NOTA: La cantidad se actualiza mediante un trigger en la base de datos
               if (strtolower($item['tipoItem']) === 'producto') {
                   $nuevoCosto = $detalle['precio'];
                   
-                  // Solo actualizar costo, NO cantidad (el trigger maneja la cantidad)
                   $updateCost = $pdo->prepare("UPDATE productoinventarios SET 
                                               costoUnitario = :costoUnitario
                                               WHERE codigoProducto = :codigo");
@@ -109,6 +136,29 @@ switch($accion){
           }
       }
 
+        // Insertar múltiples medios de pago
+        if (!empty($mediosPagoArray)) {
+            $sqlMedioPago = "INSERT INTO medios_pago_factura 
+                            (factura_id, tipo_factura, forma_pago, cuenta_contable, nombre_cuenta, valor) 
+                            VALUES (:factura_id, 'compra', :forma_pago, :cuenta_contable, :nombre_cuenta, :valor)";
+            $stmtMedioPago = $pdo->prepare($sqlMedioPago);
+            
+            foreach ($mediosPagoArray as $medio) {
+                $partes = explode(' - ', $medio['metodo']);
+                $forma_pago_nombre = $partes[0] ?? $medio['metodo'];
+                $cuenta_contable = $partes[1] ?? '';
+                $nombre_cuenta = $partes[1] ?? '';
+                
+                $stmtMedioPago->execute([
+                    ':factura_id' => $idFactura,
+                    ':forma_pago' => $forma_pago_nombre,
+                    ':cuenta_contable' => $cuenta_contable,
+                    ':nombre_cuenta' => $nombre_cuenta,
+                    ':valor' => $medio['valor']
+                ]);
+            }
+        }
+
         // Registrar en Libro Diario
         $libroDiario->registrarFacturaCompra($idFactura);
 
@@ -127,6 +177,14 @@ break;
     try {
         $pdo->beginTransaction();
 
+        // Validar suma de medios de pago
+        $sumaMediosPago = array_sum(array_column($mediosPagoArray, 'valor'));
+        $diferencia = abs($sumaMediosPago - floatval($valorTotal));
+        
+        if ($diferencia > 0.01) {
+            throw new Exception("La suma de los medios de pago (".number_format($sumaMediosPago, 2).") no coincide con el valor total (".number_format($valorTotal, 2)."). Faltan ".number_format(floatval($valorTotal) - $sumaMediosPago, 2));
+        }
+
         // Eliminar asientos contables antiguos
         $libroDiario->eliminarMovimientos('factura_compra', $txtId);
 
@@ -140,7 +198,7 @@ break;
         $stmtOldDetails->execute([':factura_id' => $txtId]);
         $oldDetails = $stmtOldDetails->fetchAll(PDO::FETCH_ASSOC);
 
-        // Restaurar inventario (revertir la compra anterior) - MODIFICADO: restaurar costo anterior
+        // Restaurar inventario
         $restoreStockAndCost = $pdo->prepare("UPDATE productoinventarios SET 
                                             cantidad = cantidad - :cantidad,
                                             costoUnitario = :costoUnitario
@@ -149,7 +207,7 @@ break;
             if (strtolower($old['tipoItem']) === 'producto') {
                 $restoreStockAndCost->execute([
                     ':cantidad' => $old['cantidad'],
-                    ':costoUnitario' => $old['costoUnitario'], // Restaurar costo anterior
+                    ':costoUnitario' => $old['costoUnitario'],
                     ':codigo' => $old['codigoProducto']
                 ]);
             }
@@ -172,7 +230,6 @@ break;
                                         retencion_tarifa = :retencion_tarifa
                                     WHERE id = :id");
 
-        // ... (parámetros de la factura - asegúrate de que todos estén vinculados)
         $sentencia->bindParam(':identificacion', $identificacion);
         $sentencia->bindParam(':nombre', $nombre);
         $sentencia->bindParam(':fecha', $fecha);
@@ -203,11 +260,7 @@ break;
 
             $checkItem = $pdo->prepare("SELECT tipoItem, cantidad, costoUnitario FROM productoinventarios WHERE codigoProducto = :codigo");
             
-            // <CHANGE> Preparar UPDATE de forma más segura - Se prepara DENTRO del foreach para evitar reutilización
-            // que puede causar duplicación de updates
-
             foreach ($_POST['detalles'] as $detalle) {
-                // Validar que el producto existe
                 $checkItem->execute([':codigo' => $detalle['codigoProducto']]);
                 $item = $checkItem->fetch(PDO::FETCH_ASSOC);
 
@@ -215,9 +268,8 @@ break;
                     throw new Exception("El código {$detalle['codigoProducto']} no existe en el inventario.");
                 }
 
-               // Insertar detalle PRIMERO
                 $stmtDetalle->execute([
-                    ':factura_id' => $txtId,  // CORREGIDO: usar $txtId en lugar de $idFactura
+                    ':factura_id' => $txtId,
                     ':codigoProducto' => $detalle['codigoProducto'],
                     ':nombreProducto' => $detalle['nombreProducto'],
                     ':cantidad' => $detalle['cantidad'],
@@ -226,8 +278,6 @@ break;
                     ':valorTotal' => $detalle['precioTotal']
                 ]);
 
-                // <CHANGE> Actualizar inventario SOLO para productos (no servicios)
-                // Preparar el UPDATE cada vez para evitar problemas de reutilización de statements
                 if (strtolower($item['tipoItem']) === 'producto') {
                     $nuevoCosto = $detalle['precio'];
                     
@@ -242,17 +292,42 @@ break;
                         ':codigo' => $detalle['codigoProducto']
                     ]);
 
-                    // <CHANGE> Validar que el UPDATE se ejecutó correctamente
                     if (!$resultUpdate) {
                         throw new Exception("Error al actualizar el inventario del producto {$detalle['codigoProducto']}");
                     }
 
-                    // <CHANGE> Verificar que se actualizó al menos una fila
                     $rowsAffected = $updateStockAndCost->rowCount();
                     if ($rowsAffected === 0) {
                         throw new Exception("No se pudo actualizar el inventario: producto {$detalle['codigoProducto']} no encontrado");
                     }
                 }
+            }
+        }
+
+        // Eliminar medios de pago antiguos
+        $deleteMediosPago = $pdo->prepare("DELETE FROM medios_pago_factura WHERE factura_id = :factura_id AND tipo_factura = 'compra'");
+        $deleteMediosPago->execute([':factura_id' => $txtId]);
+
+        // Insertar nuevos medios de pago
+        if (!empty($mediosPagoArray)) {
+            $sqlMedioPago = "INSERT INTO medios_pago_factura 
+                            (factura_id, tipo_factura, forma_pago, cuenta_contable, nombre_cuenta, valor) 
+                            VALUES (:factura_id, 'compra', :forma_pago, :cuenta_contable, :nombre_cuenta, :valor)";
+            $stmtMedioPago = $pdo->prepare($sqlMedioPago);
+            
+            foreach ($mediosPagoArray as $medio) {
+                $partes = explode(' - ', $medio['metodo']);
+                $forma_pago_nombre = $partes[0] ?? $medio['metodo'];
+                $cuenta_contable = $partes[1] ?? '';
+                $nombre_cuenta = $partes[1] ?? '';
+                
+                $stmtMedioPago->execute([
+                    ':factura_id' => $txtId,
+                    ':forma_pago' => $forma_pago_nombre,
+                    ':cuenta_contable' => $cuenta_contable,
+                    ':nombre_cuenta' => $nombre_cuenta,
+                    ':valor' => $medio['valor']
+                ]);
             }
         }
 
@@ -297,6 +372,11 @@ break;
                 ]);
             }
         }
+
+        // Eliminar medios de pago asociados
+        $sentenciaMedios = $pdo->prepare("DELETE FROM medios_pago_factura WHERE factura_id = :id AND tipo_factura = 'compra'");
+        $sentenciaMedios->bindParam(':id', $txtId);
+        $sentenciaMedios->execute();
 
         // Eliminar detalles
         $sentenciaDetalle = $pdo->prepare("DELETE FROM detallefacturac WHERE factura_id = :id");
@@ -347,6 +427,12 @@ break;
       $stmtDetalle->bindParam(':id_factura', $txtId);
       $stmtDetalle->execute();
       $detalles = $stmtDetalle->fetchAll(PDO::FETCH_ASSOC);
+      
+      // Cargar medios de pago asociados
+      $stmtMedios = $pdo->prepare("SELECT * FROM medios_pago_factura WHERE factura_id = :id_factura AND tipo_factura = 'compra'");
+      $stmtMedios->bindParam(':id_factura', $txtId);
+      $stmtMedios->execute();
+      $mediosPagoFactura = $stmtMedios->fetchAll(PDO::FETCH_ASSOC);
   break;
 }
 
@@ -395,7 +481,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['identificacion']) || 
     exit;
 }
 
-// Buscar producto por código (para el select) - MODIFICADO: obtener costoUnitario
+// Buscar producto por código
 if (isset($_POST['codigoProducto'])) {
     $codigo = trim($_POST['codigoProducto']);
     $producto = null;
@@ -416,10 +502,9 @@ if (isset($_POST['codigoProducto'])) {
             "nombreProducto" => $producto['descripcionProducto'],
             "tipoItem" => $producto['tipoItem'],
             "precioUnitario" => $producto['precioUnitario'] ?? 0,
-            "costoUnitario" => $producto['costoUnitario'] ?? 0 // NUEVO: retornar costo
+            "costoUnitario" => $producto['costoUnitario'] ?? 0
         ];
         
-        // Solo mostrar stock si es producto (no servicio)
         if (strtolower($producto['tipoItem']) === 'producto') {
             $response['stockDisponible'] = $producto['cantidad'];
         }
@@ -588,6 +673,52 @@ document.addEventListener("DOMContentLoaded", () => {
       cursor: pointer;
       padding: 5px 10px;
     }
+    
+    /* Estilos para sección de medios de pago */
+    .metodos-pago-container {
+      margin-top: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background-color: #f9f9f9;
+    }
+    
+    .metodo-pago-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .metodo-pago-row select,
+    .metodo-pago-row input {
+      flex: 1;
+    }
+    
+    .btn-metodo {
+      width: 40px;
+      height: 38px;
+    }
+    
+    .total-medios-pago {
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #e7f3ff;
+      border-radius: 5px;
+      font-weight: bold;
+    }
+    
+    .validacion-error {
+      color: #dc3545;
+      font-weight: bold;
+      margin-top: 5px;
+    }
+    
+    .validacion-exito {
+      color: #198754;
+      font-weight: bold;
+      margin-top: 5px;
+    }
   </style>
 
 </head>
@@ -747,22 +878,84 @@ document.addEventListener("DOMContentLoaded", () => {
             </table>
           </div>
 
-          <!-- Forma de Pago -->
-          <div class="row g-3 mt-2">
-            <div class="col-md-6">
-              <label for="formaPago" class="form-label fw-bold">Forma de Pago*</label>
-              <select class="form-select" id="formaPago" name="formaPago" required onchange="mostrarFechaVencimiento()">
-                <option value="">Seleccione una opción</option>
-                <?php foreach ($mediosPago as $medio): ?>
-                  <option value="<?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>"
-                    <?= ($formaPago == $medio['metodoPago']) ? 'selected' : '' ?>>
-                    <?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>
-                  </option>
+          <!-- NUEVA SECCIÓN: Múltiples medios de pago -->
+          <div class="metodos-pago-container">
+            <h5 class="fw-bold mb-3">Métodos de Pago</h5>
+            
+            <div id="medios-pago-container">
+              <?php if (!empty($mediosPagoFactura)): ?>
+                <?php foreach ($mediosPagoFactura as $index => $medio): ?>
+                  <div class="metodo-pago-row" data-index="<?= $index ?>">
+                    <select name="metodosPago[<?= $index ?>][metodo]" class="form-select select-metodo-pago" required>
+                      <option value="">Seleccione método</option>
+                      <?php foreach ($mediosPago as $mp): ?>
+                        <?php $valorCompleto = $mp['metodoPago'] . ' - ' . $mp['cuentaContable']; ?>
+                        <option value="<?= htmlspecialchars($valorCompleto) ?>" 
+                          <?= ($valorCompleto == ($medio['forma_pago'] . ' - ' . $medio['cuenta_contable'])) ? 'selected' : '' ?>>
+                          <?= htmlspecialchars($mp['metodoPago']) ?> - <?= htmlspecialchars($mp['cuentaContable']) ?>
+                        </option>
+                      <?php endforeach; ?>
+                    </select>
+                    <input type="number" 
+                           name="metodosPago[<?= $index ?>][valor]" 
+                           class="form-control valor-metodo" 
+                           placeholder="Valor" 
+                           step="0.01" 
+                           min="0"
+                           value="<?= number_format($medio['valor'], 2, '.', '') ?>"
+                           required>
+                    <?php if ($index == 0): ?>
+                      <button type="button" class="btn btn-success btn-metodo" onclick="agregarMedioPago()">
+                        <i class="fas fa-plus"></i>
+                      </button>
+                    <?php else: ?>
+                      <button type="button" class="btn btn-danger btn-metodo" onclick="eliminarMedioPago(this)">
+                        <i class="fas fa-minus"></i>
+                      </button>
+                    <?php endif; ?>
+                  </div>
                 <?php endforeach; ?>
-              </select>
+              <?php else: ?>
+                <!-- Fila inicial con valor predeterminado -->
+                <div class="metodo-pago-row" data-index="0">
+                  <select name="metodosPago[0][metodo]" class="form-select select-metodo-pago" required>
+                    <option value="">Seleccione método</option>
+                    <?php foreach ($mediosPago as $mp): ?>
+                      <option value="<?= htmlspecialchars($mp['metodoPago'] . ' - ' . $mp['cuentaContable']) ?>">
+                        <?= htmlspecialchars($mp['metodoPago']) ?> - <?= htmlspecialchars($mp['cuentaContable']) ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                  <input type="number" 
+                         name="metodosPago[0][valor]" 
+                         class="form-control valor-metodo" 
+                         placeholder="Valor" 
+                         step="0.01" 
+                         min="0"
+                         value="<?php echo isset($valorTotal) && !empty($valorTotal) ? $valorTotal : '0.00'; ?>"
+                         required>
+                  <button type="button" class="btn btn-success btn-metodo" onclick="agregarMedioPago()">
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </div>
+              <?php endif; ?>
             </div>
             
-            <!-- Campo de Fecha de Vencimiento (oculto inicialmente) -->
+            <div class="total-medios-pago">
+              <div class="row">
+                <div class="col-md-6">
+                  <span>Total medios de pago: </span>
+                  <span id="total-medios-pago"><?php echo isset($valorTotal) && !empty($valorTotal) ? $valorTotal : '0.00'; ?></span>
+                </div>
+                <div class="col-md-6">
+                  <span id="validacion-medios-pago"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Campo de Fecha de Vencimiento (oculto inicialmente) -->
+          <div class="row g-3 mt-3">
             <div class="col-md-6" id="fechaVencimientoContainer" style="display: none;">
               <label for="fechaVencimiento" class="form-label fw-bold">Fecha de Vencimiento*</label>
               <input type="date" class="form-control" id="fechaVencimiento" name="fechaVencimiento"
@@ -847,6 +1040,7 @@ document.addEventListener("DOMContentLoaded", () => {
               </tr>
             </thead>
             <tbody id="tabla-registros">
+            <?php $modalesParaRenderizar = []; ?>
             <?php foreach($lista as $usuario){ ?>
               <tr>
                 <td><?php echo $usuario['identificacion']; ?></td>
@@ -854,7 +1048,43 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td><?php echo $usuario['fecha']; ?></td>
                 <td><?php echo $usuario['consecutivo']; ?></td>
                 <td><?php echo $usuario['numeroFactura'] ?? ''; ?></td>
-                <td><?php echo $usuario['formaPago']; ?></td>
+                <td>
+                <?php 
+                // Obtener medios de pago de la tabla nueva
+                $stmtMedios = $pdo->prepare("SELECT forma_pago, cuenta_contable, valor FROM medios_pago_factura 
+                                            WHERE factura_id = :factura_id AND tipo_factura = 'compra'");
+                $stmtMedios->execute([':factura_id' => $usuario['id']]);
+                $mediosFactura = $stmtMedios->fetchAll(PDO::FETCH_ASSOC);
+
+                if (is_array($mediosFactura) && count($mediosFactura) > 0) {
+                    $primerMedio = $mediosFactura[0]['forma_pago'];
+                    $partes = explode(' - ', $primerMedio);
+                    $nombreCorto = $partes[0] ?? $primerMedio;
+                    
+                    $modalId = "modalMediosPago" . $usuario['id'];
+                    
+                    // Guardar datos para renderizar el modal FUERA de la tabla
+                    $modalesParaRenderizar[] = [
+                        'modalId' => $modalId,
+                        'consecutivo' => $usuario['consecutivo'],
+                        'medios' => $mediosFactura,
+                        'valorTotal' => $usuario['valorTotal']
+                    ];
+                    ?>
+                    <button type="button" class="btn btn-sm btn-outline-info btn-medios-pago" 
+                            data-bs-toggle="modal" data-bs-target="#<?php echo $modalId; ?>">
+                        <i class="fas fa-credit-card me-1"></i>
+                        <?php echo htmlspecialchars($nombreCorto); ?>
+                        <?php if (count($mediosFactura) > 1): ?>
+                            <span class="badge bg-info ms-1">+<?php echo (count($mediosFactura) - 1); ?></span>
+                        <?php endif; ?>
+                    </button>
+                    <?php
+                } else {
+                    echo '<span class="text-muted"><i class="fas fa-ban me-1"></i>Sin medios</span>';
+                }
+                ?>
+                </td>
                 <td><?php echo $usuario['fecha_vencimiento'] ?? ''; ?></td>
                 <td><?php echo $usuario['subtotal']; ?></td>
                 <td><?php echo $usuario['ivaTotal']; ?></td>
@@ -911,15 +1141,68 @@ document.addEventListener("DOMContentLoaded", () => {
             <?php } ?>
           </tbody>
           </table>
-        </div>  
-      </div>
+        <!-- Modales de medios de pago (FUERA de la tabla) -->
+<?php if (!empty($modalesParaRenderizar)): ?>
+    <?php foreach ($modalesParaRenderizar as $modalData): ?>
+    <div class="modal fade" id="<?php echo $modalData['modalId']; ?>" tabindex="-1" 
+         aria-labelledby="<?php echo $modalData['modalId']; ?>Label" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title" id="<?php echo $modalData['modalId']; ?>Label">
+                        <i class="fas fa-credit-card me-2"></i>
+                        Factura #<?php echo htmlspecialchars($modalData['consecutivo']); ?>
+                    </h5> 
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Metodo de Pago</th>
+                                    <th>Cuenta</th>
+                                    <th class="text-end">Valor</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php 
+                                $totalMedios = 0;
+                                foreach ($modalData['medios'] as $medio): 
+                                    $totalMedios += floatval($medio['valor'] ?? 0);
+                                    $partesMedio = explode(' - ', $medio['forma_pago']);
+                                    $metodo = htmlspecialchars($partesMedio[0] ?? ($medio['forma_pago'] ?? ''));
+                                    $cuenta = !empty($medio['cuenta_contable']) 
+                                        ? htmlspecialchars($medio['cuenta_contable'])
+                                        : (isset($partesMedio[1]) ? htmlspecialchars($partesMedio[1]) : '');
+                                ?>
+                                <tr>
+                                    <td><?php echo $metodo; ?></td>
+                                    <td><?php echo $cuenta; ?></td>
+                                    <td class="text-end">$<?php echo number_format($medio['valor'] ?? 0, 2); ?></td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endforeach; ?>
+<?php endif; ?>
+
+</div>
+</div>
         
         <script>
         // Obtener consecutivo al cargar la página SOLO si no hay ID (modo agregar)
         window.addEventListener('DOMContentLoaded', function() {
             const txtId = document.getElementById("txtId").value;
             
-            // Solo obtener nuevo consecutivo si estamos en modo AGREGAR (sin ID)
             if (!txtId || txtId.trim() === "") {
                 fetch(window.location.pathname + "?get_consecutivo=1")
                     .then(response => response.json())
@@ -929,21 +1212,21 @@ document.addEventListener("DOMContentLoaded", () => {
                     .catch(error => console.error('Error al obtener consecutivo:', error));
             }
             
-            // Permitir seleccionar cualquier fecha (pasada o futura)
             const fechaInput = document.getElementById("fecha");
             const hoy = new Date().toISOString().split('T')[0];
 
-            // Solo establecer fecha por defecto si está vacía
             if (!fechaInput.value) {
                 fechaInput.value = hoy;
             }
+            
+            // Calcular total de medios de pago inicial y configurar valor inicial
+            inicializarMediosPago();
         });
 
         // Buscar el proveedor
         const inputIdentificacion = document.getElementById("identificacion");
         const inputNombre = document.getElementById("nombre");
 
-        // Buscar por identificación
         inputIdentificacion.addEventListener("input", function () {
             const valor = this.value.trim();
             if (valor.length > 0) {
@@ -962,7 +1245,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-        // Buscar por nombre
         inputNombre.addEventListener("input", function () {
             const valor = this.value.trim();
             if (valor.length >= 3) {
@@ -981,44 +1263,175 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         });
 
-        // Función para mostrar/ocultar fecha de vencimiento según forma de pago
+        // Funciones para manejar múltiples medios de pago
+        let contadorMediosPago = <?= !empty($mediosPagoFactura) ? count($mediosPagoFactura) : 1 ?>;
+        
+        // Inicializar medios de pago con valor total como valor predeterminado
+        function inicializarMediosPago() {
+            const valorTotal = parseFloat(document.getElementById('valorTotal').value) || 0;
+            const primerValorInput = document.querySelector('.valor-metodo');
+            const txtId = document.getElementById('txtId').value;
+            const modoEdicion = txtId && txtId.trim() !== "";
+            
+            // Solo establecer valor inicial si NO estamos en modo edición
+            if (!modoEdicion && primerValorInput) {
+                primerValorInput.value = valorTotal.toFixed(2);
+            }
+            
+            calcularTotalMediosPago();
+            mostrarFechaVencimiento();
+        }
+        
+        function agregarMedioPago() {
+            const container = document.getElementById('medios-pago-container');
+            const newRow = document.createElement('div');
+            newRow.className = 'metodo-pago-row';
+            newRow.setAttribute('data-index', contadorMediosPago);
+            
+            // Calcular el valor restante para sugerir en el nuevo campo
+            const valorTotal = parseFloat(document.getElementById('valorTotal').value) || 0;
+            const totalActual = calcularTotalMediosPago(false); // Calcular sin actualizar UI
+            const valorRestante = Math.max(0, valorTotal - totalActual);
+            
+            newRow.innerHTML = `
+                <select name="metodosPago[${contadorMediosPago}][metodo]" class="form-select select-metodo-pago" required>
+                    <option value="">Seleccione método</option>
+                    <?php foreach ($mediosPago as $mp): ?>
+                        <option value="<?= htmlspecialchars($mp['metodoPago'] . ' - ' . $mp['cuentaContable']) ?>">
+                            <?= htmlspecialchars($mp['metodoPago']) ?> - <?= htmlspecialchars($mp['cuentaContable']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <input type="number" 
+                       name="metodosPago[${contadorMediosPago}][valor]" 
+                       class="form-control valor-metodo" 
+                       placeholder="Valor" 
+                       step="0.01" 
+                       min="0"
+                       value="${valorRestante.toFixed(2)}"
+                       required>
+                <button type="button" class="btn btn-danger btn-metodo" onclick="eliminarMedioPago(this)">
+                    <i class="fas fa-minus"></i>
+                </button>
+            `;
+            
+            container.appendChild(newRow);
+            contadorMediosPago++;
+            
+            // Agregar event listeners a los nuevos campos
+            newRow.querySelector('.valor-metodo').addEventListener('input', calcularTotalMediosPago);
+            newRow.querySelector('.select-metodo-pago').addEventListener('change', function() {
+                mostrarFechaVencimiento();
+            });
+            
+            // Recalcular totales
+            calcularTotalMediosPago();
+        }
+        
+        function eliminarMedioPago(button) {
+            const row = button.closest('.metodo-pago-row');
+            if (document.querySelectorAll('.metodo-pago-row').length > 1) {
+                row.remove();
+                calcularTotalMediosPago();
+            } else {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Atención',
+                    text: 'Debe haber al menos un método de pago',
+                    confirmButtonColor: '#3085d6'
+                });
+            }
+        }
+        
+        function calcularTotalMediosPago(updateUI = true) {
+            let total = 0;
+            const valorInputs = document.querySelectorAll('.valor-metodo');
+            
+            valorInputs.forEach(input => {
+                const valor = parseFloat(input.value) || 0;
+                total += valor;
+            });
+            
+            if (updateUI) {
+                document.getElementById('total-medios-pago').textContent = total.toFixed(2);
+                
+                // Validar contra el total de la factura
+                const valorTotal = parseFloat(document.getElementById('valorTotal').value) || 0;
+                const validacionElement = document.getElementById('validacion-medios-pago');
+                
+                if (Math.abs(total - valorTotal) < 0.01) {
+                    validacionElement.textContent = '✓ Total correcto';
+                    validacionElement.className = 'validacion-exito';
+                } else {
+                    const diferencia = valorTotal - total;
+                    if (diferencia > 0) {
+                        validacionElement.textContent = `Faltan: ${diferencia.toFixed(2)}`;
+                    } else {
+                        validacionElement.textContent = `Sobran: ${Math.abs(diferencia).toFixed(2)}`;
+                    }
+                    validacionElement.className = 'validacion-error';
+                }
+            }
+            
+            return total;
+        }
+        
+        // Modificar la función mostrarFechaVencimiento
         function mostrarFechaVencimiento() {
-            const formaPagoSelect = document.getElementById('formaPago');
+            const formaPagoSelects = document.querySelectorAll('.select-metodo-pago');
             const fechaVencimientoContainer = document.getElementById('fechaVencimientoContainer');
             const retencionContainer = document.getElementById('retencionContainer');
             const fechaVencimientoInput = document.getElementById('fechaVencimiento');
             
-            const formaPago = formaPagoSelect.value.toLowerCase();
-            const esCredito = formaPago.includes('credito') || formaPago.includes('crédito');
+            let esCredito = false;
+            // Verificar TODOS los métodos de pago
+            formaPagoSelects.forEach(select => {
+                const valor = select.value.toLowerCase();
+                if (valor.includes('credito') || valor.includes('crédito')) {
+                    esCredito = true;
+                }
+            });
             
             if (esCredito) {
                 fechaVencimientoContainer.style.display = 'block';
                 retencionContainer.classList.remove('col-md-6');
                 retencionContainer.classList.add('col-md-12');
                 
-            // Establecer fecha mínima como la fecha del documento
-            const fechaDocumento = document.getElementById('fecha').value;
-            if (fechaDocumento) {
-                fechaVencimientoInput.setAttribute('min', fechaDocumento);
-            }
+                // Establecer fecha mínima como la fecha del documento
+                const fechaDocumento = document.getElementById('fecha').value;
+                if (fechaDocumento) {
+                    fechaVencimientoInput.setAttribute('min', fechaDocumento);
+                }
 
-            // Si no hay fecha establecida, poner 30 días desde la fecha del documento
-            if (!fechaVencimientoInput.value && fechaDocumento) {
-                const fechaDefault = new Date(fechaDocumento);
-                fechaDefault.setDate(fechaDefault.getDate() + 30);
-                fechaVencimientoInput.value = fechaDefault.toISOString().split('T')[0];
-            }
+                // Si no hay fecha establecida, poner 30 días desde la fecha del documento
+                if (!fechaVencimientoInput.value && fechaDocumento) {
+                    const fechaDefault = new Date(fechaDocumento);
+                    fechaDefault.setDate(fechaDefault.getDate() + 30);
+                    fechaVencimientoInput.value = fechaDefault.toISOString().split('T')[0];
+                }
+                
+                // Hacer obligatorio el campo
+                fechaVencimientoInput.required = true;
             } else {
                 fechaVencimientoContainer.style.display = 'none';
                 retencionContainer.classList.remove('col-md-12');
                 retencionContainer.classList.add('col-md-6');
                 fechaVencimientoInput.value = '';
+                fechaVencimientoInput.required = false;
             }
         }
 
-        // Ejecutar al cargar la página para verificar el estado inicial
+        // Agregar event listeners a los campos de medios de pago existentes
         document.addEventListener('DOMContentLoaded', function() {
-            mostrarFechaVencimiento();
+            document.querySelectorAll('.valor-metodo').forEach(input => {
+                input.addEventListener('input', calcularTotalMediosPago);
+            });
+            
+            document.querySelectorAll('.select-metodo-pago').forEach(select => {
+                select.addEventListener('change', function() {
+                    mostrarFechaVencimiento();
+                });
+            });
         });
 
         // Función para cargar precio automáticamente
@@ -1041,7 +1454,6 @@ document.addEventListener("DOMContentLoaded", () => {
                         if (data.nombreProducto && !nombreInput.value) {
                             nombreInput.value = data.nombreProducto;
                         }
-                        // Recalcular valores
                         calcularValores();
                     }
                 })
@@ -1054,7 +1466,6 @@ document.addEventListener("DOMContentLoaded", () => {
           const target = e.target;
           const row = target.closest("tr");
 
-          // Buscar por nombre de producto (mantener esta funcionalidad)
           if (target.name === "nombreProducto" && target.value.trim().length >= 3) {
             fetch("", {
               method: "POST",
@@ -1067,7 +1478,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 const codigoInput = row.querySelector('[name="codigoProducto"]');
                 const precioInput = row.querySelector('.unit-price');
                 
-                // Si es un SELECT, buscar y seleccionar la opción correcta
                 if (codigoInput.tagName === 'SELECT') {
                   const option = Array.from(codigoInput.options).find(
                     opt => opt.value === data.codigoProducto
@@ -1079,7 +1489,6 @@ document.addEventListener("DOMContentLoaded", () => {
                   codigoInput.value = data.codigoProducto;
                 }
                 
-                // Cargar el COSTO (no el precio) desde la base de datos
                 if (data.costoUnitario && data.costoUnitario > 0) {
                   precioInput.value = data.costoUnitario;
                   precioInput.placeholder = `Costo actual: ${data.costoUnitario}`;
@@ -1092,11 +1501,6 @@ document.addEventListener("DOMContentLoaded", () => {
             })
             .catch(error => console.error('Error:', error));
           }
-          
-          // ELIMINAR COMPLETAMENTE este bloque que buscaba por código:
-          // if (target.name === "codigoProducto" && target.value.trim() !== "") {
-          //   ... código que cargaba precioUnitario ...
-          // }
         });
 
         // Event listener para cambios en cantidad o precio
@@ -1106,28 +1510,62 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         });
 
-        // Calcular Retenciones y Total
         function calcularRetencionesYTotal() {
             const subtotal = parseFloat(document.querySelector("#subtotal").value) || 0;
             const ivaTotal = parseFloat(document.querySelector("#ivaTotal").value) || 0;
             const selectRetencion = document.getElementById("selectRetencion");
             const tarifaRetencion = parseFloat(selectRetencion.value) || 0;
             
-            // Calcular retención (sobre el subtotal)
             const retencion = subtotal * (tarifaRetencion / 100);
-            
-            // Calcular valor total (Subtotal + IVA - Retenciones)
             const valorTotal = subtotal + ivaTotal - retencion;
             
             document.querySelector("#retenciones").value = retencion.toFixed(2);
             document.querySelector("#valorTotal").value = valorTotal.toFixed(2);
+            
+            // **NUEVO: Actualizar automáticamente el valor del primer método de pago**
+            const txtId = document.getElementById('txtId').value;
+            const modoEdicion = txtId && txtId.trim() !== "";
+            
+            // Solo actualizar automáticamente si NO estamos en modo edición
+            if (!modoEdicion) {
+                const valorInputs = document.querySelectorAll('.valor-metodo');
+                if (valorInputs.length === 1) {
+                    // Actualizar automáticamente el único método de pago
+                    const primerInput = valorInputs[0];
+                    primerInput.value = valorTotal.toFixed(2);
+                } else {
+                    // Si hay múltiples métodos, actualizar el primero si está vacío o es 0
+                    const primerInput = valorInputs[0];
+                    const valorActual = parseFloat(primerInput.value) || 0;
+                    if (valorActual === 0) {
+                        primerInput.value = valorTotal.toFixed(2);
+                    }
+                }
+            }
+            
+            // Recalcular validación de medios de pago
+            calcularTotalMediosPago();
         }
+
+        // También necesitamos llamar a calcularRetencionesYTotal cuando cambia la cantidad o precio
+        document.querySelector("#product-table").addEventListener("input", function (event) {
+            if (event.target.classList.contains("quantity") || 
+                event.target.classList.contains("unit-price") ||
+                event.target.classList.contains("iva")) {
+                calcularValores(); // Esto ya incluye calcularRetencionesYTotal
+            }
+        });
+
+        // Actualizar cuando cambia la retención
+        document.getElementById("selectRetencion").addEventListener("change", function() {
+            calcularRetencionesYTotal();
+        });
 
         // Función principal para calcular valores
         function calcularValores() {
             let subtotal = 0;
             let ivaTotal = 0;
-            let totalGeneral = 0;
+            let totalSinRetenciones = 0;
 
             document.querySelectorAll("#product-table tr").forEach(row => {
                 const cantidad = parseFloat(row.querySelector(".quantity")?.value || 0);
@@ -1137,41 +1575,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 if (!ivaField || !totalField) return;
 
-                // Calcular subtotal (sin impuestos)
                 const subtotalLinea = cantidad * precio;
-                
-                // Calcular IVA
                 const iva = subtotalLinea * 0.19;
-                
-                // Calcular total (subtotal + IVA)
-                const total = subtotalLinea + iva;
+                const totalLinea = subtotalLinea + iva;
 
                 ivaField.value = iva.toFixed(2);
-                totalField.value = total.toFixed(2);
+                totalField.value = totalLinea.toFixed(2);
 
                 subtotal += subtotalLinea;
                 ivaTotal += iva;
-                totalGeneral += total;
+                totalSinRetenciones += totalLinea;
             });
 
             document.querySelector("#subtotal").value = subtotal.toFixed(2);
             document.querySelector("#ivaTotal").value = ivaTotal.toFixed(2);
             
-            // Llamar a la función de retenciones
             calcularRetencionesYTotal();
         }
 
-        // Event listener para cambios en el selector de retención
+        // Event listeners
         document.getElementById("selectRetencion").addEventListener("change", calcularRetencionesYTotal);
 
-        // Event listener para cambios en cantidad o precio
-        document.querySelector("#product-table").addEventListener("input", function (event) {
-            if (event.target.classList.contains("quantity") || event.target.classList.contains("unit-price")) {
-                calcularValores();
-            }
-        });
-
-        // Función para cargar producto cuando se selecciona del dropdown - MODIFICADA
+        // Función para cargar producto cuando se selecciona del dropdown
         function cargarProducto(selectElement) {
             const row = selectElement.closest('tr');
             const selectedOption = selectElement.options[selectElement.selectedIndex];
@@ -1183,7 +1608,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if (codigo && nombre) {
                 nombreInput.value = nombre;
                 
-                // Obtener precio y costo desde la base de datos
                 fetch("", {
                     method: "POST",
                     body: new URLSearchParams({ codigoProducto: codigo }),
@@ -1191,16 +1615,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 })
                 .then(res => res.json())
                 .then(data => {
-                    // En factura de COMPRA, sugerir el costoUnitario como precio de compra
-                    // pero permitir que el usuario lo modifique
                     if (data.costoUnitario && data.costoUnitario > 0) {
                         precioInput.value = data.costoUnitario;
                         precioInput.placeholder = `Costo actual: ${data.costoUnitario}`;
                     } else if (data.precioUnitario && data.precioUnitario > 0) {
-                        // Si no hay costo, sugerir el precio de venta como referencia
                         precioInput.placeholder = `Precio venta ref: ${data.precioUnitario}`;
                     }
-                    // Recalcular valores
                     calcularValores();
                 })
                 .catch(error => {
@@ -1213,19 +1633,17 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-        // Agregar nueva fila
+        // Agregar nueva fila de productos
         window.addRow = function() {
             const tableBody = document.getElementById("product-table");
             const newRow = tableBody.firstElementChild.cloneNode(true);
 
-            // Limpiar valores
             newRow.querySelectorAll("input").forEach(input => {
                 if (!input.readOnly) {
                     input.value = "";
                 }
             });
             
-            // Resetear el select
             const select = newRow.querySelector('.select-producto');
             if (select) {
                 select.selectedIndex = 0;
@@ -1259,31 +1677,24 @@ document.addEventListener("DOMContentLoaded", () => {
             const btnCancelar = document.getElementById("btnCancelar");
 
             function modoAgregar() {
-                // Ocultar/mostrar botones
                 btnAgregar.style.display = "inline-block";
                 btnModificar.style.display = "none";
                 btnEliminar.style.display = "none";
                 btnCancelar.style.display = "none";
 
-                // Limpiar txtId
                 document.getElementById("txtId").value = "";
 
-               // Limpiar campos del formulario
-              document.getElementById("identificacion").value = "";
-              document.getElementById("nombre").value = "";
-              document.getElementById("fecha").value = new Date().toISOString().split('T')[0];
-              document.getElementById("numeroFactura").value = "";
-              document.getElementById("formaPago").value = "";
-              document.getElementById("fechaVencimiento").value = "";
-              document.getElementById("selectRetencion").value = "";
-              document.getElementById("observaciones").value = "";
-              
-              // Ocultar fecha de vencimiento
-              document.getElementById("fechaVencimientoContainer").style.display = "none";
-              document.getElementById("retencionContainer").classList.remove("col-md-12");
-              document.getElementById("retencionContainer").classList.add("col-md-6");
+                document.getElementById("identificacion").value = "";
+                document.getElementById("nombre").value = "";
+                document.getElementById("fecha").value = new Date().toISOString().split('T')[0];
+                document.getElementById("numeroFactura").value = "";
+                document.getElementById("observaciones").value = "";
+                
+                document.getElementById("fechaVencimientoContainer").style.display = "none";
+                document.getElementById("retencionContainer").classList.remove("col-md-12");
+                document.getElementById("retencionContainer").classList.add("col-md-6");
 
-                    // Limpiar la tabla de productos y dejar solo UNA fila vacía con select
+                // Limpiar tabla de productos
                 const tableBody = document.getElementById("product-table");
                 tableBody.innerHTML = `
                 <tr>
@@ -1310,7 +1721,34 @@ document.addEventListener("DOMContentLoaded", () => {
                 </tr>
             `;
 
-                // Obtener nuevo consecutivo
+                // Limpiar métodos de pago y establecer valor total como predeterminado
+                const mediosPagoContainer = document.getElementById('medios-pago-container');
+                mediosPagoContainer.innerHTML = `
+                    <div class="metodo-pago-row" data-index="0">
+                        <select name="metodosPago[0][metodo]" class="form-select select-metodo-pago" required>
+                            <option value="">Seleccione método</option>
+                            <?php foreach ($mediosPago as $mp): ?>
+                                <option value="<?= htmlspecialchars($mp['metodoPago'] . ' - ' . $mp['cuentaContable']) ?>">
+                                    <?= htmlspecialchars($mp['metodoPago']) ?> - <?= htmlspecialchars($mp['cuentaContable']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input type="number" 
+                               name="metodosPago[0][valor]" 
+                               class="form-control valor-metodo" 
+                               placeholder="Valor" 
+                               step="0.01" 
+                               min="0"
+                               value="0.00"
+                               required>
+                        <button type="button" class="btn btn-success btn-metodo" onclick="agregarMedioPago()">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </div>
+                `;
+                
+                contadorMediosPago = 1;
+
                 fetch(window.location.pathname + "?get_consecutivo=1")
                     .then(response => response.json())
                     .then(data => {
@@ -1318,23 +1756,23 @@ document.addEventListener("DOMContentLoaded", () => {
                     })
                     .catch(error => console.error('Error al obtener consecutivo:', error));
 
-                // Limpiar parámetros de la URL
                 if (window.history.replaceState) {
                     const url = new URL(window.location);
                     url.search = '';
                     window.history.replaceState({}, document.title, url);
                 }
 
-                // Resetear totales
                 calcularValores();
+                // No llamamos a calcularTotalMediosPago aquí porque se llamará desde inicializarMediosPago
             }
 
-            // Estado inicial (modo modificar o agregar)
+            // Estado inicial
             if (id && id.trim() !== "") {
                 btnAgregar.style.display = "none";
                 btnModificar.style.display = "inline-block";
                 btnEliminar.style.display = "inline-block";
                 btnCancelar.style.display = "inline-block";
+                inicializarMediosPago();
             } else {
                 modoAgregar();
             }
@@ -1404,8 +1842,9 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         });
 
-        // Empaquetar detalles antes de enviar el formulario
+        // Empaquetar detalles y validar medios de pago antes de enviar
         document.getElementById("formFacturaCompras").addEventListener("submit", function(e) {
+            // Validar productos
             const rows = document.querySelectorAll("#product-table tr");
             let detalles = [];
 
@@ -1440,6 +1879,37 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
+            // Validar suma de medios de pago
+            const valorTotal = parseFloat(document.getElementById('valorTotal').value) || 0;
+            const totalMediosPago = parseFloat(document.getElementById('total-medios-pago').textContent) || 0;
+            
+            if (Math.abs(valorTotal - totalMediosPago) > 0.01) {
+                e.preventDefault();
+                const diferencia = valorTotal - totalMediosPago;
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error en medios de pago',
+                    html: `La suma de los medios de pago (${totalMediosPago.toFixed(2)})<br>
+                          no coincide con el valor total (${valorTotal.toFixed(2)})<br>
+                          <strong>Faltan: ${diferencia.toFixed(2)}</strong>`,
+                    confirmButtonColor: '#d33'
+                });
+                return;
+            }
+
+            // Validar que haya al menos un método de pago completo
+            const metodosCompletos = document.querySelectorAll('.select-metodo-pago[value!=""]').length;
+            if (metodosCompletos === 0) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Debe seleccionar al menos un método de pago',
+                    confirmButtonColor: '#d33'
+                });
+                return;
+            }
+
             const inputDetalles = document.createElement("input");
             inputDetalles.type = "hidden";
             inputDetalles.name = "detalles";
@@ -1453,9 +1923,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const fechaInput = document.getElementById('fecha');
           const txtId = document.getElementById('txtId').value;
           
-          // Solo establecer fecha actual si NO estamos editando
           if (!txtId || txtId.trim() === "") {
-            // CORREGIDO: Obtener fecha local de Colombia (GMT-5)
             const hoy = new Date();
             const year = hoy.getFullYear();
             const month = String(hoy.getMonth() + 1).padStart(2, '0');
@@ -1464,6 +1932,52 @@ document.addEventListener("DOMContentLoaded", () => {
             
             fechaInput.value = fechaLocal;
           }
+        });
+
+        // Agregar event listeners para actualizar automáticamente
+        document.addEventListener('DOMContentLoaded', function() {
+            // Escuchar cambios en todos los campos que afectan el total
+            document.getElementById('subtotal').addEventListener('change', calcularRetencionesYTotal);
+            document.getElementById('ivaTotal').addEventListener('change', calcularRetencionesYTotal);
+            
+            // Escuchar cambios en los métodos de pago existentes
+            document.querySelectorAll('.valor-metodo').forEach(input => {
+                input.addEventListener('input', calcularTotalMediosPago);
+            });
+            
+            // Escuchar cambios en los select de métodos de pago
+            document.querySelectorAll('.select-metodo-pago').forEach(select => {
+                select.addEventListener('change', function() {
+                    mostrarFechaVencimiento();
+                    // Si cambia a crédito, actualizar el valor
+                    calcularTotalMediosPago();
+                });
+            });
+            
+            // También actualizar cuando se cambia la fecha
+            document.getElementById('fecha').addEventListener('change', function() {
+                mostrarFechaVencimiento();
+            });
+        });
+
+        // Función auxiliar para forzar la actualización de medios de pago
+        function actualizarValorMediosPago() {
+            const valorTotal = parseFloat(document.getElementById('valorTotal').value) || 0;
+            const txtId = document.getElementById('txtId').value;
+            const modoEdicion = txtId && txtId.trim() !== "";
+            
+            if (!modoEdicion) {
+                const valorInputs = document.querySelectorAll('.valor-metodo');
+                if (valorInputs.length === 1) {
+                    valorInputs[0].value = valorTotal.toFixed(2);
+                    calcularTotalMediosPago();
+                }
+            }
+        }
+
+        // Llamar a esta función después de cualquier cambio en los productos
+        document.querySelector("#product-table").addEventListener("input", function (event) {
+            setTimeout(actualizarValorMediosPago, 100); // Pequeño delay para asegurar que los cálculos se completen
         });
 
         </script>
@@ -1482,8 +1996,8 @@ document.addEventListener("DOMContentLoaded", () => {
   <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
 
   <!-- Vendor JS Files -->
-  <script src="assets/vendor/aos/aos.js"></script>
   <script src="assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="assets/vendor/aos/aos.js"></script>
   <script src="assets/vendor/glightbox/js/glightbox.min.js"></script>
   <script src="assets/vendor/isotope-layout/isotope.pkgd.min.js"></script>
   <script src="assets/vendor/swiper/swiper-bundle.min.js"></script>
@@ -1492,6 +2006,15 @@ document.addEventListener("DOMContentLoaded", () => {
   <!-- Template Main JS File -->
   <script src="assets/js/main.js"></script>
 
+  <script>
+// Forzar inicializacion de modales de Bootstrap
+document.addEventListener('DOMContentLoaded', function() {
+    // Mover todos los modales al body para evitar problemas de z-index
+    document.querySelectorAll('.modal').forEach(function(modal) {
+        document.body.appendChild(modal);
+    });
+});
+</script>
 </body>
 
 </html>

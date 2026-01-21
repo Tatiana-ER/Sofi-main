@@ -2419,3 +2419,64 @@ section {
 #footer .credits a {
   color: #f6b024;
 }
+
+/* Estilos para Medios de Pago */
+    .payment-row {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
+        align-items: center;
+    }
+    
+    .payment-row select {
+        flex: 2;
+        min-width: 250px;
+    }
+    
+    .payment-row input {
+        flex: 1;
+        max-width: 150px;
+    }
+    
+    .payment-row button {
+        flex: 0 0 auto;
+    }
+    
+    .payment-total-display {
+        background-color: #e7f3ff;
+        padding: 10px;
+        border-radius: 5px;
+        margin-top: 10px;
+        font-weight: bold;
+        border: 2px solid #0d6efd;
+    }
+    
+    .payment-warning {
+        color: #856404;
+        background-color: #fff3cd;
+        border: 1px solid #ffc107;
+        padding: 10px;
+        border-radius: 5px;
+        margin-top: 10px;
+        display: none;
+    }
+    
+    .payment-error {
+        color: #721c24;
+        background-color: #f8d7da;
+        border: 1px solid #dc3545;
+        padding: 10px;
+        border-radius: 5px;
+        margin-top: 10px;
+        display: none;
+    }
+    
+    .payment-success {
+        color: #155724;
+        background-color: #d4edda;
+        border: 1px solid #28a745;
+        padding: 10px;
+        border-radius: 5px;
+        margin-top: 10px;
+        display: none;
+    }

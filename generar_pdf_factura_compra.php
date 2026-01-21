@@ -23,6 +23,12 @@ $stmtDetalle = $pdo->prepare("SELECT * FROM detallefacturac WHERE factura_id = :
 $stmtDetalle->execute([':factura_id' => $id]);
 $detalles = $stmtDetalle->fetchAll(PDO::FETCH_ASSOC);
 
+// Obtener medios de pago
+$stmtMedios = $pdo->prepare("SELECT forma_pago, cuenta_contable, valor FROM medios_pago_factura 
+                            WHERE factura_id = :factura_id AND tipo_factura = 'compra'");
+$stmtMedios->execute([':factura_id' => $id]);
+$mediosPago = $stmtMedios->fetchAll(PDO::FETCH_ASSOC);
+
 // Obtener información del perfil de la empresa
 $stmtPerfil = $pdo->prepare("SELECT * FROM perfil ORDER BY id DESC LIMIT 1");
 $stmtPerfil->execute();
@@ -259,18 +265,31 @@ $html .= '                        Consecutivo: ' . htmlspecialchars($factura["co
                     </div>
                 </td>
                 
-                <td width="33%">
-                    <div class="section-title">DETALLES</div>
-                    <div class="section-content">
-                        Documento generado por SOFI - Sistema de Gestión Financiera<br>
-                        Forma de Pago: ' . htmlspecialchars($factura["formaPago"]) . '<br>';
-                        
-if ($factura["retenciones"] > 0) {
-    $html .= '                        Retención aplicada: ' . htmlspecialchars($factura["retencion_tarifa"] ?? "0") . '%<br>';
-}
+                               <td width="33%">
+                                    <div class="section-title">MEDIOS DE PAGO</div>
+                                    <div class="section-content">';
 
-$html .= '                    </div>
-                </td>
+                if (!empty($mediosPago)) {
+                    $html .= '<table style="width: 100%; font-size: 11px; border-collapse: collapse;">';
+                    foreach ($mediosPago as $medio) {
+                        $partes = explode(' - ', $medio['forma_pago']);
+                        $metodo = $partes[0] ?? $medio['forma_pago'];
+                        $html .= '<tr style="border-bottom: 1px solid #eee;">
+                                    <td style="padding: 4px 0;">' . htmlspecialchars($metodo) . '</td>
+                                    <td style="padding: 4px 0; text-align: right; font-weight: bold;">$' . number_format($medio['valor'], 2) . '</td>
+                                </tr>';
+                    }
+                    $html .= '</table>';
+                } else {
+                    $html .= 'Forma de Pago: ' . htmlspecialchars($factura["formaPago"]) . '<br>';
+                }
+
+                if ($factura["retenciones"] > 0) {
+                    $html .= '<div style="margin-top: 8px;">Retencion: ' . htmlspecialchars($factura["retencion_tarifa"] ?? "0") . '%</div>';
+                }
+
+                $html .= '                    </div>
+                                </td>
                 
                 <td width="33%">
                     <div class="section-title">PAGO</div>

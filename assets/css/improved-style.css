@@ -973,3 +973,61 @@ form {
       width: 40px;
       height: auto;
     }
+
+    /* Estilos para modal de medios de pago */
+.modal-sm {
+    max-width: 400px;
+}
+
+.btn-medios-pago {
+    font-size: 0.85rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.btn-medios-pago:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.btn-medios-pago .badge {
+    font-size: 0.65rem;
+    padding: 0.15rem 0.35rem;
+    position: relative;
+    top: -1px;
+}
+
+/* Estilos para la tabla dentro del modal */
+.modal-content .table {
+    margin-bottom: 0;
+    font-size: 0.875rem;
+}
+
+.modal-content .table th,
+.modal-content .table tfoot th {
+    font-weight: 600;
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+    white-space: nowrap;
+    color: #212529 !important; /* Forzar color oscuro */
+}
+
+.modal-content .table td {
+    vertical-align: middle;
+    padding: 0.5rem 0.75rem;
+}
+
+.modal-content .table tfoot th {
+    border-top: 2px solid #dee2e6;
+}
+
+/* Asegurar que el modal esté por encima de todo */
+.modal {
+    z-index: 1060;
+}
+
+/* Estilo para filas de la tabla */
+.table-hover tbody tr:hover {
+    background-color: rgba(13, 110, 253, 0.05);
+}
