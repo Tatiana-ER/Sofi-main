@@ -1,6 +1,7 @@
 <?php
 include("connection.php");
 include("LibroDiario.php");
+require_once 'registrar_eliminacion.php';
 
 $conn = new connection();
 $pdo = $conn->connect();
@@ -137,15 +138,37 @@ switch($accion){
   break;
 
   case "btnEliminar":
+      // Obtener los datos del comprobante antes de eliminarlo
+      $stmt = $pdo->prepare("SELECT * FROM doccomprobantecontable WHERE id = :id");
+      $stmt->bindParam(':id', $txtId);
+      $stmt->execute();
+      $contableData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+      // Luego ejecutar las eliminaciones...
       $libroDiario->eliminarMovimientos('comprobante_contable', $txtId);
-      
       $sentenciaDetalle = $pdo->prepare("DELETE FROM detallecomprobantecontable WHERE comprobante_id = :id");
       $sentenciaDetalle->bindParam(':id', $txtId);
       $sentenciaDetalle->execute();
-
       $sentencia = $pdo->prepare("DELETE FROM doccomprobantecontable WHERE id = :id");
       $sentencia->bindParam(':id', $txtId);
       $sentencia->execute();
+
+      // Ahora sí, registrar la eliminación (usando los datos obtenidos)
+      session_start();
+      registrarEliminacion(
+          $pdo,
+          obtenerIdUsuarioActual(),
+          obtenerUsuarioActual(),
+          'Comprobante Contable',
+          $txtId,
+          $contableData['consecutivo'],
+          'Comprobante Contable #' . $contableData['consecutivo'],
+          null,
+          null,
+          $contableData['fecha'],
+          'Observaciones: ' . $contableData['observaciones'],
+          $contableData
+      );
 
       header("Location: ".$_SERVER['PHP_SELF']."?msg=eliminado");
       exit;
@@ -499,6 +522,13 @@ document.addEventListener("DOMContentLoaded", () => {
             <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion">Modificar</button>
             <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-danger" name="accion">Eliminar</button>
             <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">Cancelar</button>
+          </div>
+
+          <!-- Botón Documentos Eliminados -->
+          <div class="mt-3 mb-3">
+            <button type="button" class="btn btn-secondary" onclick="mostrarDocumentosEliminados()">
+              <i class="fas fa-list"></i> Documentos Eliminados
+            </button>
           </div>
         </form>
 
@@ -987,6 +1017,179 @@ window.addEventListener('DOMContentLoaded', function() {
         </script>
         <br>
       </div>
+      <!-- Modal de Documentos Eliminados -->
+      <div class="modal fade" id="modalDocumentosEliminados" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+          <div class="modal-content">
+            <div class="modal-header" style="background-color: #3085d6; color: white;">
+              <h5 class="modal-title">
+                <i class="fas fa-trash-alt"></i> Auditoría de documentos eliminados
+              </h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="table-responsive">
+                <table class="table table-striped table-hover table-bordered">
+                  <thead class="table-success">
+                    <tr class="text-center">
+                      <th>Prefijo</th>
+                      <th>Número</th>
+                      <th>Usuario</th>
+                      <th>Fecha</th>
+                      <th>Hora</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tablaDocumentosEliminados">
+                    <tr>
+                      <td colspan="5" class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                          <span class="visually-hidden">Cargando...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <nav aria-label="Paginación" id="paginacionContainer" style="display: none;">
+                <ul class="pagination justify-content-center" id="paginacion"></ul>
+              </nav>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                <i class="fas fa-times"></i> Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script>
+  function mostrarDocumentosEliminados() {
+    const modal = new bootstrap.Modal(document.getElementById('modalDocumentosEliminados'));
+    modal.show();
+    cargarDocumentosEliminados();
+  }
+
+  let paginaActual = 1;
+  const registrosPorPagina = 5;
+
+  function cargarDocumentosEliminados(pagina = 1) {
+    paginaActual = pagina;
+    
+    fetch('obtener_documentos_eliminados.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'tipo_documento=Comprobante Contable&pagina=' + pagina + '&registros_por_pagina=' + registrosPorPagina
+    })
+    .then(response => response.json())
+    .then(data => {
+      const tbody = document.getElementById('tablaDocumentosEliminados');
+      tbody.innerHTML = '';
+      
+      if (data.success && data.documentos.length > 0) {
+        data.documentos.forEach(doc => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="text-center">${doc.prefijo || 'Sin Prefijo'}</td>
+            <td class="text-center">${doc.numero_documento || '-'}</td>
+            <td>${doc.nombre_usuario}</td>
+            <td class="text-center">${formatearFecha(doc.fecha_eliminacion)}</td>
+            <td class="text-center">${formatearHora(doc.hora_eliminacion)}</td>
+          `;
+          tbody.appendChild(row);
+        });
+        mostrarPaginacion(data.total_registros);
+      } else {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-center text-muted">
+              <i class="fas fa-inbox fa-2x mb-2"></i><br>
+              No hay documentos eliminados registrados
+            </td>
+          </tr>
+        `;
+        document.getElementById('paginacionContainer').style.display = 'none';
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      const tbody = document.getElementById('tablaDocumentosEliminados');
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="5" class="text-center text-danger">
+            <i class="fas fa-exclamation-triangle"></i> Error al cargar los documentos
+          </td>
+        </tr>
+      `;
+    });
+  }
+
+  function mostrarPaginacion(totalRegistros) {
+    const totalPaginas = Math.ceil(totalRegistros / registrosPorPagina);
+    if (totalPaginas <= 1) {
+      document.getElementById('paginacionContainer').style.display = 'none';
+      return;
+    }
+    
+    document.getElementById('paginacionContainer').style.display = 'block';
+    const paginacionUL = document.getElementById('paginacion');
+    paginacionUL.innerHTML = '';
+    
+    const prevLi = document.createElement('li');
+    prevLi.className = `page-item ${paginaActual === 1 ? 'disabled' : ''}`;
+    prevLi.innerHTML = `<a class="page-link" href="#" onclick="cargarDocumentosEliminados(${paginaActual - 1}); return false;">«</a>`;
+    paginacionUL.appendChild(prevLi);
+    
+    for (let i = 1; i <= totalPaginas; i++) {
+      const li = document.createElement('li');
+      li.className = `page-item ${i === paginaActual ? 'active' : ''}`;
+      li.innerHTML = `<a class="page-link" href="#" onclick="cargarDocumentosEliminados(${i}); return false;">${i}</a>`;
+      paginacionUL.appendChild(li);
+    }
+    
+    const nextLi = document.createElement('li');
+    nextLi.className = `page-item ${paginaActual === totalPaginas ? 'disabled' : ''}`;
+    nextLi.innerHTML = `<a class="page-link" href="#" onclick="cargarDocumentosEliminados(${paginaActual + 1}); return false;">»</a>`;
+    paginacionUL.appendChild(nextLi);
+  }
+
+  function formatearFecha(fecha) {
+    const date = new Date(fecha + 'T00:00:00');
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const anio = date.getFullYear();
+    return `${dia}/${mes}/${anio}`;
+  }
+
+  function formatearHora(hora) {
+    const [h, m, s] = hora.split(':');
+    const hour = parseInt(h);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${m}:${s} ${ampm}`;
+  }
+  </script>
+
+  <style>
+  #modalDocumentosEliminados .modal-body {
+    max-height: 500px;
+    overflow-y: auto;
+  }
+  #modalDocumentosEliminados .table th {
+    position: sticky;
+    top: 0;
+    background-color: #d4edda;
+    z-index: 10;
+  }
+  .pagination .page-item.active .page-link {
+    background-color: #3085d6;
+    border-color: #3085d6;
+  }
+  .pagination .page-link {
+    color: #3085d6;
+  }
+  </style>
+
     </section> <!-- End Services Section -->
 
     <!-- ======= Footer ======= -->
