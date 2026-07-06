@@ -18,7 +18,7 @@
         <div class="rightside">
             <h2>REGISTRO</h2>
             <div class="input-container">
-                <form action="InicioSesion/registrarse.php" method="post">
+                <form action="inicioSesion/registrarse.php" method="post">
                     <div class="input">
                         <i class="fa fa-user"></i>
                         <input type="text" id="username" name="username" required placeholder="Usuario">
