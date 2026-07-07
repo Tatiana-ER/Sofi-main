@@ -1,7 +1,7 @@
 <?php
-
+ 
     include("conexion.php");
-
+ 
     if(isset($_POST['send'])) {
         if(
             strlen($_POST['tipoPersona']) >= 1 &&
@@ -38,7 +38,7 @@
             $manejoAiu = trim($_POST['manejoAiu']);
             $seleccionadas = trim($_POST['seleccionadas']);
             $consulta = "INSERT INTO perfil(persona, cedula, nit, digito, nombres, apellidos, razon, departamento, ciudad, direccion, email, regimen, actividad, tarifa, aiu, responsabilidad)
-                        VALUES ( '$tipoPersona', '$cedula', '$nit', '$digito', '$nombres', '$apellidos', '$razonSocial', '$departamento', '$ciudad', 
+                        VALUES ( '$tipoPersona', '$cedula', '$nit', '$digito', '$nombres', '$apellidos', '$razonSocial', '$departamento', '$ciudad',
                         '$direccion', '$email', '$tipoRegimen', '$actividadEconomica', '$tarifaIca', '$manejoAiu', '$seleccionadas')";
             $resultado = mysqli_query($conex, $consulta);
             if($resultado) {
@@ -56,5 +56,5 @@
             <?php
     }
 }
-
+ 
 ?>
