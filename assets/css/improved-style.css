@@ -826,23 +826,42 @@ form {
 
 .btn-add,
 .btn-remove {
-  width: 20px;             /* mismo ancho */
-  height: 20px;            /* misma altura */
-  border: none;
-  border-radius: 5px;
-  color: white;
-  font-size: 13px;
-  font-weight: bold;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-add {
-  background-color: #007bff; /* azul */
+  background-color: #3b5a7a; /* azul grisáceo, sobrio */
+}
+.btn-add:hover {
+  background-color: #2c4360;
 }
 
 .btn-remove {
-  background-color: #ff0000; /* rojo */
-  margin-left: 10px;
+  background-color: #8a4a4a; /* rojo apagado */
+  margin-left: 6px;
+}
+.btn-remove:hover {
+  background-color: #6e3939;
+}
+
+/* Centra ambos botones dentro de la celda de acciones */
+.acciones-fila {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 /* Agrega al final de tu sección de estilos CSS */
@@ -1030,4 +1049,18 @@ form {
 /* Estilo para filas de la tabla */
 .table-hover tbody tr:hover {
     background-color: rgba(13, 110, 253, 0.05);
+}
+
+.table-historial th,
+.table-historial td {
+  white-space: normal;
+  word-break: break-word;
+  font-size: 13px;
+}
+
+.table-historial td.col-observaciones {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

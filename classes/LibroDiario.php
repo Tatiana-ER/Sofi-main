@@ -129,43 +129,117 @@ public function registrarFacturaVenta($idFactura) {
     $stmt = $this->pdo->prepare($sqlDetalle);
     $stmt->execute([':id_factura' => $idFactura]);
     $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // DEBUG: Verificar que se estén obteniendo los detalles
+    if (empty($detalles)) {
+        error_log("DEBUG VENTA: No se encontraron detalles (JOIN vacío) para factura ID: " . $idFactura);
+    }
     
-    // Determinar si es efectivo, transferencia o crédito
-    $formaPago = $factura['formaPago'];
-    $esCredito = stripos($formaPago, 'credito') !== false;
-    
-    // 1. REGISTRO DEL DÉBITO (Cliente o Medio de Pago)
-    if ($esCredito) {
-        // DEBITO: Clientes
-        $this->registrarMovimiento([
-            'fecha' => $factura['fecha'],
-            'tipo_documento' => 'factura_venta',
-            'numero_documento' => $factura['consecutivo'],
-            'id_documento' => $idFactura,
-            'codigo_cuenta' => '130505',
-            'nombre_cuenta' => 'Clientes Nacionales',
-            'tercero_identificacion' => $factura['identificacion'],
-            'tercero_nombre' => $factura['nombre'],
-            'concepto' => "Venta a crédito según factura {$factura['consecutivo']}",
-            'debito' => $factura['valorTotal'],
-            'credito' => 0
-        ]);
+    // 1. VERIFICAR SI HAY MULTIPLES MEDIOS DE PAGO
+    $sqlMediosPago = "SELECT * FROM medios_pago_factura 
+                     WHERE factura_id = :factura_id AND tipo_factura = 'venta'";
+    $stmt = $this->pdo->prepare($sqlMediosPago);
+    $stmt->execute([':factura_id' => $idFactura]);
+    $mediosPago = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // REGISTRO DEL DEBITO (Cliente o Medio de Pago)
+    if (!empty($mediosPago)) {
+        // Multiples medios de pago: procesar cada uno individualmente
+        $totalMediosPago = 0;
+
+        foreach ($mediosPago as $medio) {
+            $valor = floatval($medio['valor']);
+            $totalMediosPago += $valor;
+
+            $esCredito = stripos($medio['forma_pago'], 'credito') !== false ||
+                        stripos($medio['forma_pago'], 'crédito') !== false;
+
+            if ($esCredito) {
+                // DEBITO: Clientes
+                $this->registrarMovimiento([
+                    'fecha' => $factura['fecha'],
+                    'tipo_documento' => 'factura_venta',
+                    'numero_documento' => $factura['consecutivo'],
+                    'id_documento' => $idFactura,
+                    'codigo_cuenta' => '130505',
+                    'nombre_cuenta' => 'Clientes Nacionales',
+                    'tercero_identificacion' => $factura['identificacion'],
+                    'tercero_nombre' => $factura['nombre'],
+                    'concepto' => "Venta a crédito según factura {$factura['consecutivo']} - {$medio['forma_pago']}",
+                    'debito' => $valor,
+                    'credito' => 0
+                ]);
+            } else {
+                // DEBITO: Medio de pago especifico
+                $formaPagoCompleta = $medio['forma_pago'] . ' - ' . $medio['cuenta_contable'];
+                $cuentaPago = $this->obtenerCuentaMedioPago($formaPagoCompleta);
+
+                $this->registrarMovimiento([
+                    'fecha' => $factura['fecha'],
+                    'tipo_documento' => 'factura_venta',
+                    'numero_documento' => $factura['consecutivo'],
+                    'id_documento' => $idFactura,
+                    'codigo_cuenta' => $cuentaPago['codigo'],
+                    'nombre_cuenta' => $cuentaPago['nombre'],
+                    'tercero_identificacion' => $factura['identificacion'],
+                    'tercero_nombre' => $factura['nombre'],
+                    'concepto' => "Cobro venta según factura {$factura['consecutivo']} - {$medio['forma_pago']}",
+                    'debito' => $valor,
+                    'credito' => 0
+                ]);
+            }
+        }
+
+        // Validar que la suma de medios de pago coincida con el valor total
+        $valorTotalFactura = floatval($factura['valorTotal']);
+        $diferencia = abs($valorTotalFactura - $totalMediosPago);
+
+        if ($diferencia > 0.01) {
+            throw new Exception(sprintf(
+                "Error en medios de pago: Total factura=%.2f, Suma medios pago=%.2f, Diferencia=%.2f",
+                $valorTotalFactura,
+                $totalMediosPago,
+                $diferencia
+            ));
+        }
+
     } else {
-        // DEBITO: Caja/Banco según medio de pago
-        $cuentaPago = $this->obtenerCuentaMedioPago($formaPago);
-        $this->registrarMovimiento([
-            'fecha' => $factura['fecha'],
-            'tipo_documento' => 'factura_venta',
-            'numero_documento' => $factura['consecutivo'],
-            'id_documento' => $idFactura,
-            'codigo_cuenta' => $cuentaPago['codigo'],
-            'nombre_cuenta' => $cuentaPago['nombre'],
-            'tercero_identificacion' => $factura['identificacion'],
-            'tercero_nombre' => $factura['nombre'],
-            'concepto' => "Cobro venta según factura {$factura['consecutivo']}",
-            'debito' => $factura['valorTotal'],
-            'credito' => 0
-        ]);
+        // Metodo antiguo: usar solo formaPago de la factura (compatibilidad con facturas viejas)
+        $formaPago = $factura['formaPago'];
+        $esCredito = stripos($formaPago, 'credito') !== false;
+
+        if ($esCredito) {
+            // DEBITO: Clientes
+            $this->registrarMovimiento([
+                'fecha' => $factura['fecha'],
+                'tipo_documento' => 'factura_venta',
+                'numero_documento' => $factura['consecutivo'],
+                'id_documento' => $idFactura,
+                'codigo_cuenta' => '130505',
+                'nombre_cuenta' => 'Clientes Nacionales',
+                'tercero_identificacion' => $factura['identificacion'],
+                'tercero_nombre' => $factura['nombre'],
+                'concepto' => "Venta a crédito según factura {$factura['consecutivo']}",
+                'debito' => $factura['valorTotal'],
+                'credito' => 0
+            ]);
+        } else {
+            // DEBITO: Caja/Banco según medio de pago
+            $cuentaPago = $this->obtenerCuentaMedioPago($formaPago);
+            $this->registrarMovimiento([
+                'fecha' => $factura['fecha'],
+                'tipo_documento' => 'factura_venta',
+                'numero_documento' => $factura['consecutivo'],
+                'id_documento' => $idFactura,
+                'codigo_cuenta' => $cuentaPago['codigo'],
+                'nombre_cuenta' => $cuentaPago['nombre'],
+                'tercero_identificacion' => $factura['identificacion'],
+                'tercero_nombre' => $factura['nombre'],
+                'concepto' => "Cobro venta según factura {$factura['consecutivo']}",
+                'debito' => $factura['valorTotal'],
+                'credito' => 0
+            ]);
+        }
     }
     
     // 2. CREDITO: IVA por Pagar

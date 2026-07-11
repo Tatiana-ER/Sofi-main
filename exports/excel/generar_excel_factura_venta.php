@@ -20,6 +20,12 @@ $stmtDetalle = $pdo->prepare("SELECT * FROM factura_detalle WHERE id_factura = :
 $stmtDetalle->execute([':id_factura' => $id]);
 $detalles = $stmtDetalle->fetchAll(PDO::FETCH_ASSOC);
 
+// Obtener medios de pago
+$stmtMedios = $pdo->prepare("SELECT forma_pago, cuenta_contable, valor FROM medios_pago_factura 
+                            WHERE factura_id = :factura_id AND tipo_factura = 'venta'");
+$stmtMedios->execute([':factura_id' => $id]);
+$mediosPago = $stmtMedios->fetchAll(PDO::FETCH_ASSOC);
+
 // Obtener información del perfil de la empresa
 $stmtPerfil = $pdo->prepare("SELECT * FROM perfil ORDER BY id DESC LIMIT 1");
 $stmtPerfil->execute();
@@ -117,16 +123,22 @@ echo "\xEF\xBB\xBF"; // BOM para UTF-8
                     </div>
                 </td>
                 
-                <td width="33%" style="vertical-align: top; padding: 0 10px;">
-                    <div class="section-title">DETALLES</div>
-                    <div class="section-content">
-                        Factura generada por SOFI - Sistema de Gestión Financiera<br>
+                <div class="section-title">MEDIOS DE PAGO</div>
+                <div class="section-content">
+                    <?php if (!empty($mediosPago)): ?>
+                        <?php foreach ($mediosPago as $medio): 
+                            $partes = explode(' - ', $medio['forma_pago']);
+                            $metodo = $partes[0] ?? $medio['forma_pago'];
+                        ?>
+                            <?= htmlspecialchars($metodo) ?>: $<?= number_format($medio['valor'], 2) ?><br>
+                        <?php endforeach; ?>
+                    <?php else: ?>
                         Forma de Pago: <?= htmlspecialchars($factura['formaPago']) ?><br>
-                        <?php if ($factura['retenciones'] > 0): ?>
-                            Retención aplicada: <?= htmlspecialchars($factura['retencion_tarifa'] ?? '0') ?>%<br>
-                        <?php endif; ?>
-                    </div>
-                </td>
+                    <?php endif; ?>
+                    <?php if ($factura['retenciones'] > 0): ?>
+                        Retención aplicada: <?= htmlspecialchars($factura['retencion_tarifa'] ?? '0') ?>%<br>
+                    <?php endif; ?>
+                </div>
                 
                 <td width="33%" style="vertical-align: top; padding-left: 10px;">
                     <div class="section-title">PAGO</div>

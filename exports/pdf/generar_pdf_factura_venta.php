@@ -23,6 +23,11 @@ $stmtDetalle = $pdo->prepare("SELECT * FROM factura_detalle WHERE id_factura = :
 $stmtDetalle->execute([':id_factura' => $id]);
 $detalles = $stmtDetalle->fetchAll(PDO::FETCH_ASSOC);
 
+$stmtMedios = $pdo->prepare("SELECT forma_pago, cuenta_contable, valor FROM medios_pago_factura 
+                            WHERE factura_id = :factura_id AND tipo_factura = 'venta'");
+$stmtMedios->execute([':factura_id' => $id]);
+$mediosPago = $stmtMedios->fetchAll(PDO::FETCH_ASSOC);
+
 // Obtener información del perfil de la empresa
 $stmtPerfil = $pdo->prepare("SELECT * FROM perfil ORDER BY id DESC LIMIT 1");
 $stmtPerfil->execute();
@@ -261,10 +266,18 @@ $html .= '                        Consecutivo: ' . htmlspecialchars($factura["co
                 </td>
                 
                 <td width="33%">
-                    <div class="section-title">DETALLES</div>
-                    <div class="section-content">
-                        Factura generada por SOFI - Sistema de Gestión Financiera<br>
-                        Forma de Pago: ' . htmlspecialchars($factura["formaPago"]) . '<br>';
+                    <div class="section-title">MEDIOS DE PAGO</div>
+                    <div class="section-content">';
+
+                if (!empty($mediosPago)) {
+                    foreach ($mediosPago as $medio) {
+                        $partes = explode(' - ', $medio['forma_pago']);
+                        $metodo = $partes[0] ?? $medio['forma_pago'];
+                        $html .= htmlspecialchars($metodo) . ': $' . number_format($medio['valor'], 2) . '<br>';
+                    }
+                } else {
+                    $html .= 'Forma de Pago: ' . htmlspecialchars($factura["formaPago"]) . '<br>';
+                }
                         
 if ($factura["retenciones"] > 0) {
     $html .= '                        Retención aplicada: ' . htmlspecialchars($factura["retencion_tarifa"] ?? "0") . '%<br>';
