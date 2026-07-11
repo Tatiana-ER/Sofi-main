@@ -52,6 +52,22 @@ if (!empty($perfil['razon'])) {
     $nombreEmpresa = 'Nombre del Negocio';
 }
 
+// Obtener medios de pago del comprobante
+$stmtMedios = $pdo->prepare("SELECT * FROM medios_pago_comprobante_egreso WHERE comprobante_id = :idComprobante");
+$stmtMedios->execute([':idComprobante' => $id]);
+$mediosPago = $stmtMedios->fetchAll(PDO::FETCH_ASSOC);
+
+// Armar el bloque de forma de pago (uno o varios medios)
+$medioPagoHtml = '';
+if (!empty($mediosPago)) {
+    foreach ($mediosPago as $medio) {
+        $cuenta = !empty($medio['cuenta_contable']) ? ' - ' . htmlspecialchars($medio['cuenta_contable']) : '';
+        $medioPagoHtml .= htmlspecialchars($medio['forma_pago']) . $cuenta . ': <strong>$' . number_format($medio['valor'], 2) . '</strong><br>';
+    }
+} else {
+    $medioPagoHtml = 'Forma de Pago: <strong>' . htmlspecialchars($comprobante['formaPago']) . '</strong><br>';
+}
+
 // HTML para el PDF
 $html = '
 <!DOCTYPE html>
@@ -259,7 +275,7 @@ $html = '
                 <td width="50%">
                     <div class="section-title">DETALLES DEL PAGO</div>
                     <div class="section-content">
-                        Forma de Pago: <strong>' . htmlspecialchars($comprobante["formaPago"]) . '</strong><br>
+                        ' . $medioPagoHtml . '
                         Total Pagado: <strong style="color: #2c3e50; font-size: 16px;">$' . number_format($comprobante["valorTotal"], 2) . '</strong>
                     </div>
                 </td>

@@ -52,6 +52,22 @@ if (!empty($perfil['razon'])) {
     $nombreEmpresa = 'Nombre del Negocio';
 }
 
+// Obtener medios de pago del recibo
+$stmtMedios = $pdo->prepare("SELECT * FROM medios_pago_recibo_caja WHERE recibo_id = :idRecibo");
+$stmtMedios->execute([':idRecibo' => $id]);
+$mediosPago = $stmtMedios->fetchAll(PDO::FETCH_ASSOC);
+
+// Armar el bloque de forma de pago (uno o varios medios)
+$medioPagoHtml = '';
+if (!empty($mediosPago)) {
+    foreach ($mediosPago as $medio) {
+        $cuenta = !empty($medio['cuenta_contable']) ? ' - ' . htmlspecialchars($medio['cuenta_contable']) : '';
+        $medioPagoHtml .= htmlspecialchars($medio['forma_pago']) . $cuenta . ': <strong>$' . number_format($medio['valor'], 2) . '</strong><br>';
+    }
+} else {
+    $medioPagoHtml = 'Forma de Pago: <strong>' . htmlspecialchars($recibo['formaPago']) . '</strong><br>';
+}
+
 // HTML para el PDF
 $html = '
 <!DOCTYPE html>
@@ -260,7 +276,7 @@ $html = '
                 <td width="50%">
                     <div class="section-title">DETALLES DEL PAGO</div>
                     <div class="section-content">
-                        Forma de Pago: <strong>' . htmlspecialchars($recibo["formaPago"]) . '</strong><br>
+                        ' . $medioPagoHtml . '
                         Total Recibido: <strong style="color: #2c3e50; font-size: 16px;">$' . number_format($recibo["valorTotal"], 2) . '</strong>
                     </div>
                 </td>

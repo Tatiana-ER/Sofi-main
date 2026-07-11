@@ -105,6 +105,23 @@ $formaPago = $_POST['formaPago'] ?? "";
 $observaciones = $_POST['observaciones'] ?? "";
 $accion = $_POST['accion'] ?? "";
 
+// Procesar múltiples medios de pago
+$mediosPagoArray = [];
+if (isset($_POST['metodosPago']) && is_array($_POST['metodosPago'])) {
+    foreach ($_POST['metodosPago'] as $index => $metodoData) {
+        if (!empty($metodoData['metodo']) && !empty($metodoData['valor'])) {
+            $partes = explode(' - ', $metodoData['metodo']);
+            $mediosPagoArray[] = [
+                'metodo' => $metodoData['metodo'],
+                'forma_pago' => $partes[0] ?? $metodoData['metodo'],
+                'cuenta_contable' => $partes[1] ?? '',
+                'valor' => floatval($metodoData['valor'])
+            ];
+        }
+    }
+}
+$mediosPagoComprobante = []; // Se llena en btnEditar
+
 // Datos de facturas (JSON)
 $facturasData = $_POST['facturasData'] ?? "";
 
@@ -191,6 +208,21 @@ switch($accion) {
     case "btnAgregar":
         try {
             $pdo->beginTransaction();
+
+            // Validar suma de medios de pago contra el valor total
+            $sumaMediosPago = array_sum(array_column($mediosPagoArray, 'valor'));
+            $diferencia = abs($sumaMediosPago - floatval($valorTotal));
+
+            if ($diferencia > 0.01) {
+                $mensajeError = "La suma de los medios de pago (".number_format($sumaMediosPago, 2).") ";
+                $mensajeError .= "no coincide con el valor total (".number_format($valorTotal, 2)."). ";
+                $mensajeError .= $sumaMediosPago < floatval($valorTotal)
+                    ? "Faltan ".number_format(floatval($valorTotal) - $sumaMediosPago, 2)
+                    : "Sobran ".number_format($sumaMediosPago - floatval($valorTotal), 2);
+                throw new Exception($mensajeError);
+            }
+
+            $formaPago = implode(', ', array_column($mediosPagoArray, 'metodo'));
            
             // Validar saldos disponibles antes de procesar
             if (!empty($facturasData)) {
@@ -256,6 +288,24 @@ switch($accion) {
                     ]);
                 }
             }
+
+            // Insertar múltiples medios de pago
+            if (!empty($mediosPagoArray)) {
+                $sqlMedioPago = "INSERT INTO medios_pago_comprobante_egreso 
+                                  (comprobante_id, forma_pago, cuenta_contable, nombre_cuenta, valor)
+                                  VALUES (:comprobante_id, :forma_pago, :cuenta_contable, :nombre_cuenta, :valor)";
+                $stmtMedioPago = $pdo->prepare($sqlMedioPago);
+
+                foreach ($mediosPagoArray as $medio) {
+                    $stmtMedioPago->execute([
+                        ':comprobante_id' => $idComprobante,
+                        ':forma_pago' => $medio['forma_pago'],
+                        ':cuenta_contable' => $medio['cuenta_contable'],
+                        ':nombre_cuenta' => $medio['cuenta_contable'],
+                        ':valor' => $medio['valor']
+                    ]);
+                }
+            }
            
             // Actualizar saldos de las facturas
             actualizarSaldosFacturasCompra($pdo, $facturasData);
@@ -280,6 +330,21 @@ switch($accion) {
            
             // Restaurar saldos de las facturas del comprobante original
             restaurarSaldosFacturasCompra($pdo, $txtId);
+
+            // Validar suma de medios de pago contra el valor total
+            $sumaMediosPago = array_sum(array_column($mediosPagoArray, 'valor'));
+            $diferencia = abs($sumaMediosPago - floatval($valorTotal));
+
+            if ($diferencia > 0.01) {
+                $mensajeError = "La suma de los medios de pago (".number_format($sumaMediosPago, 2).") ";
+                $mensajeError .= "no coincide con el valor total (".number_format($valorTotal, 2)."). ";
+                $mensajeError .= $sumaMediosPago < floatval($valorTotal)
+                    ? "Faltan ".number_format(floatval($valorTotal) - $sumaMediosPago, 2)
+                    : "Sobran ".number_format($sumaMediosPago - floatval($valorTotal), 2);
+                throw new Exception($mensajeError);
+            }
+
+            $formaPago = implode(', ', array_column($mediosPagoArray, 'metodo'));
            
             // Validar nuevos saldos
             if (!empty($facturasData)) {
@@ -335,6 +400,10 @@ switch($accion) {
             $stmtDelete = $pdo->prepare("DELETE FROM detalle_comprobante_egreso WHERE idComprobante = :idComprobante");
             $stmtDelete->execute([':idComprobante' => $txtId]);
 
+            // Eliminar medios de pago antiguos
+            $stmtDeleteMedios = $pdo->prepare("DELETE FROM medios_pago_comprobante_egreso WHERE comprobante_id = :idComprobante");
+            $stmtDeleteMedios->execute([':idComprobante' => $txtId]);
+
             // Eliminar asientos contables antiguos
             $libroDiario->eliminarMovimientos('comprobante_egreso', $txtId);
            
@@ -353,6 +422,23 @@ switch($accion) {
                         ':numeroFactura' => $facturaData['numeroFactura'],
                         ':valor' => $facturaData['valor'],
                         ':fechaVenc' => $facturaData['fechaVencimiento'] ?: null
+                    ]);
+                }
+            }
+
+            if (!empty($mediosPagoArray)) {
+                $sqlMedioPago = "INSERT INTO medios_pago_comprobante_egreso 
+                                  (comprobante_id, forma_pago, cuenta_contable, nombre_cuenta, valor)
+                                  VALUES (:comprobante_id, :forma_pago, :cuenta_contable, :nombre_cuenta, :valor)";
+                $stmtMedioPago = $pdo->prepare($sqlMedioPago);
+
+                foreach ($mediosPagoArray as $medio) {
+                    $stmtMedioPago->execute([
+                        ':comprobante_id' => $txtId,
+                        ':forma_pago' => $medio['forma_pago'],
+                        ':cuenta_contable' => $medio['cuenta_contable'],
+                        ':nombre_cuenta' => $medio['cuenta_contable'],
+                        ':valor' => $medio['valor']
                     ]);
                 }
             }
@@ -403,8 +489,13 @@ switch($accion) {
         break;
 
     case "btnEditar":
-        // Los datos ya vienen en $_POST desde los campos hidden
-        break;
+      // Los datos ya vienen en $_POST desde los campos hidden
+      // Cargar medios de pago asociados al comprobante
+      $stmtMedios = $pdo->prepare("SELECT * FROM medios_pago_comprobante_egreso WHERE comprobante_id = :id");
+      $stmtMedios->bindParam(':id', $txtId);
+      $stmtMedios->execute();
+      $mediosPagoComprobante = $stmtMedios->fetchAll(PDO::FETCH_ASSOC);
+      break;
 }
 
 // Consulta para mostrar la tabla con información de detalles
@@ -625,6 +716,22 @@ document.addEventListener("DOMContentLoaded", () => {
       border-color: #0d6efd;
       box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
     }
+
+    .metodos-pago-container { margin-top: 20px; padding: 18px 20px; border: 1px solid #dfe3e8; border-radius: 6px; background-color: #fafbfc; }
+    .metodos-pago-container h5 { color: #2c3e50; font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid #e5e8eb; padding-bottom: 10px; }
+    .metodo-pago-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+    .metodo-pago-row select, .metodo-pago-row input { flex: 1; }
+    .btn-metodo { width: 38px; height: 38px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; border: 1px solid #d7dbe0; background-color: #f1f3f5; color: #495057; }
+    .btn-metodo.btn-success:hover { background-color: #e2e8ef; color: #2c3e50; }
+    .btn-metodo.btn-danger:hover { background-color: #f3dede; color: #7a3232; }
+    .total-medios-pago { margin-top: 12px; padding: 10px 14px; background-color: #ffffff; border: 1px solid #dfe3e8; border-left: 3px solid #2c3e50; border-radius: 4px; font-weight: 600; color: #2c3e50; }
+    .validacion-error { color: #a94442; font-weight: 600; font-size: 0.9rem; }
+    .validacion-exito { color: #2f6f4e; font-weight: 600; font-size: 0.9rem; }
+
+    .table-container {
+        overflow-x: auto;
+        overflow-y: visible;
+    }
   </style>
 </head>
  
@@ -735,19 +842,60 @@ document.addEventListener("DOMContentLoaded", () => {
                  value="<?php echo htmlspecialchars($valorTotal); ?>" readonly>
         </div>
  
-        <!-- Forma de Pago -->
-        <div class="row g-3 mt-3">
-          <div class="col-md-6">
-            <label for="formaPago" class="form-label fw-bold">Forma de Pago*</label>
-            <select id="formaPago" name="formaPago" class="form-control" required>
-              <option value="">Seleccione una opción</option>
-              <?php foreach ($mediosPago as $medio): ?>
-                <option value="<?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>"
-                        <?php if($formaPago == $medio['metodoPago']) echo 'selected'; ?>>
-                  <?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>
-                </option>
+        <!-- NUEVA SECCION: Multiples medios de pago -->
+        <div class="metodos-pago-container">
+          <h5 class="fw-bold mb-3">Metodos de Pago</h5>
+
+          <div id="medios-pago-container">
+            <?php if (!empty($mediosPagoComprobante)): ?>
+              <?php foreach ($mediosPagoComprobante as $index => $medio): ?>
+                <div class="metodo-pago-row" data-index="<?= $index ?>">
+                  <select name="metodosPago[<?= $index ?>][metodo]" class="form-select select-metodo-pago" required>
+                    <option value="">Seleccione método</option>
+                    <?php foreach ($mediosPago as $mp): ?>
+                      <?php $valorCompleto = $mp['metodoPago'] . ' - ' . $mp['cuentaContable']; ?>
+                      <option value="<?= htmlspecialchars($valorCompleto) ?>"
+                        <?= ($valorCompleto == ($medio['forma_pago'] . ' - ' . $medio['cuenta_contable'])) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($mp['metodoPago']) ?> - <?= htmlspecialchars($mp['cuentaContable']) ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                  <input type="number" name="metodosPago[<?= $index ?>][valor]" class="form-control valor-metodo"
+                        placeholder="Valor" step="0.01" min="0"
+                        value="<?= number_format($medio['valor'], 2, '.', '') ?>" required>
+                  <?php if ($index == 0): ?>
+                    <button type="button" class="btn btn-success btn-metodo" onclick="agregarMedioPago()"><i class="fas fa-plus"></i></button>
+                  <?php else: ?>
+                    <button type="button" class="btn btn-danger btn-metodo" onclick="eliminarMedioPago(this)"><i class="fas fa-minus"></i></button>
+                  <?php endif; ?>
+                </div>
               <?php endforeach; ?>
-            </select>
+            <?php else: ?>
+              <div class="metodo-pago-row" data-index="0">
+                <select name="metodosPago[0][metodo]" class="form-select select-metodo-pago" required>
+                  <option value="">Seleccione método</option>
+                  <?php foreach ($mediosPago as $mp): ?>
+                    <option value="<?= htmlspecialchars($mp['metodoPago'] . ' - ' . $mp['cuentaContable']) ?>">
+                      <?= htmlspecialchars($mp['metodoPago']) ?> - <?= htmlspecialchars($mp['cuentaContable']) ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+                <input type="number" name="metodosPago[0][valor]" class="form-control valor-metodo"
+                      placeholder="Valor" step="0.01" min="0"
+                      value="<?php echo isset($valorTotal) && !empty($valorTotal) ? $valorTotal : '0.00'; ?>" required>
+                <button type="button" class="btn btn-success btn-metodo" onclick="agregarMedioPago()"><i class="fas fa-plus"></i></button>
+              </div>
+            <?php endif; ?>
+          </div>
+
+          <div class="total-medios-pago">
+            <div class="row">
+              <div class="col-md-6">
+                <span>Total medios de pago: </span>
+                <span id="total-medios-pago"><?php echo isset($valorTotal) && !empty($valorTotal) ? $valorTotal : '0.00'; ?></span>
+              </div>
+              <div class="col-md-6"><span id="validacion-medios-pago"></span></div>
+            </div>
           </div>
         </div>
  
@@ -810,46 +958,39 @@ document.addEventListener("DOMContentLoaded", () => {
                   <td><strong style="color: #dc3545;">$<?php echo number_format($comprobante['valorTotal'], 2); ?></strong></td>
                   <td><?php echo htmlspecialchars($comprobante['formaPago']); ?></td>
                   <td>
-                    <div class="acciones-contenedor">
-                      <form action="" method="post" style="display:flex; gap:5px;">
-                        <input type="hidden" name="txtId" value="<?php echo $comprobante['id']; ?>">
-                        <input type="hidden" name="fecha" value="<?php echo $comprobante['fecha']; ?>">
-                        <input type="hidden" name="consecutivo" value="<?php echo $comprobante['consecutivo']; ?>">
-                        <input type="hidden" name="identificacion" value="<?php echo $comprobante['identificacion']; ?>">
-                        <input type="hidden" name="nombre" value="<?php echo $comprobante['nombre']; ?>">
-                        <input type="hidden" name="numeroFactura" value="<?php echo $comprobante['numeroFactura']; ?>">
-                        <input type="hidden" name="fechaVencimiento" value="<?php echo $comprobante['fechaVencimiento']; ?>">
-                        <input type="hidden" name="valor" value="<?php echo $comprobante['valor']; ?>">
-                        <input type="hidden" name="valorTotal" value="<?php echo $comprobante['valorTotal']; ?>">
-                        <input type="hidden" name="formaPago" value="<?php echo $comprobante['formaPago']; ?>">
-                        <input type="hidden" name="observaciones" value="<?php echo $comprobante['observaciones']; ?>">
-  
-                        <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info" title="Editar">
-                          <i class="fas fa-edit"></i>
-                        </button>
-                        <button type="submit" name="accion" value="btnEliminar" class="btn btn-sm btn-danger" title="Eliminar">
-                          <i class="fas fa-trash-alt"></i>
-                        </button>
-                      </form>
-                      <!-- NUEVOS BOTONES -->
-                      <a href="ver_comprobante_egreso.php?id=<?php echo $comprobante['id']; ?>" 
-                        class="btn btn-sm btn-primary" 
-                        target="_blank" 
-                        title="Ver/Imprimir">
-                        <i class="fas fa-print"></i>
-                      </a>
-                      <a href="../../exports/pdf/generar_pdf_comprobante_egreso.php?id=<?php echo $comprobante['id']; ?>" 
-                        class="btn btn-sm btn-danger" 
-                        target="_blank" 
-                        title="Descargar PDF">
-                        <i class="fas fa-file-pdf"></i>
-                      </a>
-                      <a href="../../exports/excel/generar_excel_comprobante_egreso.php?id=<?php echo $comprobante['id']; ?>" 
-                        class="btn btn-sm btn-success" 
-                        target="_blank" 
-                        title="Descargar Excel">
-                        <i class="fas fa-file-excel"></i>
-                      </a>
+                    <div class="dropdown">
+                      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" data-bs-boundary="viewport" aria-expanded="false">
+                        <i class="fas fa-ellipsis-vertical"></i>
+                      </button>
+                      <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                          <form action="" method="post" class="d-inline">
+                            <input type="hidden" name="txtId" value="<?php echo $comprobante['id']; ?>">
+                            <input type="hidden" name="fecha" value="<?php echo $comprobante['fecha']; ?>">
+                            <input type="hidden" name="consecutivo" value="<?php echo $comprobante['consecutivo']; ?>">
+                            <input type="hidden" name="identificacion" value="<?php echo $comprobante['identificacion']; ?>">
+                            <input type="hidden" name="nombre" value="<?php echo $comprobante['nombre']; ?>">
+                            <input type="hidden" name="numeroFactura" value="<?php echo $comprobante['numeroFactura']; ?>">
+                            <input type="hidden" name="fechaVencimiento" value="<?php echo $comprobante['fechaVencimiento']; ?>">
+                            <input type="hidden" name="valor" value="<?php echo $comprobante['valor']; ?>">
+                            <input type="hidden" name="valorTotal" value="<?php echo $comprobante['valorTotal']; ?>">
+                            <input type="hidden" name="formaPago" value="<?php echo $comprobante['formaPago']; ?>">
+                            <input type="hidden" name="observaciones" value="<?php echo $comprobante['observaciones']; ?>">
+                            <button type="submit" name="accion" value="btnEditar" class="dropdown-item"><i class="fas fa-edit me-2"></i>Editar</button>
+                          </form>
+                        </li>
+                        <li>
+                          <form action="" method="post" class="d-inline">
+                            <input type="hidden" name="txtId" value="<?php echo $comprobante['id']; ?>">
+                            <button type="submit" name="accion" value="btnEliminar" class="dropdown-item text-danger"
+                            onclick="return confirm('¿Eliminar este comprobante?');"><i class="fas fa-trash-alt me-2"></i>Eliminar</button>
+                          </form>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="ver_comprobante_egreso.php?id=<?php echo $comprobante['id']; ?>" target="_blank"><i class="fas fa-print me-2"></i>Ver / Imprimir</a></li>
+                        <li><a class="dropdown-item" href="../../exports/pdf/generar_pdf_comprobante_egreso.php?id=<?php echo $comprobante['id']; ?>" target="_blank"><i class="fas fa-file-pdf me-2"></i>Descargar PDF</a></li>
+                        <li><a class="dropdown-item" href="../../exports/excel/generar_excel_comprobante_egreso.php?id=<?php echo $comprobante['id']; ?>" target="_blank"><i class="fas fa-file-excel me-2"></i>Descargar Excel</a></li>
+                      </ul>
                     </div>
                   </td>
                 </tr>
@@ -1083,6 +1224,74 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    let contadorMediosPago = 1;
+
+function agregarMedioPago() {
+    const container = document.getElementById('medios-pago-container');
+    const newRow = document.createElement('div');
+    newRow.className = 'metodo-pago-row';
+    newRow.setAttribute('data-index', contadorMediosPago);
+
+    const valorTotal = parseFloat(document.getElementById('valorTotal').value) || 0;
+    const totalActual = calcularTotalMediosPago(false);
+    const valorRestante = Math.max(0, valorTotal - totalActual);
+
+    newRow.innerHTML = `
+        <select name="metodosPago[${contadorMediosPago}][metodo]" class="form-select select-metodo-pago" required>
+            <option value="">Seleccione método</option>
+            <?php foreach ($mediosPago as $mp): ?>
+                <option value="<?= htmlspecialchars($mp['metodoPago'] . ' - ' . $mp['cuentaContable']) ?>">
+                    <?= htmlspecialchars($mp['metodoPago']) ?> - <?= htmlspecialchars($mp['cuentaContable']) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <input type="number" name="metodosPago[${contadorMediosPago}][valor]" class="form-control valor-metodo"
+              placeholder="Valor" step="0.01" min="0" value="${valorRestante.toFixed(2)}" required>
+        <button type="button" class="btn btn-danger btn-metodo" onclick="eliminarMedioPago(this)"><i class="fas fa-minus"></i></button>
+    `;
+
+    container.appendChild(newRow);
+    contadorMediosPago++;
+    newRow.querySelector('.valor-metodo').addEventListener('input', calcularTotalMediosPago);
+    calcularTotalMediosPago();
+}
+
+function eliminarMedioPago(button) {
+    const row = button.closest('.metodo-pago-row');
+    if (document.querySelectorAll('.metodo-pago-row').length > 1) {
+        row.remove();
+        calcularTotalMediosPago();
+    } else {
+        Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debe haber al menos un método de pago', confirmButtonColor: '#3085d6' });
+    }
+}
+
+function calcularTotalMediosPago(updateUI = true) {
+    let total = 0;
+    document.querySelectorAll('.valor-metodo').forEach(input => { total += parseFloat(input.value) || 0; });
+
+    if (updateUI) {
+        document.getElementById('total-medios-pago').textContent = total.toFixed(2);
+        const valorTotal = parseFloat(document.getElementById('valorTotal').value) || 0;
+        const validacionElement = document.getElementById('validacion-medios-pago');
+
+        if (Math.abs(total - valorTotal) < 0.01) {
+            validacionElement.textContent = 'Total correcto';
+            validacionElement.className = 'validacion-exito';
+        } else {
+            const diferencia = valorTotal - total;
+            validacionElement.textContent = diferencia > 0 ? `Faltan: ${diferencia.toFixed(2)}` : `Sobran: ${Math.abs(diferencia).toFixed(2)}`;
+            validacionElement.className = 'validacion-error';
+        }
+    }
+    return total;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.valor-metodo').forEach(input => input.addEventListener('input', calcularTotalMediosPago));
+    calcularTotalMediosPago();
+});
+
     // Calcular total
     function calcularTotal() {
         let total = 0;
@@ -1123,7 +1332,15 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById("numeroFactura").value = facturasSeleccionadas.join(', ');
         document.getElementById("valor").value = valoresAplicados.join(', ');
         document.getElementById("fechaVencimiento").value = fechasVencimiento.join(', ');
+
         document.getElementById("facturasData").value = JSON.stringify(facturasData);
+
+        // Autoactualizar el primer medio de pago si solo hay uno
+        const valorInputs = document.querySelectorAll('.valor-metodo');
+        if (valorInputs.length === 1 && !modoEdicion) {
+            valorInputs[0].value = total.toFixed(2);
+        }
+        calcularTotalMediosPago();
     }
 
     // Establecer fecha actual al cargar la página si está vacía
@@ -1224,6 +1441,20 @@ document.addEventListener("DOMContentLoaded", () => {
             confirmButtonColor: '#3085d6'
           });
           return false;
+        }
+
+        const totalMediosPago = calcularTotalMediosPago(false);
+        const valorTotalNum = parseFloat(valorTotal) || 0;
+
+        if (Math.abs(totalMediosPago - valorTotalNum) > 0.01) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'warning',
+                title: 'Atención',
+                text: 'La suma de los medios de pago no coincide con el valor total',
+                confirmButtonColor: '#3085d6'
+            });
+            return false;
         }
       }
     });

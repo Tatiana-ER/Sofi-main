@@ -985,91 +985,120 @@ document.addEventListener("DOMContentLoaded", () => {
 
       <div class="row">
         <div class="table-container">
-          <table>
+          <table class="table-historial">
             <thead>
-              <tr>
-                <th>Identificacion</th>
-                <th>Nombre</th>
-                <th>Fecha</th>
-                <th>Consecutivo</th>
-                <th>N° Factura</th> <!-- NUEVA COLUMNA -->
+            <tr>
+                <th>Cliente</th>
+                <th>Documento</th>
                 <th>Forma Pago</th>
-                <th>Vencimiento</th> <!-- NUEVA COLUMNA -->
-                <th>Subtotal</th>
-                <th>Iva Total</th>
-                <th>Retenciones</th>
-                <th>Valor Total</th>
+                <th>Vencimiento</th>
+                <th class="text-end">Valor Total</th>
                 <th>Observaciones</th>
                 <th>Acción</th>
-              </tr>
+            </tr>
             </thead>
             <tbody id="tabla-registros">
+            <?php $modalesParaRenderizar = []; ?>
             <?php foreach($lista as $usuario){ ?>
-              <tr>
-                <td><?php echo $usuario['identificacion']; ?></td>
-                <td><?php echo $usuario['nombre']; ?></td>
-                <td><?php echo $usuario['fecha']; ?></td>
-                <td><?php echo $usuario['consecutivo']; ?></td>
-                <td><?php echo $usuario['numero_factura'] ?? ''; ?></td> <!-- NUEVA COLUMNA -->
-                <td><?php echo $usuario['formaPago']; ?></td>
-                <td><?php echo $usuario['fecha_vencimiento'] ?? ''; ?></td> <!-- NUEVA COLUMNA -->
-                <td><?php echo $usuario['subtotal']; ?></td>
-                <td><?php echo $usuario['ivaTotal']; ?></td>
-                <td><?php echo $usuario['retenciones']; ?></td>
-                <td><?php echo $usuario['valorTotal']; ?></td>
-                <td><?php echo $usuario['observaciones']; ?></td>
+                <tr>
                 <td>
-                  <div style="display:flex; gap:5px;">
-                  <form action="" method="post">
-                    <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>" >
-                    <input type="hidden" name="identificacion" value="<?php echo $usuario['identificacion']; ?>" >
-                    <input type="hidden" name="nombre" value="<?php echo $usuario['nombre']; ?>" >
-                    <input type="hidden" name="fecha" value="<?php echo $usuario['fecha']; ?>" >
-                    <input type="hidden" name="consecutivo" value="<?php echo $usuario['consecutivo']; ?>" >
-                    <input type="hidden" name="numeroFactura" value="<?php echo $usuario['numero_factura'] ?? ''; ?>" > <!-- NUEVO CAMPO -->
-                    <input type="hidden" name="formaPago" value="<?php echo $usuario['formaPago']; ?>" >
-                    <input type="hidden" name="fechaVencimiento" value="<?php echo $usuario['fecha_vencimiento'] ?? ''; ?>" > <!-- NUEVO CAMPO -->
-                    <input type="hidden" name="subtotal" value="<?php echo $usuario['subtotal']; ?>" >
-                    <input type="hidden" name="ivaTotal" value="<?php echo $usuario['ivaTotal']; ?>" >
-                    <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>" >
-                    <input type="hidden" name="valorTotal" value="<?php echo $usuario['valorTotal']; ?>" >
-                    <input type="hidden" name="observaciones" value="<?php echo $usuario['observaciones']; ?>" >
-                    <input type="hidden" name="selectRetencion" value="<?php echo $usuario['retencion_tarifa'] ?? ''; ?>" >
-                    
-                    <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info" title="Editar">
-                      <i class="fas fa-edit"></i>
-                    </button>
-                    <button type="submit" name="accion" value="btnEliminar" class="btn btn-sm btn-danger" title="Eliminar">
-                      <i class="fas fa-trash-alt"></i>
-                    </button>
-                  </form>
-
-                  <!-- NUEVOS BOTONES -->
-                  <a href="ver_factura_venta.php?id=<?php echo $usuario['id']; ?>" 
-                    class="btn btn-sm btn-primary" 
-                    target="_blank" 
-                    title="Ver/Imprimir">
-                    <i class="fas fa-print"></i>
-                  </a>
-                  <a href="../../exports/pdf/generar_pdf_factura_venta.php?id=<?php echo $usuario['id']; ?>" 
-                    class="btn btn-sm btn-danger" 
-                    target="_blank" 
-                    title="Descargar PDF">
-                    <i class="fas fa-file-pdf"></i>
-                  </a>
-                  <a href="../../exports/excel/generar_excel_factura_venta.php?id=<?php echo $usuario['id']; ?>" 
-                    class="btn btn-sm btn-success" 
-                    target="_blank" 
-                    title="Descargar Excel">
-                    <i class="fas fa-file-excel"></i>
-                  </a>
-                  </div>
+                    <strong><?php echo htmlspecialchars($usuario['nombre']); ?></strong><br>
+                    <span class="text-muted" style="font-size:11px;">ID: <?php echo htmlspecialchars($usuario['identificacion']); ?></span>
                 </td>
-              </tr>
+                <td>
+                    <?php echo date('d/m/Y', strtotime($usuario['fecha'])); ?><br>
+                    <span class="text-muted" style="font-size:11px;">
+                    Cons. <?php echo $usuario['consecutivo']; ?><?php echo !empty($usuario['numero_factura']) ? ' · Fact. '.$usuario['numero_factura'] : ''; ?>
+                    </span>
+                </td>
+                <td>
+                    <?php 
+                    $stmtMedios = $pdo->prepare("SELECT forma_pago, cuenta_contable, valor FROM medios_pago_factura 
+                                                WHERE factura_id = :factura_id AND tipo_factura = 'venta'");
+                    $stmtMedios->execute([':factura_id' => $usuario['id']]);
+                    $mediosFactura = $stmtMedios->fetchAll(PDO::FETCH_ASSOC);
+
+                    if (is_array($mediosFactura) && count($mediosFactura) > 0) {
+                        $primerMedio = $mediosFactura[0]['forma_pago'];
+                        $partes = explode(' - ', $primerMedio);
+                        $nombreCorto = $partes[0] ?? $primerMedio;
+                        
+                        $modalId = "modalMediosPago" . $usuario['id'];
+                        
+                        $modalesParaRenderizar[] = [
+                            'modalId' => $modalId,
+                            'consecutivo' => $usuario['consecutivo'],
+                            'medios' => $mediosFactura,
+                            'valorTotal' => $usuario['valorTotal']
+                        ];
+                        ?>
+                        <button type="button" class="btn btn-sm btn-outline-secondary btn-medios-pago" 
+                                data-bs-toggle="modal" data-bs-target="#<?php echo $modalId; ?>">
+                            <i class="fas fa-credit-card me-1"></i>
+                            <?php echo htmlspecialchars($nombreCorto); ?>
+                            <?php if (count($mediosFactura) > 1): ?>
+                                <span class="badge bg-secondary ms-1">+<?php echo (count($mediosFactura) - 1); ?></span>
+                            <?php endif; ?>
+                        </button>
+                        <?php
+                    } else {
+                        echo '<span class="text-muted"><i class="fas fa-ban me-1"></i>Sin medios</span>';
+                    }
+                    ?>
+                </td>
+                <td><?php echo !empty($usuario['fecha_vencimiento']) && $usuario['fecha_vencimiento'] != '0000-00-00' ? date('d/m/Y', strtotime($usuario['fecha_vencimiento'])) : '—'; ?></td>
+                <td class="text-end fw-bold"
+                    title="Subtotal: $<?php echo number_format($usuario['subtotal'],2); ?> · IVA: $<?php echo number_format($usuario['ivaTotal'],2); ?> · Retenciones: $<?php echo number_format($usuario['retenciones'],2); ?>">
+                    $<?php echo number_format($usuario['valorTotal'],2); ?>
+                </td>
+                <td class="col-observaciones" title="<?php echo htmlspecialchars($usuario['observaciones']); ?>">
+                    <?php echo htmlspecialchars($usuario['observaciones']); ?>
+                </td>
+                <td>
+                    <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-ellipsis-vertical"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                        <form action="" method="post" class="d-inline">
+                            <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                            <input type="hidden" name="identificacion" value="<?php echo $usuario['identificacion']; ?>">
+                            <input type="hidden" name="nombre" value="<?php echo $usuario['nombre']; ?>">
+                            <input type="hidden" name="fecha" value="<?php echo $usuario['fecha']; ?>">
+                            <input type="hidden" name="consecutivo" value="<?php echo $usuario['consecutivo']; ?>">
+                            <input type="hidden" name="numeroFactura" value="<?php echo $usuario['numero_factura'] ?? ''; ?>">
+                            <input type="hidden" name="formaPago" value="<?php echo $usuario['formaPago']; ?>">
+                            <input type="hidden" name="fechaVencimiento" value="<?php echo $usuario['fecha_vencimiento'] ?? ''; ?>">
+                            <input type="hidden" name="subtotal" value="<?php echo $usuario['subtotal']; ?>">
+                            <input type="hidden" name="ivaTotal" value="<?php echo $usuario['ivaTotal']; ?>">
+                            <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>">
+                            <input type="hidden" name="valorTotal" value="<?php echo $usuario['valorTotal']; ?>">
+                            <input type="hidden" name="observaciones" value="<?php echo $usuario['observaciones']; ?>">
+                            <input type="hidden" name="selectRetencion" value="<?php echo $usuario['retencion_tarifa'] ?? ''; ?>">
+                            <button type="submit" name="accion" value="btnEditar" class="dropdown-item"><i class="fas fa-edit me-2"></i>Editar</button>
+                        </form>
+                        </li>
+                        <li>
+                        <form action="" method="post" class="d-inline">
+                            <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                            <button type="submit" name="accion" value="btnEliminar" class="dropdown-item text-danger"
+                            onclick="return confirm('¿Eliminar esta factura?');"><i class="fas fa-trash-alt me-2"></i>Eliminar</button>
+                        </form>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="ver_factura_venta.php?id=<?php echo $usuario['id']; ?>" target="_blank"><i class="fas fa-print me-2"></i>Ver / Imprimir</a></li>
+                        <li><a class="dropdown-item" href="../../exports/pdf/generar_pdf_factura_venta.php?id=<?php echo $usuario['id']; ?>" target="_blank"><i class="fas fa-file-pdf me-2"></i>Descargar PDF</a></li>
+                        <li><a class="dropdown-item" href="../../exports/excel/generar_excel_factura_venta.php?id=<?php echo $usuario['id']; ?>" target="_blank"><i class="fas fa-file-excel me-2"></i>Descargar Excel</a></li>
+                    </ul>
+                    </div>
+                </td>
+                </tr>
             <?php } ?>
           </tbody>
-          </table>
-        </div>  
+          </table> 
+
+      </div>
       </div>
         
         <script>
@@ -1771,6 +1800,60 @@ document.addEventListener("DOMContentLoaded", () => {
         <br>
       </div>
     </section><!-- End Services Section -->
+
+      <!-- Modales de medios de pago (FUERA de la tabla) -->
+      <?php if (!empty($modalesParaRenderizar)): ?>
+        <?php foreach ($modalesParaRenderizar as $modalData): ?>
+        <div class="modal fade" id="<?php echo $modalData['modalId']; ?>" tabindex="-1" 
+            aria-labelledby="<?php echo $modalData['modalId']; ?>Label" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-light">
+                        <h5 class="modal-title" id="<?php echo $modalData['modalId']; ?>Label">
+                            <i class="fas fa-credit-card me-2"></i>
+                            Factura #<?php echo htmlspecialchars($modalData['consecutivo']); ?>
+                        </h5> 
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Metodo de Pago</th>
+                                        <th>Cuenta</th>
+                                        <th class="text-end">Valor</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php 
+                                    $totalMedios = 0;
+                                    foreach ($modalData['medios'] as $medio): 
+                                        $totalMedios += floatval($medio['valor'] ?? 0);
+                                        $partesMedio = explode(' - ', $medio['forma_pago']);
+                                        $metodo = htmlspecialchars($partesMedio[0] ?? ($medio['forma_pago'] ?? ''));
+                                        $cuenta = !empty($medio['cuenta_contable']) 
+                                            ? htmlspecialchars($medio['cuenta_contable'])
+                                            : (isset($partesMedio[1]) ? htmlspecialchars($partesMedio[1]) : '');
+                                    ?>
+                                    <tr>
+                                        <td><?php echo $metodo; ?></td>
+                                        <td><?php echo $cuenta; ?></td>
+                                        <td class="text-end">$<?php echo number_format($medio['valor'] ?? 0, 2); ?></td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+      <?php endif; ?>
 
     <!-- ======= Footer ======= -->
     <footer id="footer" class="footer-minimalista">

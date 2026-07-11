@@ -602,7 +602,7 @@ function initCuentaSelect($select) {
     allowClear: true,
     width: '100%',
     ajax: {
-      url: 'obtener_cuentas_comprobantecontable.php',
+      url: '../../ajax/obtener_cuentas_comprobantecontable.php',
       dataType: 'json',
       delay: 250,
       data: function (params) {
@@ -659,7 +659,7 @@ function initTerceroSelect($select) {
       errorLoading: function() { return "Error al cargar los resultados"; }
     },
     ajax: {
-      url: 'buscar_terceros_comprobante.php',
+      url: '../../ajax/buscar_terceros_comprobante.php',
       dataType: 'json',
       delay: 250,
       data: function (params) {

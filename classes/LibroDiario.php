@@ -631,30 +631,75 @@ public function registrarFacturaCompra($idFactura) {
         $stmt = $this->pdo->prepare($sqlRecibo);
         $stmt->execute([':id' => $idRecibo]);
         $recibo = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if (!$recibo) {
             throw new Exception("Recibo de caja no encontrado");
         }
-        
-        // Obtener cuenta del medio de pago
-        $cuentaPago = $this->obtenerCuentaMedioPago($recibo['formaPago']);
-        
-        // 1. DEBITO: Caja/Banco
-        $this->registrarMovimiento([
-            'fecha' => $recibo['fecha'],
-            'tipo_documento' => 'recibo_caja',
-            'numero_documento' => $recibo['consecutivo'],
-            'id_documento' => $idRecibo,
-            'codigo_cuenta' => $cuentaPago['codigo'],
-            'nombre_cuenta' => $cuentaPago['nombre'],
-            'tercero_identificacion' => $recibo['identificacion'],
-            'tercero_nombre' => $recibo['nombre'],
-            'concepto' => "Recibo de caja No. {$recibo['consecutivo']} - Pago de {$recibo['nombre']}",
-            'debito' => $recibo['valorTotal'],
-            'credito' => 0
-        ]);
-        
-        // 2. CREDITO: Clientes
+
+        // Verificar si hay múltiples medios de pago
+        $sqlMediosPago = "SELECT * FROM medios_pago_recibo_caja WHERE recibo_id = :recibo_id";
+        $stmt = $this->pdo->prepare($sqlMediosPago);
+        $stmt->execute([':recibo_id' => $idRecibo]);
+        $mediosPago = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!empty($mediosPago)) {
+            // Múltiples medios de pago: un DEBITO por cada uno
+            $totalMediosPago = 0;
+
+            foreach ($mediosPago as $medio) {
+                $valor = floatval($medio['valor']);
+                $totalMediosPago += $valor;
+
+                $formaPagoCompleta = $medio['forma_pago'] . ' - ' . $medio['cuenta_contable'];
+                $cuentaPago = $this->obtenerCuentaMedioPago($formaPagoCompleta);
+
+                // DEBITO: Caja/Banco según medio de pago
+                $this->registrarMovimiento([
+                    'fecha' => $recibo['fecha'],
+                    'tipo_documento' => 'recibo_caja',
+                    'numero_documento' => $recibo['consecutivo'],
+                    'id_documento' => $idRecibo,
+                    'codigo_cuenta' => $cuentaPago['codigo'],
+                    'nombre_cuenta' => $cuentaPago['nombre'],
+                    'tercero_identificacion' => $recibo['identificacion'],
+                    'tercero_nombre' => $recibo['nombre'],
+                    'concepto' => "Recibo de caja No. {$recibo['consecutivo']} - {$medio['forma_pago']}",
+                    'debito' => $valor,
+                    'credito' => 0
+                ]);
+            }
+
+            // Validar que la suma de medios de pago coincida con el valor total
+            $valorTotalRecibo = floatval($recibo['valorTotal']);
+            $diferencia = abs($valorTotalRecibo - $totalMediosPago);
+
+            if ($diferencia > 0.01) {
+                throw new Exception(sprintf(
+                    "Error en medios de pago del recibo: Total recibo=%.2f, Suma medios pago=%.2f, Diferencia=%.2f",
+                    $valorTotalRecibo, $totalMediosPago, $diferencia
+                ));
+            }
+
+        } else {
+            // Compatibilidad con recibos antiguos (un solo medio de pago en formaPago)
+            $cuentaPago = $this->obtenerCuentaMedioPago($recibo['formaPago']);
+
+            $this->registrarMovimiento([
+                'fecha' => $recibo['fecha'],
+                'tipo_documento' => 'recibo_caja',
+                'numero_documento' => $recibo['consecutivo'],
+                'id_documento' => $idRecibo,
+                'codigo_cuenta' => $cuentaPago['codigo'],
+                'nombre_cuenta' => $cuentaPago['nombre'],
+                'tercero_identificacion' => $recibo['identificacion'],
+                'tercero_nombre' => $recibo['nombre'],
+                'concepto' => "Recibo de caja No. {$recibo['consecutivo']} - Pago de {$recibo['nombre']}",
+                'debito' => $recibo['valorTotal'],
+                'credito' => 0
+            ]);
+        }
+
+        // CREDITO: Clientes (siempre, sin importar cuántos medios de pago hubo)
         $this->registrarMovimiento([
             'fecha' => $recibo['fecha'],
             'tipo_documento' => 'recibo_caja',
@@ -684,7 +729,7 @@ public function registrarFacturaCompra($idFactura) {
             throw new Exception("Comprobante de egreso no encontrado");
         }
         
-        // 1. DEBITO: Proveedores
+        // 1. DEBITO: Proveedores (siempre, por el valor total)
         $this->registrarMovimiento([
             'fecha' => $comprobante['fecha'],
             'tipo_documento' => 'comprobante_egreso',
@@ -698,22 +743,68 @@ public function registrarFacturaCompra($idFactura) {
             'debito' => $comprobante['valorTotal'],
             'credito' => 0
         ]);
-        
-        // 2. CREDITO: Caja/Banco
-        $cuentaPago = $this->obtenerCuentaMedioPago($comprobante['formaPago']);
-        $this->registrarMovimiento([
-            'fecha' => $comprobante['fecha'],
-            'tipo_documento' => 'comprobante_egreso',
-            'numero_documento' => $comprobante['consecutivo'],
-            'id_documento' => $idComprobante,
-            'codigo_cuenta' => $cuentaPago['codigo'],
-            'nombre_cuenta' => $cuentaPago['nombre'],
-            'tercero_identificacion' => $comprobante['identificacion'],
-            'tercero_nombre' => $comprobante['nombre'],
-            'concepto' => "Egreso por pago comprobante No. {$comprobante['consecutivo']}",
-            'debito' => 0,
-            'credito' => $comprobante['valorTotal']
-        ]);
+
+        // 2. Verificar si hay múltiples medios de pago
+        $sqlMediosPago = "SELECT * FROM medios_pago_comprobante_egreso WHERE comprobante_id = :comprobante_id";
+        $stmt = $this->pdo->prepare($sqlMediosPago);
+        $stmt->execute([':comprobante_id' => $idComprobante]);
+        $mediosPago = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!empty($mediosPago)) {
+            // Múltiples medios de pago: un CREDITO por cada uno
+            $totalMediosPago = 0;
+
+            foreach ($mediosPago as $medio) {
+                $valor = floatval($medio['valor']);
+                $totalMediosPago += $valor;
+
+                $formaPagoCompleta = $medio['forma_pago'] . ' - ' . $medio['cuenta_contable'];
+                $cuentaPago = $this->obtenerCuentaMedioPago($formaPagoCompleta);
+
+                // CREDITO: Caja/Banco según medio de pago
+                $this->registrarMovimiento([
+                    'fecha' => $comprobante['fecha'],
+                    'tipo_documento' => 'comprobante_egreso',
+                    'numero_documento' => $comprobante['consecutivo'],
+                    'id_documento' => $idComprobante,
+                    'codigo_cuenta' => $cuentaPago['codigo'],
+                    'nombre_cuenta' => $cuentaPago['nombre'],
+                    'tercero_identificacion' => $comprobante['identificacion'],
+                    'tercero_nombre' => $comprobante['nombre'],
+                    'concepto' => "Egreso por pago comprobante No. {$comprobante['consecutivo']} - {$medio['forma_pago']}",
+                    'debito' => 0,
+                    'credito' => $valor
+                ]);
+            }
+
+            // Validar que la suma de medios de pago coincida con el valor total
+            $valorTotalComprobante = floatval($comprobante['valorTotal']);
+            $diferencia = abs($valorTotalComprobante - $totalMediosPago);
+
+            if ($diferencia > 0.01) {
+                throw new Exception(sprintf(
+                    "Error en medios de pago del comprobante: Total comprobante=%.2f, Suma medios pago=%.2f, Diferencia=%.2f",
+                    $valorTotalComprobante, $totalMediosPago, $diferencia
+                ));
+            }
+
+        } else {
+            // Compatibilidad con comprobantes antiguos (un solo medio de pago en formaPago)
+            $cuentaPago = $this->obtenerCuentaMedioPago($comprobante['formaPago']);
+            $this->registrarMovimiento([
+                'fecha' => $comprobante['fecha'],
+                'tipo_documento' => 'comprobante_egreso',
+                'numero_documento' => $comprobante['consecutivo'],
+                'id_documento' => $idComprobante,
+                'codigo_cuenta' => $cuentaPago['codigo'],
+                'nombre_cuenta' => $cuentaPago['nombre'],
+                'tercero_identificacion' => $comprobante['identificacion'],
+                'tercero_nombre' => $comprobante['nombre'],
+                'concepto' => "Egreso por pago comprobante No. {$comprobante['consecutivo']}",
+                'debito' => 0,
+                'credito' => $comprobante['valorTotal']
+            ]);
+        }
     }
     
     /**
