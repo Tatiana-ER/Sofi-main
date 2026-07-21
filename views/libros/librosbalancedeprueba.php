@@ -242,10 +242,10 @@ function calcularMovimientosConSubcuentas($pdo, $codigo_cuenta, $fecha_desde, $f
 $sql_cuentas_base = "
     SELECT DISTINCT codigo_cuenta, nombre_cuenta
     FROM libro_diario
-    WHERE fecha BETWEEN :desde AND :hasta
+    WHERE fecha <= :hasta
 ";
 
-$params_base = [':desde' => $fecha_desde, ':hasta' => $fecha_hasta];
+$params_base = [':hasta' => $fecha_hasta];
 
 if ($cuenta_codigo != '') {
     $sql_cuentas_base .= " AND codigo_cuenta = :cuenta";

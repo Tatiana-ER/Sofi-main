@@ -209,6 +209,11 @@ switch($accion) {
         try {
             $pdo->beginTransaction();
 
+            // Candado de cierre contable: no permitir registrar en un año ya cerrado
+            if ($libroDiario->existeCierreActivoParaFecha($fecha)) {
+                throw new Exception("No se puede registrar esta factura: el año " . date('Y', strtotime($fecha)) . " ya tiene un cierre contable activo. Si necesitas hacer ajustes, primero revierte el cierre de ese año.");
+            }
+
             // Validar suma de medios de pago contra el valor total
             $sumaMediosPago = array_sum(array_column($mediosPagoArray, 'valor'));
             $diferencia = abs($sumaMediosPago - floatval($valorTotal));
@@ -327,6 +332,19 @@ switch($accion) {
     case "btnModificar":
         try {
             $pdo->beginTransaction();
+
+            // Candado de cierre contable: verificar tanto la fecha original como la nueva
+            $stmtFechaOriginal = $pdo->prepare("SELECT fecha FROM doccomprobanteegreso WHERE id = :id");
+            $stmtFechaOriginal->execute([':id' => $txtId]);
+            $fechaOriginal = $stmtFechaOriginal->fetchColumn();
+
+            if ($fechaOriginal && $libroDiario->existeCierreActivoParaFecha($fechaOriginal)) {
+                throw new Exception("No se puede modificar esta factura: pertenece al año " . date('Y', strtotime($fechaOriginal)) . ", que ya tiene un cierre contable activo.");
+            }
+
+            if ($libroDiario->existeCierreActivoParaFecha($fecha)) {
+                throw new Exception("No se puede mover esta factura al año " . date('Y', strtotime($fecha)) . ": ese año ya tiene un cierre contable activo.");
+            }
            
             // Restaurar saldos de las facturas del comprobante original
             restaurarSaldosFacturasCompra($pdo, $txtId);
@@ -463,6 +481,15 @@ switch($accion) {
     case "btnEliminar":
         try {
             $pdo->beginTransaction();
+
+            // Candado de cierre contable
+            $stmtFechaEliminar = $pdo->prepare("SELECT fecha FROM doccomprobanteegreso WHERE id = :id");
+            $stmtFechaEliminar->execute([':id' => $txtId]);
+            $fechaEliminar = $stmtFechaEliminar->fetchColumn();
+
+            if ($fechaEliminar && $libroDiario->existeCierreActivoParaFecha($fechaEliminar)) {
+                throw new Exception("No se puede eliminar este comprobante: pertenece al año " . date('Y', strtotime($fechaEliminar)) . ", que ya tiene un cierre contable activo.");
+            }
           
             // Eliminar asientos contables
             $libroDiario->eliminarMovimientos('comprobante_egreso', $txtId);

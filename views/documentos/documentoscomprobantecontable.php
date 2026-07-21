@@ -431,6 +431,9 @@ document.addEventListener("DOMContentLoaded", () => {
                         <tr>
                           <td>
                             <select name="cuentaContable" class="form-control cuenta-select" style="width: 100%;">
+                              <?php
+                              $nombre = '';
+                              ?>
                               <?php if (!empty($detalle['cuentaContable'])): ?>
                                 <?php 
                                 // Separar código y nombre si existe

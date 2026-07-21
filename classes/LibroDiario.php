@@ -101,6 +101,196 @@ class LibroDiario {
         $stmt->execute([':id' => $categoriaId]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
+
+    /**
+     * Ejecuta el cierre contable de un año fiscal completo.
+     * - Calcula la utilidad/pérdida del ejercicio (ingresos - costos - gastos)
+     * - Genera el asiento de cierre que deja en cero las cuentas 4, 5, 6 y 7
+     * - Traslada el resultado a la cuenta de patrimonio 360501 (Utilidad del ejercicio)
+     */
+    public function ejecutarCierreContable($anoFiscal) {
+        // 1. Verificar que no exista ya un cierre ACTIVO para ese año
+        $stmtCheck = $this->pdo->prepare(
+            "SELECT id FROM cierres_contables WHERE ano_fiscal = :ano AND estado = 'activo'"
+        );
+        $stmtCheck->execute([':ano' => $anoFiscal]);
+        if ($stmtCheck->fetch()) {
+            throw new Exception("Ya existe un cierre contable activo para el año $anoFiscal. Revierte el cierre existente antes de volver a cerrarlo.");
+        }
+
+        $fechaInicio = $anoFiscal . '-01-01';
+        $fechaCierre = $anoFiscal . '-12-31';
+
+        $this->pdo->beginTransaction();
+
+        try {
+            // 2. Obtener el saldo del año de cada cuenta de ingresos, costos y gastos
+            $sql = "SELECT 
+                        codigo_cuenta, 
+                        nombre_cuenta,
+                        SUBSTRING(codigo_cuenta, 1, 1) as clase,
+                        COALESCE(SUM(debito), 0) as total_debito,
+                        COALESCE(SUM(credito), 0) as total_credito
+                    FROM libro_diario
+                    WHERE fecha BETWEEN :inicio AND :fin
+                    AND SUBSTRING(codigo_cuenta, 1, 1) IN ('4', '5', '6', '7')
+                    GROUP BY codigo_cuenta, nombre_cuenta";
+
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([':inicio' => $fechaInicio, ':fin' => $fechaCierre]);
+            $cuentas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // 3. Crear primero el registro del cierre para tener su ID
+            //    (la utilidad se actualiza al final, cuando ya la calculamos)
+            $stmtInsertCierre = $this->pdo->prepare(
+                "INSERT INTO cierres_contables (ano_fiscal, fecha_cierre, utilidad_ejercicio) 
+                VALUES (:ano, :fecha, 0)"
+            );
+            $stmtInsertCierre->execute([':ano' => $anoFiscal, ':fecha' => $fechaCierre]);
+            $idCierre = $this->pdo->lastInsertId();
+
+            $totalIngresos = 0;
+            $totalCostosGastos = 0;
+
+            // 4. Generar una línea de cierre por cada cuenta con saldo distinto de cero
+            foreach ($cuentas as $cuenta) {
+                $debito = floatval($cuenta['total_debito']);
+                $credito = floatval($cuenta['total_credito']);
+                $clase = $cuenta['clase'];
+
+                if ($clase == '4') {
+                    // Ingresos: naturaleza crédito. Saldo = credito - debito
+                    $saldo = $credito - $debito;
+                    $totalIngresos += $saldo;
+
+                    if ($saldo == 0) continue;
+
+                    // Para cerrarla (dejarla en cero) se hace lo contrario a su naturaleza
+                    $debitoCierre = $saldo > 0 ? $saldo : 0;
+                    $creditoCierre = $saldo < 0 ? abs($saldo) : 0;
+                } else {
+                    // Costos (6,7) y Gastos (5): naturaleza débito. Saldo = debito - credito
+                    $saldo = $debito - $credito;
+                    $totalCostosGastos += $saldo;
+
+                    if ($saldo == 0) continue;
+
+                    $creditoCierre = $saldo > 0 ? $saldo : 0;
+                    $debitoCierre = $saldo < 0 ? abs($saldo) : 0;
+                }
+
+                $this->registrarMovimiento([
+                    'fecha' => $fechaCierre,
+                    'tipo_documento' => 'cierre_contable',
+                    'numero_documento' => 'CIERRE-' . $anoFiscal,
+                    'id_documento' => $idCierre,
+                    'codigo_cuenta' => $cuenta['codigo_cuenta'],
+                    'nombre_cuenta' => $cuenta['nombre_cuenta'],
+                    'concepto' => "Cierre contable año $anoFiscal - cancelación de saldo",
+                    'debito' => $debitoCierre,
+                    'credito' => $creditoCierre
+                ]);
+            }
+
+            // 5. Calcular la utilidad/pérdida del ejercicio y trasladarla a patrimonio
+            $utilidadEjercicio = $totalIngresos - $totalCostosGastos;
+
+            if ($utilidadEjercicio > 0) {
+                $this->registrarMovimiento([
+                    'fecha' => $fechaCierre,
+                    'tipo_documento' => 'cierre_contable',
+                    'numero_documento' => 'CIERRE-' . $anoFiscal,
+                    'id_documento' => $idCierre,
+                    'codigo_cuenta' => '360505',
+                    'nombre_cuenta' => 'Utilidad del ejercicio',
+                    'concepto' => "Cierre contable año $anoFiscal - traslado de utilidad a patrimonio",
+                    'debito' => 0,
+                    'credito' => $utilidadEjercicio
+                ]);
+            } elseif ($utilidadEjercicio < 0) {
+                $this->registrarMovimiento([
+                    'fecha' => $fechaCierre,
+                    'tipo_documento' => 'cierre_contable',
+                    'numero_documento' => 'CIERRE-' . $anoFiscal,
+                    'id_documento' => $idCierre,
+                    'codigo_cuenta' => '361005',
+                    'nombre_cuenta' => 'Pérdida del ejercicio',
+                    'concepto' => "Cierre contable año $anoFiscal - traslado de pérdida a patrimonio",
+                    'debito' => abs($utilidadEjercicio),
+                    'credito' => 0
+                ]);
+            }
+
+            // 6. Actualizar el registro del cierre con la utilidad ya calculada
+            $stmtUpdate = $this->pdo->prepare(
+                "UPDATE cierres_contables SET utilidad_ejercicio = :utilidad WHERE id = :id"
+            );
+            $stmtUpdate->execute([':utilidad' => $utilidadEjercicio, ':id' => $idCierre]);
+
+            $this->pdo->commit();
+
+            return [
+                'id_cierre' => $idCierre,
+                'ano_fiscal' => $anoFiscal,
+                'utilidad_ejercicio' => $utilidadEjercicio
+            ];
+
+        } catch (Exception $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Revierte un cierre contable activo: elimina el asiento de cierre generado
+     * y marca el registro como 'reversado' (no lo borra, para dejar historial).
+     */
+    public function reversarCierreContable($anoFiscal) {
+        $stmt = $this->pdo->prepare(
+            "SELECT id FROM cierres_contables WHERE ano_fiscal = :ano AND estado = 'activo'"
+        );
+        $stmt->execute([':ano' => $anoFiscal]);
+        $cierre = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$cierre) {
+            throw new Exception("No hay un cierre contable activo para el año $anoFiscal.");
+        }
+
+        $idCierre = $cierre['id'];
+
+        $this->pdo->beginTransaction();
+
+        try {
+            // Eliminar todas las líneas del asiento de cierre generadas para este cierre
+            $this->eliminarMovimientos('cierre_contable', $idCierre);
+
+            // Marcar el cierre como reversado (se conserva el registro como historial)
+            $stmtUpdate = $this->pdo->prepare(
+                "UPDATE cierres_contables SET estado = 'reversado' WHERE id = :id"
+            );
+            $stmtUpdate->execute([':id' => $idCierre]);
+
+            $this->pdo->commit();
+
+        } catch (Exception $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Verifica si el año de una fecha dada ya tiene un cierre contable ACTIVO.
+     * Se usa para bloquear la creación/edición/eliminación de documentos
+     * dentro de un periodo ya cerrado.
+     */
+    public function existeCierreActivoParaFecha($fecha) {
+        $anio = date('Y', strtotime($fecha));
+        $stmt = $this->pdo->prepare(
+            "SELECT id FROM cierres_contables WHERE ano_fiscal = :anio AND estado = 'activo'"
+        );
+        $stmt->execute([':anio' => $anio]);
+        return $stmt->fetch() !== false;
+    }
     
     /**
  * Registra asientos de Factura de Venta

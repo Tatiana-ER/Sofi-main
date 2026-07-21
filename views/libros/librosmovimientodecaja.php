@@ -1,108 +1,166 @@
 <?php
 // ================== CONEXIÓN ==================
-// Archivo de demo - conexión pendiente
+require_once '../../config/database.php';
 
 $pdo = Database::getConnection();
+
+// ================== DATOS DEL PERFIL ==================
+$sql_perfil = "SELECT persona, nombres, apellidos, razon, cedula, digito FROM perfil LIMIT 1";
+$stmt_perfil = $pdo->query($sql_perfil);
+$perfil = $stmt_perfil->fetch(PDO::FETCH_ASSOC);
+
+if ($perfil) {
+    if ($perfil['persona'] == 'juridica' && !empty($perfil['razon'])) {
+        $nombre_empresa = $perfil['razon'];
+    } else {
+        $nombre_empresa = trim($perfil['nombres'] . ' ' . $perfil['apellidos']);
+    }
+    $nit_empresa = $perfil['cedula'] . ($perfil['digito'] > 0 ? '-' . $perfil['digito'] : '');
+} else {
+    $nombre_empresa = 'Nombre de la Empresa';
+    $nit_empresa = 'NIT de la Empresa';
+}
+
+// ================== CUENTAS DE CAJA DISPONIBLES (1105xx) ==================
+$sql_cuentas_caja = "SELECT DISTINCT codigo_cuenta, nombre_cuenta 
+                      FROM libro_diario 
+                      WHERE codigo_cuenta LIKE '1105%' 
+                      ORDER BY codigo_cuenta";
+$stmt_cuentas_caja = $pdo->query($sql_cuentas_caja);
+$cuentas_caja = $stmt_cuentas_caja->fetchAll(PDO::FETCH_ASSOC);
 
 // ================== FILTROS ==================
 $fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-m-01');
 $fecha_hasta = isset($_GET['hasta']) ? $_GET['hasta'] : date('Y-m-t');
-$forma_pago_desde = isset($_GET['forma_desde']) ? $_GET['forma_desde'] : '';
-$forma_pago_hasta = isset($_GET['forma_hasta']) ? $_GET['forma_hasta'] : '';
 $tercero = isset($_GET['tercero']) ? $_GET['tercero'] : '';
 
-// ================== CONSULTA ==================
-$sql = "
-SELECT 
-    m.forma_pago,
-    t.identificacion AS identificacion_tercero,
-    t.nombre AS nombre_tercero,
-    co.codigo AS comprobante,
-    m.fecha AS fecha_comprobante,
-    IFNULL(s.saldo_inicial, 0) AS saldo_inicial,
-    m.debe AS movimiento_debito,
-    m.haber AS movimiento_credito,
-    (IFNULL(s.saldo_inicial,0) + m.debe - m.haber) AS saldo_final
-FROM movimientos_contables m
-LEFT JOIN terceros t ON t.id = m.tercero_id
-LEFT JOIN comprobantes co ON co.id = m.comprobante_id
-LEFT JOIN saldos_iniciales s ON s.cuenta_id = m.cuenta_id
-WHERE m.fecha BETWEEN :desde AND :hasta
-";
+// Si no se especificó cuenta, se preselecciona la primera cuenta de caja encontrada
+$cuenta_caja = isset($_GET['cuenta']) && $_GET['cuenta'] != ''
+    ? $_GET['cuenta']
+    : (count($cuentas_caja) > 0 ? $cuentas_caja[0]['codigo_cuenta'] : '');
 
-if ($forma_pago_desde != '' && $forma_pago_hasta != '') {
-    $sql .= " AND m.forma_pago BETWEEN :forma_desde AND :forma_hasta";
+$nombre_cuenta_caja = '';
+foreach ($cuentas_caja as $c) {
+    if ($c['codigo_cuenta'] == $cuenta_caja) {
+        $nombre_cuenta_caja = $c['nombre_cuenta'];
+        break;
+    }
 }
 
-if ($tercero != '') {
-    $sql .= " AND t.identificacion LIKE :tercero";
+// ================== LISTA DE TERCEROS QUE HAN TENIDO MOVIMIENTO EN CAJA ==================
+$sql_terceros = "SELECT DISTINCT tercero_identificacion, tercero_nombre 
+                  FROM libro_diario 
+                  WHERE codigo_cuenta LIKE '1105%' 
+                    AND tercero_identificacion IS NOT NULL 
+                    AND tercero_identificacion != ''
+                  ORDER BY tercero_nombre";
+$stmt_terceros = $pdo->query($sql_terceros);
+$lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
+
+// ================== SALDO INICIAL (todo lo acumulado antes de la fecha desde) ==================
+$saldoCorriente = 0;
+
+if ($cuenta_caja != '') {
+    $sql_saldo_inicial = "SELECT 
+                            COALESCE(SUM(debito), 0) as total_debito,
+                            COALESCE(SUM(credito), 0) as total_credito
+                          FROM libro_diario
+                          WHERE codigo_cuenta = :cuenta
+                            AND fecha < :desde";
+    $params_si = [':cuenta' => $cuenta_caja, ':desde' => $fecha_desde];
+
+    if ($tercero != '') {
+        $sql_saldo_inicial .= " AND tercero_identificacion = :tercero";
+        $params_si[':tercero'] = $tercero;
+    }
+
+    $stmt_si = $pdo->prepare($sql_saldo_inicial);
+    $stmt_si->execute($params_si);
+    $mov_inicial = $stmt_si->fetch(PDO::FETCH_ASSOC);
+
+    // Caja es cuenta de activo (naturaleza débito)
+    $saldoCorriente = floatval($mov_inicial['total_debito']) - floatval($mov_inicial['total_credito']);
 }
 
-$sql .= " ORDER BY m.forma_pago, m.fecha ASC";
+$saldoInicialPeriodo = $saldoCorriente;
 
-$stmt = $pdo->prepare($sql);
+// ================== MOVIMIENTOS DEL PERIODO ==================
+$movimientos = [];
 
-$params = [
-    ':desde' => $fecha_desde,
-    ':hasta' => $fecha_hasta
-];
+if ($cuenta_caja != '') {
+    $sql_mov = "SELECT * FROM libro_diario
+                WHERE codigo_cuenta = :cuenta
+                  AND fecha BETWEEN :desde AND :hasta";
+    $params_mov = [':cuenta' => $cuenta_caja, ':desde' => $fecha_desde, ':hasta' => $fecha_hasta];
 
-if ($forma_pago_desde != '' && $forma_pago_hasta != '') {
-    $params[':forma_desde'] = $forma_pago_desde;
-    $params[':forma_hasta'] = $forma_pago_hasta;
+    if ($tercero != '') {
+        $sql_mov .= " AND tercero_identificacion = :tercero";
+        $params_mov[':tercero'] = $tercero;
+    }
+
+    $sql_mov .= " ORDER BY fecha ASC, id ASC";
+
+    $stmt_mov = $pdo->prepare($sql_mov);
+    $stmt_mov->execute($params_mov);
+    $movimientos = $stmt_mov->fetchAll(PDO::FETCH_ASSOC);
 }
-if ($tercero != '') {
-    $params[':tercero'] = "%$tercero%";
+
+// ================== FORMATEAR NOMBRE DE COMPROBANTE ==================
+function formatearComprobante($tipo_documento, $numero_documento) {
+    $etiquetas = [
+        'factura_venta' => 'Factura Venta',
+        'factura_compra' => 'Factura Compra',
+        'recibo_caja' => 'Recibo de Caja',
+        'comprobante_egreso' => 'Comprobante Egreso',
+        'comprobante_contable' => 'Comprobante Contable',
+        'cierre_contable' => 'Cierre Contable'
+    ];
+    $etiqueta = isset($etiquetas[$tipo_documento]) ? $etiquetas[$tipo_documento] : ucfirst(str_replace('_', ' ', $tipo_documento));
+    return trim($etiqueta . ' ' . $numero_documento);
 }
 
-$stmt->execute($params);
-$datos = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// ================== TOTALES ==================
-$totalInicial = 0;
+// ================== CALCULAR SALDO CORRIENTE FILA POR FILA Y TOTALES ==================
 $totalDebito = 0;
 $totalCredito = 0;
-$totalFinal = 0;
+$filasReporte = [];
 
-foreach ($datos as $fila) {
-    $totalInicial += $fila['saldo_inicial'];
-    $totalDebito += $fila['movimiento_debito'];
-    $totalCredito += $fila['movimiento_credito'];
-    $totalFinal += $fila['saldo_final'];
+foreach ($movimientos as $mov) {
+    $debito = floatval($mov['debito']);
+    $credito = floatval($mov['credito']);
+
+    $saldoInicialFila = $saldoCorriente;
+    $saldoCorriente += ($debito - $credito);
+    $saldoFinalFila = $saldoCorriente;
+
+    $totalDebito += $debito;
+    $totalCredito += $credito;
+
+    $filasReporte[] = [
+        'comprobante' => formatearComprobante($mov['tipo_documento'], $mov['numero_documento']),
+        'fecha' => $mov['fecha'],
+        'tercero_identificacion' => $mov['tercero_identificacion'],
+        'tercero_nombre' => $mov['tercero_nombre'],
+        'saldo_inicial' => $saldoInicialFila,
+        'debito' => $debito,
+        'credito' => $credito,
+        'saldo_final' => $saldoFinalFila
+    ];
 }
+
+$saldoFinalPeriodo = $saldoCorriente;
 ?>
-
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="es">
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
-
-  <title>SOFI - UDES</title>
-  <meta content="" name="description">
-  <meta content="" name="keywords">
-
-  <!-- Favicons -->
+  <title>Movimiento de Caja - SOFI</title>
   <link href="../../assets/img/favicon.png" rel="icon">
-  <link href="../../assets/img/apple-touch-icon.png" rel="apple-touch-icon">
-
-  <!-- Google Fonts -->
-  <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,300i,400,400i,600,600i,700,700i|Raleway:300,300i,400,400i,500,500i,600,600i,700,700i|Poppins:300,300i,400,400i,500,500i,600,600i,700,700i" rel="stylesheet">
-
-  <!-- Vendor CSS Files -->
-  <link href="../../assets/vendor/animate.css/animate.min.css" rel="stylesheet">
-  <link href="../../assets/vendor/aos/aos.css" rel="stylesheet">  
+  <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700|Raleway:300,400,500,600,700|Poppins:300,400,500,600,700" rel="stylesheet">
   <link href="../../assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
   <link href="../../assets/vendor/bootstrap-icons/bootstrap-icons.css" rel="stylesheet">
-  <link href="../../assets/vendor/boxicons/css/boxicons.min.css" rel="stylesheet">
-  <link href="../../assets/vendor/glightbox/css/glightbox.min.css" rel="stylesheet">
-  <link href="../../assets/vendor/remixicon/remixicon.css" rel="stylesheet">
-  <link href="../../assets/vendor/swiper/swiper-bundle.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-
   <link href="../../assets/css/improved-style.css" rel="stylesheet">
-  
   <style>
     .btn-ir {
       background-color: #054a85;
@@ -115,22 +173,57 @@ foreach ($datos as $fila) {
       transition: 0.3s;
       margin-left: 50px;
     }
-    .btn-ir::before {
-      margin-right: 8px;
-      font-size: 18px;
+    .btn-ir:hover { background-color: #4c82b0ff; }
+    .balance-container {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
-
-    .btn-ir:hover {
-      background-color: #4c82b0ff;
+    .table-balance {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .table-balance thead {
+      background-color: #054a85;
+      color: white;
+    }
+    .table-balance th {
+      padding: 10px 8px;
+      text-align: left;
+      font-weight: 600;
+      border: 1px solid #dee2e6;
+      white-space: nowrap;
+    }
+    .table-balance td {
+      padding: 8px;
+      border: 1px solid #dee2e6;
+      vertical-align: middle;
+    }
+    .table-balance tbody tr:hover { background-color: #f8f9fa; }
+    .text-end { text-align: right !important; }
+    .total-general {
+      background-color: #054a85 !important;
+      color: white !important;
+      font-weight: bold;
+      font-size: 1rem;
+    }
+    .cuenta-actual {
+      background-color: #eef3f8;
+      border-left: 4px solid #054a85;
+      padding: 10px 15px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      font-size: 0.95rem;
+    }
+    @media print {
+      .btn-ir, form, .btn-primary, .btn-success, .btn-secondary, .btn-limpiar { display: none; }
     }
   </style>
-
 </head>
-
 <body>
-
-  <!-- ======= Header ======= -->
-  <header id="header" class="fixed-top d-flex align-items-center ">
+  <header id="header" class="fixed-top d-flex align-items-center">
     <div class="container d-flex align-items-center justify-content-between">
       <h1 class="logo">
         <a href="../../dashboard.php">
@@ -140,138 +233,174 @@ foreach ($datos as $fila) {
       </h1>
       <nav id="navbar" class="navbar">
         <ul>
-          <li>
-            <a class="nav-link scrollto active" href="../../dashboard.php" style="color: darkblue;">Inicio</a>
-          </li>
-          <li>
-            <a class="nav-link scrollto active" href="../../perfil.php" style="color: darkblue;">Mi Negocio</a>
-          </li>
-          <li>
-            <a class="nav-link scrollto active" href="../../index.php" style="color: darkblue;">Cerrar Sesión</a>
-          </li>
+          <li><a class="nav-link scrollto active" href="../../dashboard.php" style="color: darkblue;">Inicio</a></li>
+          <li><a class="nav-link scrollto active" href="../../perfil.php" style="color: darkblue;">Mi Negocio</a></li>
+          <li><a class="nav-link scrollto active" href="../../index.php" style="color: darkblue;">Cerrar Sesión</a></li>
         </ul>
-      </nav><!-- .navbar -->
+        <i class="bi bi-list mobile-nav-toggle"></i>
+      </nav>
     </div>
-  </header><!-- End Header -->
+  </header>
 
-    <!-- ======= Services Section ======= -->
-     
-    <!-- ======= CONTENIDO ======= -->
-  <section id="services" class="services mt-5 pt-5">
-
+  <section id="services" class="services">
     <button class="btn-ir" onclick="window.location.href='../menus/menulibros.php'">
       <i class="fa-solid fa-arrow-left"></i> Regresar
     </button>
-
     <div class="container" data-aos="fade-up">
+      <div class="section-title">
+        <h2><i class="fa-solid fa-cash-register"></i> Movimiento de Caja</h2>
+        <p>Detalle cronológico de entradas y salidas de una cuenta de caja, con saldo corriente</p>
 
-      <h2 class="section-title" style="color:#054a85;">MOVIMIENTO DE CAJA</h2>
-
-      <!-- ====== FORMULARIO FILTROS ====== -->
-      <form class="row g-3 mb-4 justify-content-center align-items-end" method="get">
-        
-        <div class="col-md-4">
-          <div class="input-group">
-            <span class="input-group-text">Forma de pago (de):</span>
-            <input type="text" name="forma_desde" class="form-control" placeholder="Ej: Efectivo" value="<?= htmlspecialchars($forma_pago_desde) ?>">
+        <div class="text-center empresa-info mt-3 p-3" style="border-radius: 5px;">
+          <div style="margin-bottom: 10px;"><strong><?= htmlspecialchars($nombre_empresa) ?></strong></div>
+          <div style="margin-bottom: 10px;"><strong><?= htmlspecialchars($nit_empresa) ?></strong></div>
+          <div style="margin-bottom: 5px;">
+            <strong>PERIODO:</strong> <?= date('d/m/Y', strtotime($fecha_desde)) ?> A <?= date('d/m/Y', strtotime($fecha_hasta)) ?>
           </div>
         </div>
-        <div class="col-md-4">
-          <div class="input-group">
-            <span class="input-group-text">a:</span>
-            <input type="text" name="forma_hasta" class="form-control" placeholder="Ej: Transferencia" value="<?= htmlspecialchars($forma_pago_hasta) ?>">
-          </div>
-        </div>
+      </div>
 
-        <div class="col-md-4">
-          <div class="input-group">
-            <span class="input-group-text">Tercero:</span>
-            <input type="text" name="tercero" class="form-control" placeholder="Identificación" value="<?= htmlspecialchars($tercero) ?>">
-          </div>
+      <form method="get" class="row g-3 mb-4">
+        <div class="col-md-3">
+          <label>Cuenta de Caja:</label>
+          <select name="cuenta" class="form-select">
+            <?php if (count($cuentas_caja) == 0): ?>
+              <option value="">No hay cuentas de caja registradas</option>
+            <?php endif; ?>
+            <?php foreach ($cuentas_caja as $c): ?>
+              <option value="<?= htmlspecialchars($c['codigo_cuenta']) ?>" <?= $c['codigo_cuenta'] == $cuenta_caja ? 'selected' : '' ?>>
+                <?= htmlspecialchars($c['codigo_cuenta']) ?> - <?= htmlspecialchars($c['nombre_cuenta']) ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
         </div>
-
-        <div class="col-md-4">
-          <div class="input-group">
-            <span class="input-group-text">Fecha desde:</span>
-            <input type="date" name="desde" class="form-control" value="<?= htmlspecialchars($fecha_desde) ?>">
-          </div>
+        <div class="col-md-3">
+          <label>Tercero:</label>
+          <select name="tercero" class="form-select">
+            <option value="">-- Todos --</option>
+            <?php foreach ($lista_terceros as $t): ?>
+              <option value="<?= htmlspecialchars($t['tercero_identificacion']) ?>" <?= $t['tercero_identificacion'] == $tercero ? 'selected' : '' ?>>
+                <?= htmlspecialchars($t['tercero_nombre']) ?> (<?= htmlspecialchars($t['tercero_identificacion']) ?>)
+              </option>
+            <?php endforeach; ?>
+          </select>
         </div>
-        <div class="col-md-4">
-          <div class="input-group">
-            <span class="input-group-text">Hasta:</span>
-            <input type="date" name="hasta" class="form-control" value="<?= htmlspecialchars($fecha_hasta) ?>">
-          </div>
+        <div class="col-md-2">
+          <label>Desde:</label>
+          <input type="date" name="desde" class="form-control" value="<?= htmlspecialchars($fecha_desde) ?>">
         </div>
-
-        <div class="col-md-2 d-grid">
-          <button type="submit" class="btn btn-primary">Consultar</button>
+        <div class="col-md-2">
+          <label>Hasta:</label>
+          <input type="date" name="hasta" class="form-control" value="<?= htmlspecialchars($fecha_hasta) ?>">
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="fa-solid fa-search"></i> Buscar
+          </button>
+        </div>
+        <div class="col-md-12 mt-2">
+          <button type="button" class="btn-limpiar" onclick="window.location.href = window.location.pathname">Limpiar Filtros</button>
         </div>
       </form>
 
-      <!-- ====== TABLA RESULTADOS --antes era class="table table-bordered" ====== -->
-      <table class="table-container">
-        <thead style="background-color:#f8f9fa;">
-          <tr>
-            <th>Forma de pago</th>
-            <th>Identificación del tercero</th>
-            <th>Nombre del tercero</th>
-            <th>Comprobante</th>
-            <th>Fecha comprobante</th>
-            <th class="text-end">Saldo inicial</th>
-            <th class="text-end">Movimiento Débito</th>
-            <th class="text-end">Movimiento Crédito</th>
-            <th class="text-end">Saldo final</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php foreach ($datos as $fila): ?>
-            <tr>
-              <td><?= htmlspecialchars($fila['forma_pago']) ?></td>
-              <td><?= htmlspecialchars($fila['identificacion_tercero']) ?></td>
-              <td><?= htmlspecialchars($fila['nombre_tercero']) ?></td>
-              <td><?= htmlspecialchars($fila['comprobante']) ?></td>
-              <td><?= htmlspecialchars($fila['fecha_comprobante']) ?></td>
-              <td class="text-end"><?= number_format($fila['saldo_inicial'],2) ?></td>
-              <td class="text-end"><?= number_format($fila['movimiento_debito'],2) ?></td>
-              <td class="text-end"><?= number_format($fila['movimiento_credito'],2) ?></td>
-              <td class="text-end"><?= number_format($fila['saldo_final'],2) ?></td>
-            </tr>
-          <?php endforeach; ?>
-          <tr class="fw-bold">
-            <td colspan="5" class="text-end">TOTALES</td>
-            <td class="text-end"><?= number_format($totalInicial,2) ?></td>
-            <td class="text-end"><?= number_format($totalDebito,2) ?></td>
-            <td class="text-end"><?= number_format($totalCredito,2) ?></td>
-            <td class="text-end"><?= number_format($totalFinal,2) ?></td>
-          </tr>
-        </tbody>
-      </table>
+      <?php if ($cuenta_caja != ''): ?>
+      <div class="cuenta-actual">
+        <strong>Cuenta consultada:</strong> <?= htmlspecialchars($cuenta_caja) ?> - <?= htmlspecialchars($nombre_cuenta_caja) ?>
+      </div>
+      <?php endif; ?>
+
+      <?php if (count($filasReporte) > 0): ?>
+      <div class="mb-3 text-end">
+        <button onclick="exportarPDF()" class="btn btn-secondary">
+          <i class="fa-solid fa-file-pdf"></i> Exportar PDF
+        </button>
+        <button onclick="exportarExcel()" class="btn btn-success">
+          <i class="fa-solid fa-file-excel"></i> Exportar Excel
+        </button>
+      </div>
+      <?php endif; ?>
+
+      <div class="balance-container">
+        <div class="table-responsive">
+          <table class="table-balance">
+            <thead>
+              <tr>
+                <th>Comprobante</th>
+                <th>Fecha</th>
+                <th>Identificación del Tercero</th>
+                <th>Nombre del Tercero</th>
+                <th class="text-end">Saldo Inicial</th>
+                <th class="text-end">Movimiento Débito</th>
+                <th class="text-end">Movimiento Crédito</th>
+                <th class="text-end">Saldo Final</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php if ($cuenta_caja == ''): ?>
+                <tr>
+                  <td colspan="8" class="text-center text-muted py-3">No hay ninguna cuenta de caja (1105xx) registrada todavía en el libro diario</td>
+                </tr>
+              <?php elseif (count($filasReporte) > 0): ?>
+                <?php foreach ($filasReporte as $fila): ?>
+                  <tr>
+                    <td><?= htmlspecialchars($fila['comprobante']) ?></td>
+                    <td><?= date('d/m/Y', strtotime($fila['fecha'])) ?></td>
+                    <td><?= htmlspecialchars($fila['tercero_identificacion']) ?></td>
+                    <td><?= htmlspecialchars($fila['tercero_nombre']) ?></td>
+                    <td class="text-end">$<?= number_format($fila['saldo_inicial'], 2, ',', '.') ?></td>
+                    <td class="text-end">$<?= number_format($fila['debito'], 2, ',', '.') ?></td>
+                    <td class="text-end">$<?= number_format($fila['credito'], 2, ',', '.') ?></td>
+                    <td class="text-end"><strong>$<?= number_format($fila['saldo_final'], 2, ',', '.') ?></strong></td>
+                  </tr>
+                <?php endforeach; ?>
+                <tr class="total-general">
+                  <td colspan="4">TOTALES DEL PERÍODO</td>
+                  <td class="text-end">$<?= number_format($saldoInicialPeriodo, 2, ',', '.') ?></td>
+                  <td class="text-end">$<?= number_format($totalDebito, 2, ',', '.') ?></td>
+                  <td class="text-end">$<?= number_format($totalCredito, 2, ',', '.') ?></td>
+                  <td class="text-end">$<?= number_format($saldoFinalPeriodo, 2, ',', '.') ?></td>
+                </tr>
+              <?php else: ?>
+                <tr>
+                  <td colspan="4">Sin movimientos en el período</td>
+                  <td class="text-end">$<?= number_format($saldoInicialPeriodo, 2, ',', '.') ?></td>
+                  <td class="text-end">$0,00</td>
+                  <td class="text-end">$0,00</td>
+                  <td class="text-end">$<?= number_format($saldoFinalPeriodo, 2, ',', '.') ?></td>
+                </tr>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
     </div>
-  </section><!-- End Services Section -->
+  </section>
 
-    <!-- ======= Footer ======= -->
-    <footer id="footer" class="footer-minimalista">
-      <p>Universidad de Santander - Ingeniería de Software</p>
-      <p>Todos los derechos reservados © 2025</p>
-      <p>Creado por iniciativa del programa de Contaduría Pública</p>
-    </footer><!-- End Footer -->
-
-
-  <div id="preloader"></div>
-  <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
-
-  <!-- Vendor JS Files -->
   <script src="../../assets/vendor/aos/aos.js"></script>
   <script src="../../assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-  <script src="../../assets/vendor/glightbox/js/glightbox.min.js"></script>
-  <script src="../../assets/vendor/isotope-layout/isotope.pkgd.min.js"></script>
-  <script src="../../assets/vendor/swiper/swiper-bundle.min.js"></script>
-  <script src="../../assets/vendor/php-email-form/validate.js"></script>
+  <script>
+    AOS.init();
 
-  <!-- Template Main JS File -->
-  <script src="../../assets/js/main.js"></script>
+    function exportarExcel() {
+      const params = new URLSearchParams({
+        cuenta: document.querySelector('select[name="cuenta"]').value,
+        tercero: document.querySelector('select[name="tercero"]').value,
+        desde: document.querySelector('input[name="desde"]').value,
+        hasta: document.querySelector('input[name="hasta"]').value
+      });
+      window.location.href = `exportar_movimientocaja_excel.php?${params}`;
+    }
 
+    function exportarPDF() {
+      const params = new URLSearchParams({
+        cuenta: document.querySelector('select[name="cuenta"]').value,
+        tercero: document.querySelector('select[name="tercero"]').value,
+        desde: document.querySelector('input[name="desde"]').value,
+        hasta: document.querySelector('input[name="hasta"]').value
+      });
+      window.open(`exportar_movimientocaja_pdf.php?${params}`, '_blank');
+    }
+  </script>
 </body>
-
 </html>

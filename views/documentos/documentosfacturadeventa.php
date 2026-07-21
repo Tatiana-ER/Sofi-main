@@ -55,6 +55,11 @@ switch($accion){
     try {
         $pdo->beginTransaction();
 
+        // Candado de cierre contable: no permitir registrar en un año ya cerrado
+        if ($libroDiario->existeCierreActivoParaFecha($fecha)) {
+            throw new Exception("No se puede registrar esta factura: el año " . date('Y', strtotime($fecha)) . " ya tiene un cierre contable activo. Si necesitas hacer ajustes, primero revierte el cierre de ese año.");
+        }
+
         if (isset($_POST['detalles'])) {
             $decoded = json_decode($_POST['detalles'], true);
             if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded) || empty($decoded)) {
@@ -181,6 +186,19 @@ break;
   case "btnModificar":
     try {
         $pdo->beginTransaction();
+
+        // Candado de cierre contable: verificar tanto la fecha original como la nueva
+        $stmtFechaOriginal = $pdo->prepare("SELECT fecha FROM facturav WHERE id = :id");
+        $stmtFechaOriginal->execute([':id' => $txtId]);
+        $fechaOriginal = $stmtFechaOriginal->fetchColumn();
+
+        if ($fechaOriginal && $libroDiario->existeCierreActivoParaFecha($fechaOriginal)) {
+            throw new Exception("No se puede modificar esta factura: pertenece al año " . date('Y', strtotime($fechaOriginal)) . ", que ya tiene un cierre contable activo.");
+        }
+
+        if ($libroDiario->existeCierreActivoParaFecha($fecha)) {
+            throw new Exception("No se puede mover esta factura al año " . date('Y', strtotime($fecha)) . ": ese año ya tiene un cierre contable activo.");
+        }
 
         if (isset($_POST['detalles'])) {
             $decoded = json_decode($_POST['detalles'], true);
@@ -334,6 +352,15 @@ break;
   case "btnEliminar":
     try {
         $pdo->beginTransaction();
+
+        // Candado de cierre contable
+        $stmtFechaEliminar = $pdo->prepare("SELECT fecha FROM facturav WHERE id = :id");
+        $stmtFechaEliminar->execute([':id' => $txtId]);
+        $fechaEliminar = $stmtFechaEliminar->fetchColumn();
+
+        if ($fechaEliminar && $libroDiario->existeCierreActivoParaFecha($fechaEliminar)) {
+            throw new Exception("No se puede eliminar esta factura: pertenece al año " . date('Y', strtotime($fechaEliminar)) . ", que ya tiene un cierre contable activo.");
+        }
 
         // Eliminar asientos contables
         $libroDiario->eliminarMovimientos('factura_venta', $txtId);

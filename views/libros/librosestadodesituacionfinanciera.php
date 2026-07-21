@@ -48,25 +48,24 @@ function extraerIdentificacion($identificacion) {
 }
 
 // ================== FUNCIÓN PARA CALCULAR SALDOS POR CUENTA ==================
-function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $tercero = '', $calcular_saldo_inicial = false) {
-    if ($calcular_saldo_inicial) {
-        $ano_fiscal = date('Y', strtotime($fecha_desde));
-        $fecha_inicio_saldo_inicial = $ano_fiscal . '-01-01';
-        $fecha_fin_saldo_inicial = date('Y-m-d', strtotime($fecha_desde . ' -1 day'));
-        
-        $sql = "SELECT 
-                    COALESCE(SUM(debito), 0) as total_debito,
-                    COALESCE(SUM(credito), 0) as total_credito
-                FROM libro_diario 
-                WHERE codigo_cuenta = :cuenta 
-                  AND fecha BETWEEN :desde AND :hasta";
-        
-        $params = [
-            ':cuenta' => $codigo_cuenta, 
-            ':desde' => $fecha_inicio_saldo_inicial, 
-            ':hasta' => $fecha_fin_saldo_inicial
-        ];
-    } else {
+    function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $tercero = '', $calcular_saldo_inicial = false) {
+        if ($calcular_saldo_inicial) {
+            // Saldo inicial = todo lo acumulado ANTES de la fecha de inicio,
+            // sin cortar en el 1 de enero (las cuentas de balance son acumuladas,
+            // no se resetean cada año - eso solo pasa con el cierre contable
+            // formal, que todavía no existe en el sistema)
+            $sql = "SELECT 
+                        COALESCE(SUM(debito), 0) as total_debito,
+                        COALESCE(SUM(credito), 0) as total_credito
+                    FROM libro_diario 
+                    WHERE codigo_cuenta = :cuenta 
+                    AND fecha < :desde";
+            
+            $params = [
+                ':cuenta' => $codigo_cuenta, 
+                ':desde' => $fecha_desde
+            ];
+        } else {
         $sql = "SELECT 
                     COALESCE(SUM(debito), 0) as total_debito,
                     COALESCE(SUM(credito), 0) as total_credito
@@ -129,7 +128,8 @@ function obtenerResultadoEjercicio($pdo, $fecha_desde, $fecha_hasta, $tercero = 
     $sql_ingresos = "SELECT COALESCE(SUM(credito - debito), 0) as saldo 
                      FROM libro_diario 
                      WHERE SUBSTRING(codigo_cuenta, 1, 1) = '4' 
-                     AND fecha BETWEEN :desde AND :hasta";
+                     AND fecha BETWEEN :desde AND :hasta
+                     AND tipo_documento != 'cierre_contable'";
     
     $params_ingresos = [':desde' => $fecha_desde, ':hasta' => $fecha_hasta];
     
@@ -150,7 +150,8 @@ function obtenerResultadoEjercicio($pdo, $fecha_desde, $fecha_hasta, $tercero = 
     $sql_costos = "SELECT COALESCE(SUM(debito - credito), 0) as saldo 
                    FROM libro_diario 
                    WHERE SUBSTRING(codigo_cuenta, 1, 1) = '6' 
-                   AND fecha BETWEEN :desde AND :hasta";
+                   AND fecha BETWEEN :desde AND :hasta
+                   AND tipo_documento != 'cierre_contable'";
     
     $params_costos = [':desde' => $fecha_desde, ':hasta' => $fecha_hasta];
     
@@ -171,8 +172,9 @@ function obtenerResultadoEjercicio($pdo, $fecha_desde, $fecha_hasta, $tercero = 
     $sql_gastos = "SELECT COALESCE(SUM(debito - credito), 0) as saldo 
                    FROM libro_diario 
                    WHERE SUBSTRING(codigo_cuenta, 1, 1) = '5' 
-                   AND fecha BETWEEN :desde AND :hasta";
-    
+                   AND fecha BETWEEN :desde AND :hasta
+                   AND tipo_documento != 'cierre_contable'";
+
     $params_gastos = [':desde' => $fecha_desde, ':hasta' => $fecha_hasta];
     
     if ($tercero != '') {
@@ -197,10 +199,10 @@ $sql_cuentas = "SELECT DISTINCT
                     nombre_cuenta,
                     SUBSTRING(codigo_cuenta, 1, 1) as clase
                 FROM libro_diario 
-                WHERE fecha BETWEEN :desde AND :hasta
+                WHERE fecha <= :hasta
                   AND SUBSTRING(codigo_cuenta, 1, 1) IN ('1', '2', '3')";
 
-$params_cuentas = [':desde' => $fecha_desde, ':hasta' => $fecha_hasta];
+$params_cuentas = [':hasta' => $fecha_hasta];
 
 if ($cuenta_codigo != '') {
     $sql_cuentas .= " AND codigo_cuenta = :cuenta";
@@ -243,26 +245,28 @@ foreach ($todas_cuentas as $cuenta) {
     $debito = floatval($movimientos['total_debito']);
     $credito = floatval($movimientos['total_credito']);
     
-    $saldo_inicial = 0;
-    if ($mostrar_saldo_inicial) {
-        $movimientos_inicial = calcularSaldoCuenta($pdo, $codigo, $fecha_desde, $fecha_hasta, $tercero, true);
-        $debito_inicial = floatval($movimientos_inicial['total_debito']);
-        $credito_inicial = floatval($movimientos_inicial['total_credito']);
-        
-        if ($clase == '1') {
-            $saldo_inicial = $debito_inicial - $credito_inicial;
-        } else {
-            $saldo_inicial = $credito_inicial - $debito_inicial;
-        }
+    // El saldo inicial SIEMPRE se calcula (sin importar el checkbox), porque
+    // es necesario para saber el saldo real de la cuenta y para decidir si
+    // debe aparecer en el reporte, aunque no haya tenido movimiento este periodo.
+    $movimientos_inicial = calcularSaldoCuenta($pdo, $codigo, $fecha_desde, $fecha_hasta, $tercero, true);
+    $debito_inicial = floatval($movimientos_inicial['total_debito']);
+    $credito_inicial = floatval($movimientos_inicial['total_credito']);
+
+    if ($clase == '1') {
+        $saldo_inicial = $debito_inicial - $credito_inicial;
+    } else {
+        $saldo_inicial = $credito_inicial - $debito_inicial;
     }
-    
+
     $saldo = 0;
     if ($clase == '1') {
         $saldo = $debito - $credito;
     } else {
         $saldo = $credito - $debito;
     }
-    
+
+    $saldo_final = $saldo_inicial + $saldo;
+
     if ($saldo != 0 || $saldo_inicial != 0) {
         $nombre_cuenta = isset($nombres_cuentas[$codigo]) ? $nombres_cuentas[$codigo] : $cuenta['nombre_cuenta'];
         
@@ -271,6 +275,7 @@ foreach ($todas_cuentas as $cuenta) {
             'nombre' => $nombre_cuenta,
             'saldo_inicial' => $saldo_inicial,
             'saldo' => $saldo,
+            'saldo_final' => $saldo_final,
             'nivel' => strlen($codigo)
         ];
         
@@ -291,6 +296,10 @@ foreach ($todas_cuentas as $cuenta) {
         $cuentas_procesadas[] = $codigo;
     }
 }
+
+$totalFinalActivos = $totalSaldoInicialActivos + $totalActivos;
+$totalFinalPasivos = $totalSaldoInicialPasivos + $totalPasivos;
+$totalFinalPatrimonios = $totalSaldoInicialPatrimonios + $totalPatrimonios;
 
 // ================== AGREGAR AGRUPACIONES SUPERIORES ==================
 function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial = false) {
@@ -319,6 +328,7 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuen
                             'nombre' => $nombre,
                             'saldo_inicial' => 0,
                             'saldo' => 0,
+                            'saldo_final' => 0,
                             'nivel' => strlen($grupo),
                             'es_grupo' => true
                         ];
@@ -338,6 +348,7 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuen
                         if (isset($agrupaciones[$codigo_padre])) {
                             // Siempre suma algebraicamente (respeta signos positivos y negativos)
                             $agrupaciones[$codigo_padre]['saldo'] += $item['saldo'];
+                            $agrupaciones[$codigo_padre]['saldo_final'] += isset($item['saldo_final']) ? $item['saldo_final'] : $item['saldo'];
                             if ($mostrar_saldo_inicial) {
                                 $agrupaciones[$codigo_padre]['saldo_inicial'] += $item['saldo_inicial'];
                             }
@@ -364,22 +375,52 @@ function agregarAgrupaciones(&$array_cuentas, $cuentas_procesadas, $nombres_cuen
 $activos = agregarAgrupaciones($activos, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
 $pasivos = agregarAgrupaciones($pasivos, $cuentas_procesadas, $nombres_cuentas, $mostrar_saldo_inicial);
 
-// ================== AGREGAR RESULTADO DEL EJERCICIO AL PATRIMONIO (ANTES DE AGREGAR AGRUPACIONES) ==================
-$resultado_ejercicio = obtenerResultadoEjercicio($pdo, $fecha_desde, $fecha_hasta, $tercero);
+// ================== AGREGAR RESULTADO DEL EJERCICIO AL PATRIMONIO (SOLO SI EL AÑO CONSULTADO SIGUE ABIERTO) ==================
+$anoConsultado = date('Y', strtotime($fecha_hasta));
+$stmtCierreActivo = $pdo->prepare(
+    "SELECT id FROM cierres_contables WHERE ano_fiscal = :ano AND estado = 'activo'"
+);
+$stmtCierreActivo->execute([':ano' => $anoConsultado]);
+$anoYaCerrado = $stmtCierreActivo->fetch() !== false;
 
-if ($resultado_ejercicio != 0) {
-    $cuenta_resultado = [
-        'codigo' => ($resultado_ejercicio >= 0) ? '360501' : '361001',
-        'nombre' => ($resultado_ejercicio >= 0) ? 'Utilidad del ejercicio' : 'Pérdida del ejercicio',
-        'saldo_inicial' => 0,
-        'saldo' => $resultado_ejercicio, // Valor con su signo (negativo si es pérdida)
-        'nivel' => 6,
-        'es_resultado' => true
-    ];
-    
-    $patrimonios[] = $cuenta_resultado;
-    $totalPatrimonios += $resultado_ejercicio;
-    $cuentas_procesadas[] = $cuenta_resultado['codigo'];
+if (!$anoYaCerrado) {
+    $resultado_ejercicio = obtenerResultadoEjercicio($pdo, $fecha_desde, $fecha_hasta, $tercero);
+
+    if ($resultado_ejercicio != 0) {
+        $codigoResultado = ($resultado_ejercicio >= 0) ? '360505' : '361005';
+        $nombreResultado = ($resultado_ejercicio >= 0) ? 'Utilidad del ejercicio' : 'Pérdida del ejercicio';
+
+        // ¿Ya existe una fila con este mismo código, venida del bucle principal
+        // (por ejemplo, el saldo inicial de un cierre de un año anterior con el
+        // mismo signo)? Si existe, le sumamos el resultado en vivo a esa fila en
+        // vez de crear una fila nueva duplicada.
+        $indiceExistente = null;
+        foreach ($patrimonios as $indice => $cuentaExistente) {
+            if ($cuentaExistente['codigo'] === $codigoResultado) {
+                $indiceExistente = $indice;
+                break;
+            }
+        }
+
+        if ($indiceExistente !== null) {
+            $patrimonios[$indiceExistente]['saldo'] += $resultado_ejercicio;
+            $patrimonios[$indiceExistente]['saldo_final'] = 
+                $patrimonios[$indiceExistente]['saldo_inicial'] + $patrimonios[$indiceExistente]['saldo'];
+        } else {
+            $patrimonios[] = [
+                'codigo' => $codigoResultado,
+                'nombre' => $nombreResultado,
+                'saldo_inicial' => 0,
+                'saldo' => $resultado_ejercicio,
+                'saldo_final' => $resultado_ejercicio,
+                'nivel' => 6,
+                'es_resultado' => true
+            ];
+            $cuentas_procesadas[] = $codigoResultado;
+        }
+
+        $totalPatrimonios += $resultado_ejercicio;
+    }
 }
 
 // Ahora sí agregamos las agrupaciones del patrimonio (que ya incluye el resultado)
@@ -763,26 +804,26 @@ $esta_equilibrado = abs($diferencia) < 0.01;
               <tbody>
                   <?php if (count($activos) > 0): ?>
                       <?php foreach($activos as $fila): ?>
-                          <tr class="nivel-<?= $fila['nivel'] ?>">
-                              <td><?= htmlspecialchars($fila['codigo']) ?></td>
-                              <td><?= htmlspecialchars($fila['nombre']) ?></td>
-                              <?php if ($mostrar_saldo_inicial): ?>
-                              <td class="text-end"><?= number_format($fila['saldo_inicial'], 2, ',', '.') ?></td>
-                              <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
-                              <?php else: ?>
-                              <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
-                              <?php endif; ?>
-                          </tr>
-                      <?php endforeach; ?>
-                      <tr class="total-seccion">
-                          <td colspan="<?= $mostrar_saldo_inicial ? '2' : '2' ?>">TOTAL ACTIVOS</td>
-                          <?php if ($mostrar_saldo_inicial): ?>
-                          <td class="text-end"><?= number_format($totalSaldoInicialActivos, 2, ',', '.') ?></td>
-                          <td class="text-end"><?= number_format($totalActivos, 2, ',', '.') ?></td>
-                          <?php else: ?>
-                          <td class="text-end"><?= number_format($totalActivos, 2, ',', '.') ?></td>
-                          <?php endif; ?>
-                      </tr>
+                        <tr class="nivel-<?= $fila['nivel'] ?>">
+                            <td><?= htmlspecialchars($fila['codigo']) ?></td>
+                            <td><?= htmlspecialchars($fila['nombre']) ?></td>
+                            <?php if ($mostrar_saldo_inicial): ?>
+                            <td class="text-end"><?= number_format($fila['saldo_inicial'], 2, ',', '.') ?></td>
+                            <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
+                            <?php else: ?>
+                            <td class="text-end"><?= number_format($fila['saldo_final'], 2, ',', '.') ?></td>
+                            <?php endif; ?>
+                        </tr>
+                    <?php endforeach; ?>
+                    <tr class="total-seccion">
+                        <td colspan="<?= $mostrar_saldo_inicial ? '2' : '2' ?>">TOTAL ACTIVOS</td>
+                        <?php if ($mostrar_saldo_inicial): ?>
+                        <td class="text-end"><?= number_format($totalSaldoInicialActivos, 2, ',', '.') ?></td>
+                        <td class="text-end"><?= number_format($totalActivos, 2, ',', '.') ?></td>
+                        <?php else: ?>
+                        <td class="text-end"><?= number_format($totalFinalActivos, 2, ',', '.') ?></td>
+                        <?php endif; ?>
+                    </tr>
                   <?php else: ?>
                       <tr>
                           <td colspan="<?= $mostrar_saldo_inicial ? '4' : '3' ?>" class="text-center text-muted">No hay activos en el período seleccionado</td>
@@ -820,7 +861,7 @@ $esta_equilibrado = abs($diferencia) < 0.01;
                               <td class="text-end"><?= number_format($fila['saldo_inicial'], 2, ',', '.') ?></td>
                               <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
                               <?php else: ?>
-                              <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
+                              <td class="text-end"><?= number_format($fila['saldo_final'], 2, ',', '.') ?></td>
                               <?php endif; ?>
                           </tr>
                       <?php endforeach; ?>
@@ -830,7 +871,7 @@ $esta_equilibrado = abs($diferencia) < 0.01;
                           <td class="text-end"><?= number_format($totalSaldoInicialPasivos, 2, ',', '.') ?></td>
                           <td class="text-end"><?= number_format($totalPasivos, 2, ',', '.') ?></td>
                           <?php else: ?>
-                          <td class="text-end"><?= number_format($totalPasivos, 2, ',', '.') ?></td>
+                          <td class="text-end"><?= number_format($totalFinalPasivos , 2, ',', '.') ?></td>
                           <?php endif; ?>
                       </tr>
                   <?php else: ?>
@@ -870,7 +911,7 @@ $esta_equilibrado = abs($diferencia) < 0.01;
                               <td class="text-end"><?= number_format($fila['saldo_inicial'], 2, ',', '.') ?></td>
                               <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
                               <?php else: ?>
-                              <td class="text-end"><?= number_format($fila['saldo'], 2, ',', '.') ?></td>
+                              <td class="text-end"><?= number_format($fila['saldo_final'], 2, ',', '.') ?></td>
                               <?php endif; ?>
                           </tr>
                       <?php endforeach; ?>
@@ -880,7 +921,7 @@ $esta_equilibrado = abs($diferencia) < 0.01;
                           <td class="text-end"><?= number_format($totalSaldoInicialPatrimonios, 2, ',', '.') ?></td>
                           <td class="text-end"><?= number_format($totalPatrimonios, 2, ',', '.') ?></td>
                           <?php else: ?>
-                          <td class="text-end"><?= number_format($totalPatrimonios, 2, ',', '.') ?></td>
+                          <td class="text-end"><?= number_format($totalFinalPatrimonios, 2, ',', '.') ?></td>
                           <?php endif; ?>
                       </tr>
                   <?php else: ?>
