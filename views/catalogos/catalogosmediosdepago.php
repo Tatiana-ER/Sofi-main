@@ -526,5 +526,6 @@ $(document).ready(function() {
 <script src="../../assets/vendor/php-email-form/validate.js"></script>
 <script src="../../assets/js/main.js"></script>
 
+  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/asistente/asistente-widget.php'; ?>
 </body>
 </html>

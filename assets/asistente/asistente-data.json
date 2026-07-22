@@ -1,0 +1,274 @@
+{
+  "inicio": {
+    "mensaje": "¡Hola! Soy el asistente de SOFI. ¿En qué necesitas ayuda?",
+    "opciones": [
+      { "texto": "📋 Catálogos", "siguiente": "catalogos" },
+      { "texto": "📄 Documentos", "siguiente": "documentos" },
+      { "texto": "📊 Informes", "siguiente": "informes" },
+      { "texto": "📚 Libros", "siguiente": "libros" },
+      { "texto": "🧭 Navegación general", "siguiente": "navegacion" }
+    ]
+  },
+
+  "navegacion": {
+    "mensaje": "¿Qué necesitas saber sobre la navegación del sistema?",
+    "opciones": [
+      { "texto": "¿Qué es 'Mi Negocio'?", "siguiente": "resp_mi_negocio" },
+      { "texto": "¿Cómo cierro sesión?", "siguiente": "resp_cerrar_sesion" },
+      { "texto": "¿Cómo vuelvo al inicio?", "siguiente": "resp_inicio_nav" }
+    ]
+  },
+  "resp_mi_negocio": {
+    "tipo": "respuesta",
+    "mensaje": "'Mi Negocio' es la sección donde se encuentra toda la información de tu empresa (datos fiscales, contacto, etc). Ten en cuenta que esta información solo puede modificarse desde la cuenta del administrador.",
+    "enlace": null
+  },
+  "resp_cerrar_sesion": {
+    "tipo": "respuesta",
+    "mensaje": "En la parte superior derecha del menú encontrarás la opción 'Cerrar Sesión'. Al hacer clic ahí se cerrará tu sesión de forma segura.",
+    "enlace": null
+  },
+  "resp_inicio_nav": {
+    "tipo": "respuesta",
+    "mensaje": "Haz clic en la pestaña 'Inicio' en la parte superior del menú para volver al panel principal en cualquier momento.",
+    "enlace": "/Sofi-main/dashboard.php"
+  },
+
+  "catalogos": {
+    "mensaje": "Catálogos es donde registras la información base de tu contabilidad. ¿Sobre cuál catálogo necesitas ayuda?",
+    "opciones": [
+      { "texto": "Terceros", "siguiente": "cat_terceros" },
+      { "texto": "Cuentas contables", "siguiente": "cat_cuentas" },
+      { "texto": "Inventarios", "siguiente": "cat_inventarios" },
+      { "texto": "Medios de pago", "siguiente": "cat_pagos" },
+      { "texto": "Parámetros de documentos", "siguiente": "cat_parametros" }
+    ]
+  },
+  "cat_terceros": {
+    "mensaje": "Terceros (clientes, proveedores, empleados). ¿Qué quieres hacer?",
+    "opciones": [
+      { "texto": "Crear un tercero", "siguiente": "resp_cat_terceros_crear" },
+      { "texto": "Editar o eliminar un tercero", "siguiente": "resp_cat_terceros_editar" },
+      { "texto": "Buscar un tercero", "siguiente": "resp_cat_terceros_buscar" }
+    ]
+  },
+  "resp_cat_terceros_crear": {
+    "tipo": "respuesta",
+    "mensaje": "Para crear un tercero: 1) Ve a Catálogos > Terceros. 2) Haz clic en el botón 'Nuevo'. 3) Completa los datos obligatorios (nombre, identificación, tipo de tercero). 4) Guarda el registro.",
+    "enlace": "/Sofi-main/views/catalogos/catalogosterceros.php"
+  },
+  "resp_cat_terceros_editar": {
+    "tipo": "respuesta",
+    "mensaje": "Para editar o eliminar un tercero: 1) Ve a Catálogos > Terceros. 2) Busca el registro en la tabla. 3) Usa el ícono de lápiz para editar o el de papelera para eliminar.",
+    "enlace": "/Sofi-main/views/catalogos/catalogosterceros.php"
+  },
+  "resp_cat_terceros_buscar": {
+    "tipo": "respuesta",
+    "mensaje": "Puedes usar la barra de búsqueda en la parte superior de la tabla de Terceros para filtrar por nombre o número de identificación.",
+    "enlace": "/Sofi-main/views/catalogos/catalogosterceros.php"
+  },
+
+  "cat_cuentas": {
+    "mensaje": "Cuentas contables (Plan Único de Cuentas - PUC). ¿Qué quieres hacer?",
+    "opciones": [
+      { "texto": "Crear una cuenta contable", "siguiente": "resp_cat_cuentas_crear" },
+      { "texto": "Editar una cuenta contable", "siguiente": "resp_cat_cuentas_editar" }
+    ]
+  },
+  "resp_cat_cuentas_crear": {
+    "tipo": "respuesta",
+    "mensaje": "Para crear una cuenta contable: 1) Ve a Catálogos > Cuentas contables. 2) Haz clic en 'Nueva'. 3) Ingresa el código y nombre según el PUC. 4) Guarda.",
+    "enlace": "/Sofi-main/views/catalogos/catalogoscuentascontables.php"
+  },
+  "resp_cat_cuentas_editar": {
+    "tipo": "respuesta",
+    "mensaje": "Para editar una cuenta contable, ubícala en la tabla de Cuentas Contables y usa el ícono de edición correspondiente.",
+    "enlace": "/Sofi-main/views/catalogos/catalogoscuentascontables.php"
+  },
+
+  "cat_inventarios": {
+    "mensaje": "Inventarios (productos/servicios). ¿Qué quieres hacer?",
+    "opciones": [
+      { "texto": "Crear un producto", "siguiente": "resp_cat_inv_crear" },
+      { "texto": "Editar un producto", "siguiente": "resp_cat_inv_editar" }
+    ]
+  },
+  "resp_cat_inv_crear": {
+    "tipo": "respuesta",
+    "mensaje": "Para crear un producto: 1) Ve a Catálogos > Inventarios. 2) Haz clic en 'Nuevo'. 3) Ingresa nombre, precio, unidad de medida y existencias iniciales. 4) Guarda.",
+    "enlace": "/Sofi-main/views/catalogos/catalogosinventarios.php"
+  },
+  "resp_cat_inv_editar": {
+    "tipo": "respuesta",
+    "mensaje": "Para editar un producto, búscalo en la tabla de Inventarios y usa el ícono de edición.",
+    "enlace": "/Sofi-main/views/catalogos/catalogosinventarios.php"
+  },
+
+  "cat_pagos": {
+    "mensaje": "Medios de pago (efectivo, transferencia, tarjeta, etc). ¿Qué quieres hacer?",
+    "opciones": [
+      { "texto": "Crear un medio de pago", "siguiente": "resp_cat_pagos_crear" }
+    ]
+  },
+  "resp_cat_pagos_crear": {
+    "tipo": "respuesta",
+    "mensaje": "Para crear un medio de pago: 1) Ve a Catálogos > Medios de Pago. 2) Haz clic en 'Nuevo'. 3) Ingresa el nombre del medio de pago. 4) Guarda.",
+    "enlace": "/Sofi-main/views/catalogos/catalogosmediosdepago.php"
+  },
+
+  "cat_parametros": {
+    "mensaje": "Parámetros de documentos define la numeración y configuración de tus documentos (facturas, recibos, etc).",
+    "opciones": [
+      { "texto": "¿Cómo configuro la numeración?", "siguiente": "resp_cat_parametros" }
+    ]
+  },
+  "resp_cat_parametros": {
+    "tipo": "respuesta",
+    "mensaje": "En Catálogos > Parámetros de Documentos puedes definir el prefijo y el consecutivo inicial de cada tipo de documento antes de empezar a facturar.",
+    "enlace": null
+  },
+
+  "documentos": {
+    "mensaje": "Documentos son los soportes contables de tus transacciones. ¿Sobre cuál necesitas ayuda?",
+    "opciones": [
+      { "texto": "Factura de venta", "siguiente": "resp_doc_fv" },
+      { "texto": "Factura de compra", "siguiente": "resp_doc_fc" },
+      { "texto": "Recibo de caja", "siguiente": "resp_doc_rc" },
+      { "texto": "Comprobante de egreso", "siguiente": "resp_doc_ce" },
+      { "texto": "Comprobante contable", "siguiente": "resp_doc_cc" }
+    ]
+  },
+  "resp_doc_fv": {
+    "tipo": "respuesta",
+    "mensaje": "Para crear una Factura de Venta: 1) Ve a Documentos > Factura de Venta. 2) Selecciona el cliente. 3) Agrega los productos/servicios. 4) Verifica el total y guarda.",
+    "enlace": "/Sofi-main/views/documentos/documentosfacturadeventa.php"
+  },
+  "resp_doc_fc": {
+    "tipo": "respuesta",
+    "mensaje": "Para registrar una Factura de Compra: 1) Ve a Documentos > Factura de Compra. 2) Selecciona el proveedor. 3) Agrega los productos comprados. 4) Guarda el documento.",
+    "enlace": "/Sofi-main/views/documentos/documentosfacturadecompra.php"
+  },
+  "resp_doc_rc": {
+    "tipo": "respuesta",
+    "mensaje": "Un Recibo de Caja registra el ingreso de dinero (por ejemplo, pago de un cliente). Ve a Documentos > Recibo de Caja, selecciona el tercero y el valor recibido.",
+    "enlace": "/Sofi-main/views/documentos/documentosrecibodecaja.php"
+  },
+  "resp_doc_ce": {
+    "tipo": "respuesta",
+    "mensaje": "Un Comprobante de Egreso registra la salida de dinero (por ejemplo, pago a un proveedor). Ve a Documentos > Comprobante de Egreso y completa los datos del pago.",
+    "enlace": "/Sofi-main/views/documentos/documentoscomprobantedeegreso.php"
+  },
+  "resp_doc_cc": {
+    "tipo": "respuesta",
+    "mensaje": "El Comprobante Contable se usa para registrar movimientos que no corresponden a los otros documentos (ajustes, causaciones, etc). Ve a Documentos > Comprobante Contable para crearlo.",
+    "enlace": "/Sofi-main/views/documentos/documentoscomprobantecontable.php"
+  },
+
+  "informes": {
+    "mensaje": "Informes te muestra la información procesada de tu negocio. ¿Sobre qué necesitas un informe?",
+    "opciones": [
+      { "texto": "Clientes", "siguiente": "inf_clientes" },
+      { "texto": "Proveedores", "siguiente": "inf_proveedores" },
+      { "texto": "Inventarios", "siguiente": "inf_inventarios" }
+    ]
+  },
+  "inf_clientes": {
+    "mensaje": "Informes de Clientes:",
+    "opciones": [
+      { "texto": "¿Cuánto me deben?", "siguiente": "resp_inf_cuanto_me_deben" },
+      { "texto": "Edades de cartera", "siguiente": "resp_inf_edades_cliente" }
+    ]
+  },
+  "resp_inf_cuanto_me_deben": {
+    "tipo": "respuesta",
+    "mensaje": "Este informe muestra el saldo pendiente por cobrar a cada cliente. Ve a Informes > Clientes > Cuánto me deben.",
+    "enlace": "/Sofi-main/views/informes/cuantomedeben.php"
+  },
+  "resp_inf_edades_cliente": {
+    "tipo": "respuesta",
+    "mensaje": "Este informe clasifica la cartera por clientes según los días de vencimiento (0-30, 31-60, etc). Ve a Informes > Clientes > Edades de Cartera.",
+    "enlace": "/Sofi-main/views/informes/edadesdecarteraclientes.php"
+  },
+  "inf_proveedores": {
+    "mensaje": "Informes de Proveedores:",
+    "opciones": [
+      { "texto": "¿Cuánto debo?", "siguiente": "resp_inf_cuanto_debo" },
+      { "texto": "Edades de cartera", "siguiente": "resp_inf_edades_proveedor" }
+    ]
+  },
+  "resp_inf_cuanto_debo": {
+    "tipo": "respuesta",
+    "mensaje": "Este informe muestra el saldo pendiente por pagar a cada proveedor. Ve a Informes > Proveedores > Cuánto Debo.",
+    "enlace": "/Sofi-main/views/informes/cuantodebo.php"
+  },
+  "resp_inf_edades_proveedor": {
+    "tipo": "respuesta",
+    "mensaje": "Este informe clasifica tus deudas por proveedor según los días de vencimiento. Ve a Informes > Proveedores > Edades de Cartera.",
+    "enlace": "/Sofi-main/views/informes/edadesdecarteraclientes.php"
+  },
+  "inf_inventarios": {
+    "mensaje": "Informes de Inventarios:",
+    "opciones": [
+      { "texto": "Existencias", "siguiente": "resp_inf_existencias" },
+      { "texto": "Movimiento de inventarios", "siguiente": "resp_inf_movimiento_inv" }
+    ]
+  },
+  "resp_inf_existencias": {
+    "tipo": "respuesta",
+    "mensaje": "Este informe muestra las cantidades disponibles de cada producto en el momento actual. Ve a Informes > Inventarios > Existencias.",
+    "enlace": "/Sofi-main/views/informes/existencias.php"
+  },
+  "resp_inf_movimiento_inv": {
+    "tipo": "respuesta",
+    "mensaje": "Este informe muestra las entradas y salidas históricas de cada producto. Ve a Informes > Inventarios > Movimiento de Inventarios.",
+    "enlace": null
+  },
+
+  "libros": {
+    "mensaje": "Libros contiene los estados financieros y libros auxiliares de tu contabilidad. ¿Cuál necesitas consultar?",
+    "opciones": [
+      { "texto": "Estado de situación financiera", "siguiente": "resp_lib_esf" },
+      { "texto": "Estado de resultados", "siguiente": "resp_lib_er" },
+      { "texto": "Balance de prueba", "siguiente": "resp_lib_bp" },
+      { "texto": "Libro auxiliar", "siguiente": "resp_lib_aux" },
+      { "texto": "Libro de ventas", "siguiente": "resp_lib_ventas" },
+      { "texto": "Libro de compras", "siguiente": "resp_lib_compras" },
+      { "texto": "Movimiento de caja", "siguiente": "resp_lib_caja" }
+    ]
+  },
+  "resp_lib_esf": {
+    "tipo": "respuesta",
+    "mensaje": "El Estado de Situación Financiera (balance general) muestra los activos, pasivos y patrimonio de tu empresa en una fecha determinada. Ve a Libros > Estado de Situación Financiera.",
+    "enlace": "/Sofi-main/views/libros/librosestadodesituacionfinanciera.php"
+  },
+  "resp_lib_er": {
+    "tipo": "respuesta",
+    "mensaje": "El Estado de Resultados muestra los ingresos, costos y gastos de un período, y la utilidad o pérdida resultante. Ve a Libros > Estado de Resultados.",
+    "enlace": "/Sofi-main/views/libros/librosestadoderesultados.php"
+  },
+  "resp_lib_bp": {
+    "tipo": "respuesta",
+    "mensaje": "El Balance de Prueba lista todas las cuentas contables con sus saldos debe/haber, útil para verificar que la contabilidad esté cuadrada. Ve a Libros > Balance de Prueba.",
+    "enlace": "/Sofi-main/views/libros/librosbalancedeprueba.php"
+  },
+  "resp_lib_aux": {
+    "tipo": "respuesta",
+    "mensaje": "El Libro Auxiliar detalla todos los movimientos de una cuenta contable específica en un período. Ve a Libros > Libro Auxiliar y selecciona la cuenta a consultar.",
+    "enlace": "/Sofi-main/views/libros/libroslibroauxiliar.php"
+  },
+  "resp_lib_ventas": {
+    "tipo": "respuesta",
+    "mensaje": "El Libro de Ventas lista todas las facturas de venta emitidas en un período. Ve a Libros > Libro de Ventas.",
+    "enlace": "/Sofi-main/views/libros/libroslibrodeventas.php"
+  },
+  "resp_lib_compras": {
+    "tipo": "respuesta",
+    "mensaje": "El Libro de Compras lista todas las facturas de compra registradas en un período. Ve a Libros > Libro de Compras.",
+    "enlace": "/Sofi-main/views/libros/libroslibrodecompras.php"
+  },
+  "resp_lib_caja": {
+    "tipo": "respuesta",
+    "mensaje": "El Movimiento de Caja muestra las entradas y salidas de efectivo registradas mediante recibos de caja y comprobantes de egreso. Ve a Libros > Movimiento de Caja.",
+    "enlace": "/Sofi-main/views/libros/librosmovimientodecaja.php"
+  }
+}
