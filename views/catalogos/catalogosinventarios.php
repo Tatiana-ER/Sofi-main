@@ -94,6 +94,32 @@ switch($accion){
 
     break;
 
+    case "btnAgregarTipoCategoria":
+        $nuevoTipo = trim($_POST['nuevoTipoCategoria'] ?? '');
+
+        if ($nuevoTipo === '') {
+            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=tipoVacio");
+            exit;
+        }
+
+        try {
+            $sentencia = $pdo->prepare("INSERT INTO tipos_categoria_producto (nombre) VALUES (:nombre)");
+            $sentencia->bindParam(':nombre', $nuevoTipo);
+            $sentencia->execute();
+
+            header("Location: " . $_SERVER['PHP_SELF'] . "?msg=tipoAgregado&nuevoTipo=" . urlencode($nuevoTipo));
+            exit;
+        } catch (PDOException $e) {
+            // Error 1062 = entrada duplicada (ya existe ese nombre)
+            if ($e->getCode() == 23000) {
+                header("Location: " . $_SERVER['PHP_SELF'] . "?msg=tipoDuplicado");
+            } else {
+                header("Location: " . $_SERVER['PHP_SELF'] . "?msg=error");
+            }
+            exit;
+        }
+    break;
+
     case "btnAgregarProducto":
         // MODIFICADO: Se agregó costoUnitario
         $sentencia=$pdo->prepare("INSERT INTO productoinventarios(categoriaInventarios,codigoProducto,descripcionProducto,unidadMedida,cantidad,precioUnitario,costoUnitario,productoIva,tipoItem,facturacionCero,activo) 
@@ -154,6 +180,10 @@ switch($accion){
 // =========================================================================
 // 2. Obtener datos para visualización (Lectura)
 // =========================================================================
+
+// Obtener todos los tipos de categoría disponibles (predeterminados + los que se hayan agregado)
+$stmt_tipos_categoria = $pdo->query("SELECT nombre FROM tipos_categoria_producto ORDER BY nombre");
+$tiposCategoria = $stmt_tipos_categoria->fetchAll(PDO::FETCH_COLUMN);
 
 // Obtener todas las categorías registradas
 $sentenciaCategorias = $pdo->prepare("SELECT id, categoria, codigoCuentaVentas, cuentaVentas, codigoCuentaInventarios, cuentaInventarios, codigoCuentaCostos, cuentaCostos, codigoCuentaDevoluciones, cuentaDevoluciones FROM categoriainventarios ORDER BY categoria ASC");
@@ -224,7 +254,8 @@ document.addEventListener("DOMContentLoaded", () => {
         url.searchParams.delete('msg');
         window.history.replaceState({}, document.title, url);
     }
-});
+}
+);
 </script>
 <?php endif; ?>
 
@@ -404,17 +435,17 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="row g-3">
               <div class="col-md-5">
                 <label for="categoria" class="form-label fw-bold">Nombre de la Categoría*</label>
-                <select class="form-select" id="categoria" name="categoria" required>
-                  <option value="" selected disabled>Seleccione una categoría</option>
-                  <option value="Materias primas">Materias primas</option>
-                  <option value="Productos en proceso">Productos en proceso</option>
-                  <option value="Productos terminados">Productos terminados</option>
-                  <option value="Materiales indirectos o suministros">Materiales indirectos o suministros</option>
-                  <option value="Mercancías para la venta">Mercancías para la venta (empresas comerciales)</option>
-                  <option value="Repuestos y materiales de mantenimiento">Repuestos y materiales de mantenimiento</option>
-                  <option value="Insumos y suministros">Insumos y suministros</option>
-                  <option value="Productos en consignacion">Productos en consignacion</option>
-                </select>
+                <div class="d-flex gap-2">
+                  <select class="form-select" id="categoria" name="categoria" required>
+                    <option value="" selected disabled>Seleccione una categoría</option>
+                    <?php foreach ($tiposCategoria as $tipo): ?>
+                      <option value="<?= htmlspecialchars($tipo) ?>"><?= htmlspecialchars($tipo) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                  <button type="button" class="btn btn-outline-primary" style="white-space: nowrap;" data-bs-toggle="modal" data-bs-target="#modalNuevoTipoCategoria" title="Agregar nuevo tipo de categoría">
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1092,7 +1123,71 @@ document.addEventListener("DOMContentLoaded", () => {
       </script>
 
       </div>
+
+      <!-- Modal: Agregar nuevo tipo de categoría -->
+      <div class="modal fade" id="modalNuevoTipoCategoria" tabindex="-1" aria-labelledby="modalNuevoTipoCategoriaLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <form action="" method="post">
+              <div class="modal-header bg-light">
+                <h5 class="modal-title" id="modalNuevoTipoCategoriaLabel">
+                  <i class="fas fa-plus me-2"></i>Nuevo Tipo de Categoría
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <label for="nuevoTipoCategoria" class="form-label fw-bold">Nombre del nuevo tipo*</label>
+                <input type="text" class="form-control" id="nuevoTipoCategoria" name="nuevoTipoCategoria" placeholder="Ej: Productos importados" required maxlength="150">
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" name="accion" value="btnAgregarTipoCategoria" class="btn btn-primary">Guardar</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
     </section><!-- End Services Section -->
+
+    <script>
+<?php if (isset($_GET['msg'])): ?>
+document.addEventListener("DOMContentLoaded", () => {
+  switch ("<?= $_GET['msg'] ?>") {
+    case "tipoAgregado":
+      Swal.fire({
+        icon: 'success',
+        title: 'Tipo de categoría agregado',
+        text: 'Ya puedes seleccionarlo en la lista.',
+        confirmButtonColor: '#3085d6'
+      });
+      const nuevoTipo = "<?= addslashes($_GET['nuevoTipo'] ?? '') ?>";
+      const selectCategoria = document.getElementById('categoria');
+      if (selectCategoria && nuevoTipo) {
+        selectCategoria.value = nuevoTipo;
+      }
+      break;
+
+    case "tipoDuplicado":
+      Swal.fire({
+        icon: 'warning',
+        title: 'Ya existe',
+        text: 'Ese tipo de categoría ya está registrado.',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+
+    case "tipoVacio":
+      Swal.fire({
+        icon: 'warning',
+        title: 'Atención',
+        text: 'Debes escribir un nombre para el nuevo tipo.',
+        confirmButtonColor: '#3085d6'
+      });
+      break;
+  }
+});
+<?php endif; ?>
+</script>
 
   <!--  Footer  -->
   <footer id="footer" class="footer-minimalista">

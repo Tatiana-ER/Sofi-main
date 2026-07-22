@@ -500,22 +500,23 @@ if (isset($_POST['codigoProducto'])) {
     $producto = null;
 
     if ($codigo !== '') {
-        $stmt = $pdo->prepare("SELECT codigoProducto, descripcionProducto, cantidad, tipoItem, precioUnitario 
-                               FROM productoinventarios 
-                               WHERE codigoProducto = :codigo 
-                               LIMIT 1");
+        $stmt = $pdo->prepare("SELECT codigoProducto, descripcionProducto, cantidad, tipoItem, precioUnitario, productoIva 
+                            FROM productoinventarios 
+                            WHERE codigoProducto = :codigo 
+                            LIMIT 1");
         $stmt->bindParam(':codigo', $codigo, PDO::PARAM_STR);
         $stmt->execute();
         $producto = $stmt->fetch(PDO::FETCH_ASSOC);
-    }
+        }
 
-    if ($producto) {
-        $response = [
-            "codigoProducto" => $producto['codigoProducto'],
-            "nombreProducto" => $producto['descripcionProducto'],
-            "tipoItem" => $producto['tipoItem'],
-            "precioUnitario" => $producto['precioUnitario'] ?? 0
-        ];
+        if ($producto) {
+            $response = [
+                "codigoProducto" => $producto['codigoProducto'],
+                "nombreProducto" => $producto['descripcionProducto'],
+                "tipoItem" => $producto['tipoItem'],
+                "precioUnitario" => $producto['precioUnitario'] ?? 0,
+                "productoIva" => $producto['productoIva'] ?? 0
+            ];
         
         // Solo mostrar stock si es producto (no servicio)
         if (strtolower($producto['tipoItem']) === 'producto') {
@@ -841,11 +842,11 @@ document.addEventListener("DOMContentLoaded", () => {
                           <option value="">Seleccionar producto</option>
                           <!-- En la sección de detalles existentes -->
                           <?php
-                          $productos = $pdo->query("SELECT codigoProducto, descripcionProducto FROM productoinventarios ORDER BY descripcionProducto");
-                          while ($prod = $productos->fetch(PDO::FETCH_ASSOC)) {
-                            $selected = ($prod['codigoProducto'] == $detalle['codigoProducto']) ? 'selected' : '';
-                            echo "<option value='{$prod['codigoProducto']}' data-nombre='{$prod['descripcionProducto']}' $selected>{$prod['codigoProducto']}</option>";
-                          }
+                          $productos = $pdo->query("SELECT codigoProducto, descripcionProducto, productoIva FROM productoinventarios ORDER BY descripcionProducto");
+                            while ($prod = $productos->fetch(PDO::FETCH_ASSOC)) {
+                                $selected = ($prod['codigoProducto'] == $detalle['codigoProducto']) ? 'selected' : '';
+                                echo "<option value='{$prod['codigoProducto']}' data-nombre='{$prod['descripcionProducto']}' data-iva='{$prod['productoIva']}' $selected>{$prod['codigoProducto']}</option>";
+                            }
                           ?>
                         </select>
                       </td>
@@ -867,9 +868,9 @@ document.addEventListener("DOMContentLoaded", () => {
                         <option value="">Seleccionar producto</option>
                         <!-- En la sección de nueva fila -->
                         <?php
-                        $productos = $pdo->query("SELECT codigoProducto, descripcionProducto FROM productoinventarios ORDER BY descripcionProducto");
+                        $productos = $pdo->query("SELECT codigoProducto, descripcionProducto, productoIva FROM productoinventarios ORDER BY descripcionProducto");
                         while ($prod = $productos->fetch(PDO::FETCH_ASSOC)) {
-                          echo "<option value='{$prod['codigoProducto']}' data-nombre='{$prod['descripcionProducto']}'>{$prod['codigoProducto']}</option>";
+                            echo "<option value='{$prod['codigoProducto']}' data-nombre='{$prod['descripcionProducto']}' data-iva='{$prod['productoIva']}'>{$prod['codigoProducto']}</option>";
                         }
                         ?>
                       </select>
@@ -1427,15 +1428,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 const precio = parseFloat(row.querySelector(".unit-price")?.value || 0);
                 const ivaField = row.querySelector(".iva");
                 const totalField = row.querySelector(".total-price");
+                const selectProducto = row.querySelector(".select-producto");
 
                 if (!ivaField || !totalField) return;
 
                 // Calcular subtotal (sin impuestos)
                 const subtotalLinea = cantidad * precio;
-                
-                // Calcular IVA
-                const iva = subtotalLinea * 0.19;
-                
+
+                // El IVA solo se calcula si el producto tiene "Aplica IVA" marcado en el catálogo
+                const aplicaIva = selectProducto ? selectProducto.getAttribute('data-aplica-iva') : '0';
+                const iva = (aplicaIva === '1') ? subtotalLinea * 0.19 : 0;
+
                 // Calcular total (subtotal + IVA)
                 const total = subtotalLinea + iva;
 
@@ -1488,15 +1491,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Función para cargar producto cuando se selecciona del dropdown
         function cargarProducto(selectElement) {
-            const row = selectElement.closest('tr');
-            const selectedOption = selectElement.options[selectElement.selectedIndex];
-            const codigo = selectElement.value;
-            const nombre = selectedOption.getAttribute('data-nombre');
-            const nombreInput = row.querySelector('[name="nombreProducto"]');
-            const precioInput = row.querySelector('.unit-price');
-            
-            if (codigo && nombre) {
-                nombreInput.value = nombre;
+        const row = selectElement.closest('tr');
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        const codigo = selectElement.value;
+        const nombre = selectedOption.getAttribute('data-nombre');
+        const aplicaIva = selectedOption.getAttribute('data-iva'); // '1' = sí aplica, '0' = exento
+        const nombreInput = row.querySelector('[name="nombreProducto"]');
+        const precioInput = row.querySelector('.unit-price');
+
+        // Guardamos si este producto aplica IVA directamente en el select de la fila,
+        // así calcularValores() lo puede consultar sin depender de que termine el fetch
+        selectElement.setAttribute('data-aplica-iva', aplicaIva || '0');
+
+        if (codigo && nombre) {
+            nombreInput.value = nombre;
                 
                 // Obtener precio desde la base de datos
                 fetch("", {
@@ -1591,6 +1599,14 @@ document.addEventListener("DOMContentLoaded", () => {
               document.getElementById("retencionContainer").classList.remove("col-md-12");
               document.getElementById("retencionContainer").classList.add("col-md-6");
 
+              // Sincronizar data-aplica-iva de los selects que ya vienen preseleccionados desde PHP (modo editar)
+                document.querySelectorAll('.select-producto').forEach(select => {
+                    const opcionSeleccionada = select.options[select.selectedIndex];
+                    if (opcionSeleccionada && opcionSeleccionada.value !== '') {
+                        select.setAttribute('data-aplica-iva', opcionSeleccionada.getAttribute('data-iva') || '0');
+                    }
+                });
+
                     // Limpiar la tabla de productos y dejar solo UNA fila vacía con select
                 const tableBody = document.getElementById("product-table");
                 tableBody.innerHTML = `
@@ -1599,9 +1615,9 @@ document.addEventListener("DOMContentLoaded", () => {
                         <select name="codigoProducto" class="form-control select-producto" onchange="cargarProducto(this)">
                             <option value="">Seleccionar producto</option>
                             <?php
-                            $productos = $pdo->query("SELECT codigoProducto, descripcionProducto FROM productoinventarios ORDER BY descripcionProducto");
+                            $productos = $pdo->query("SELECT codigoProducto, descripcionProducto, productoIva FROM productoinventarios ORDER BY descripcionProducto");
                             while ($prod = $productos->fetch(PDO::FETCH_ASSOC)) {
-                                echo "<option value='{$prod['codigoProducto']}' data-nombre='{$prod['descripcionProducto']}'>{$prod['codigoProducto']}</option>";
+                                echo "<option value='{$prod['codigoProducto']}' data-nombre='{$prod['descripcionProducto']}' data-iva='{$prod['productoIva']}'>{$prod['codigoProducto']}</option>";
                             }
                             ?>
                         </select>
