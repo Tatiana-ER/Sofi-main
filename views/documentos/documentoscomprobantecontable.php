@@ -431,6 +431,9 @@ document.addEventListener("DOMContentLoaded", () => {
                         <tr>
                           <td>
                             <select name="cuentaContable" class="form-control cuenta-select" style="width: 100%;">
+                              <?php
+                              $nombre = '';
+                              ?>
                               <?php if (!empty($detalle['cuentaContable'])): ?>
                                 <?php 
                                 // Separar código y nombre si existe
@@ -602,7 +605,7 @@ function initCuentaSelect($select) {
     allowClear: true,
     width: '100%',
     ajax: {
-      url: 'obtener_cuentas_comprobantecontable.php',
+      url: '../../ajax/obtener_cuentas_comprobantecontable.php',
       dataType: 'json',
       delay: 250,
       data: function (params) {
@@ -659,7 +662,7 @@ function initTerceroSelect($select) {
       errorLoading: function() { return "Error al cargar los resultados"; }
     },
     ajax: {
-      url: 'buscar_terceros_comprobante.php',
+      url: '../../ajax/buscar_terceros_comprobante.php',
       dataType: 'json',
       delay: 250,
       data: function (params) {
@@ -1214,6 +1217,7 @@ window.addEventListener('DOMContentLoaded', function() {
   <script src="../../assets/js/main.js"></script>
   
   <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/asistente/asistente-widget.php'; ?>
+  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/notificaciones/notificaciones-widget.php'; ?>
 
 </body>
 

@@ -20,6 +20,11 @@ $stmtDetalle = $pdo->prepare("SELECT * FROM detalle_comprobante_egreso WHERE idC
 $stmtDetalle->execute([':idComprobante' => $id]);
 $detalles = $stmtDetalle->fetchAll(PDO::FETCH_ASSOC);
 
+// Obtener medios de pago del comprobante
+$stmtMedios = $pdo->prepare("SELECT * FROM medios_pago_comprobante_egreso WHERE comprobante_id = :idComprobante");
+$stmtMedios->execute([':idComprobante' => $id]);
+$mediosPago = $stmtMedios->fetchAll(PDO::FETCH_ASSOC);
+
 // Obtener información del perfil de la empresa
 $stmtPerfil = $pdo->prepare("SELECT * FROM perfil ORDER BY id DESC LIMIT 1");
 $stmtPerfil->execute();
@@ -324,7 +329,14 @@ if (!empty($perfil['razon'])) {
                 <td width="50%">
                     <div class="section-title">DETALLES DEL PAGO</div>
                     <div class="section-content">
-                        Forma de Pago: <strong><?= htmlspecialchars($comprobante['formaPago']) ?></strong><br>
+                        <?php if (!empty($mediosPago)): ?>
+                            <?php foreach ($mediosPago as $medio): ?>
+                                <?= htmlspecialchars($medio['forma_pago']) ?><?= !empty($medio['cuenta_contable']) ? ' - ' . htmlspecialchars($medio['cuenta_contable']) : '' ?>: 
+                                <strong>$<?= number_format($medio['valor'], 2) ?></strong><br>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            Forma de Pago: <strong><?= htmlspecialchars($comprobante['formaPago']) ?></strong><br>
+                        <?php endif; ?>
                         Total Pagado: <strong style="color: #2c3e50; font-size: 16px;">$<?= number_format($comprobante['valorTotal'], 2) ?></strong>
                     </div>
                 </td>

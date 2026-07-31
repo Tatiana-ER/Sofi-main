@@ -56,11 +56,12 @@ function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $
         $fecha_fin_saldo_inicial = date('Y-m-d', strtotime($fecha_desde . ' -1 day'));
         
         $sql = "SELECT 
-                    COALESCE(SUM(debito), 0) as total_debito,
-                    COALESCE(SUM(credito), 0) as total_credito
-                FROM libro_diario 
-                WHERE codigo_cuenta = :cuenta 
-                  AND fecha BETWEEN :desde AND :hasta";
+            COALESCE(SUM(debito), 0) as total_debito,
+            COALESCE(SUM(credito), 0) as total_credito
+        FROM libro_diario 
+        WHERE codigo_cuenta = :cuenta 
+          AND fecha BETWEEN :desde AND :hasta
+          AND tipo_documento != 'cierre_contable'";
         
         $params = [
             ':cuenta' => $codigo_cuenta, 
@@ -70,11 +71,12 @@ function calcularSaldoCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_hasta, $
     } else {
         // Saldo normal del período
         $sql = "SELECT 
-                    COALESCE(SUM(debito), 0) as total_debito,
-                    COALESCE(SUM(credito), 0) as total_credito
-                FROM libro_diario 
-                WHERE codigo_cuenta = :cuenta 
-                  AND fecha BETWEEN :desde AND :hasta";
+            COALESCE(SUM(debito), 0) as total_debito,
+            COALESCE(SUM(credito), 0) as total_credito
+        FROM libro_diario 
+        WHERE codigo_cuenta = :cuenta 
+          AND fecha BETWEEN :desde AND :hasta
+          AND tipo_documento != 'cierre_contable'";
         
         $params = [
             ':cuenta' => $codigo_cuenta, 
@@ -135,7 +137,8 @@ $sql_cuentas = "SELECT DISTINCT
                     SUBSTRING(codigo_cuenta, 1, 1) as clase
                 FROM libro_diario 
                 WHERE fecha BETWEEN :desde AND :hasta
-                  AND SUBSTRING(codigo_cuenta, 1, 1) IN ('4', '5', '6')";
+                  AND SUBSTRING(codigo_cuenta, 1, 1) IN ('4', '5', '6')
+                  AND tipo_documento != 'cierre_contable'";
 
 $params_cuentas = [':desde' => $fecha_desde, ':hasta' => $fecha_hasta];
 
@@ -332,6 +335,7 @@ $resultado_ejercicio_inicial = $utilidad_operacional_inicial;
 // Primero obtener todos los códigos únicos del libro_diario
 $sql_codigos = "SELECT DISTINCT codigo_cuenta FROM libro_diario 
                 WHERE SUBSTRING(codigo_cuenta, 1, 1) IN ('4', '5', '6')
+                  AND tipo_documento != 'cierre_contable'
                 ORDER BY codigo_cuenta";
 $stmt_codigos = $pdo->query($sql_codigos);
 $codigos_unicos = $stmt_codigos->fetchAll(PDO::FETCH_COLUMN);
@@ -949,5 +953,10 @@ $lista_terceros = array_values($terceros_unificados);
         window.location.href = window.location.pathname;
     }
   </script>
+  
+  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/asistente/asistente-widget.php'; ?>
+  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/notificaciones/notificaciones-widget.php'; ?>
+
+
 </body>
 </html>

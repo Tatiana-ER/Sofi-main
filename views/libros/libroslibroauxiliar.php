@@ -50,11 +50,10 @@ if ($cuenta_codigo != '') {
     $sql_cuentas = "SELECT codigo_cuenta, MIN(nombre_cuenta) as nombre_cuenta
                     FROM libro_diario
                     WHERE codigo_cuenta = :cuenta
-                    AND fecha BETWEEN :desde AND :hasta";
+                    AND fecha <= :hasta";
     
     $params_cuentas = [
         ':cuenta' => $cuenta_codigo,
-        ':desde' => $fecha_desde,
         ':hasta' => $fecha_hasta
     ];
     
@@ -73,10 +72,9 @@ if ($cuenta_codigo != '') {
 } else {
     $sql_cuentas = "SELECT codigo_cuenta, MIN(nombre_cuenta) as nombre_cuenta
                     FROM libro_diario
-                    WHERE fecha BETWEEN :desde AND :hasta";
+                    WHERE fecha <= :hasta";
     
     $params_cuentas = [
-        ':desde' => $fecha_desde,
         ':hasta' => $fecha_hasta
     ];
     
@@ -152,10 +150,8 @@ function obtenerMovimientosCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_has
         $saldo_inicial = $cred_prev - $deb_prev;
     }
 
-    // El saldo inicial no puede ser negativo salvo cuentas IVA (contienen 2408)
-    if ($saldo_inicial < 0 && strpos($codigo_cuenta, '2408') === false) {
-        $saldo_inicial = 0;
-    }
+    // (Se eliminó el forzado a cero: un saldo negativo es información real,
+    // no debe ocultarse)
 
     // Obtener movimientos del período
     $sql_mov = "SELECT * FROM libro_diario
@@ -193,11 +189,8 @@ function obtenerMovimientosCuenta($pdo, $codigo_cuenta, $fecha_desde, $fecha_has
         } else {
             $saldo += ($credito - $debito);
         }
-
-        // El saldo no puede mostrarse negativo a menos que sea IVA (2408)
-        if ($saldo < 0 && strpos($codigo_cuenta, '2408') === false) {
-            $saldo = 0;
-        }
+        
+        // (Se eliminó el forzado a cero por la misma razón)
 
         $movimientos[$k]['saldo_final_fila'] = $saldo;
     }
@@ -706,5 +699,10 @@ $lista_terceros = array_values($terceros_unificados);
         window.location.href = window.location.pathname;
     }
   </script>
+
+  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/asistente/asistente-widget.php'; ?>
+  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/notificaciones/notificaciones-widget.php'; ?>
+
+
 </body>
 </html>

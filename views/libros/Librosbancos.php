@@ -21,53 +21,64 @@ if ($perfil) {
     $nit_empresa = 'NIT de la Empresa';
 }
 
-// ================== CUENTAS DE CAJA DISPONIBLES (1105xx) ==================
-$sql_cuentas_caja = "SELECT DISTINCT codigo_cuenta, nombre_cuenta 
+// ================== CUENTAS BANCARIAS DISPONIBLES (1110xx) ==================
+$sql_cuentas_banco = "SELECT DISTINCT codigo_cuenta, nombre_cuenta 
                       FROM libro_diario 
-                      WHERE codigo_cuenta LIKE '1105%' 
+                      WHERE codigo_cuenta LIKE '1110%' 
                       ORDER BY codigo_cuenta";
-$stmt_cuentas_caja = $pdo->query($sql_cuentas_caja);
-$cuentas_caja = $stmt_cuentas_caja->fetchAll(PDO::FETCH_ASSOC);
+$stmt_cuentas_banco = $pdo->query($sql_cuentas_banco);
+$cuentas_banco = $stmt_cuentas_banco->fetchAll(PDO::FETCH_ASSOC);
 
 // ================== FILTROS ==================
 $fecha_desde = isset($_GET['desde']) ? $_GET['desde'] : date('Y-m-01');
 $fecha_hasta = isset($_GET['hasta']) ? $_GET['hasta'] : date('Y-m-t');
 $tercero = isset($_GET['tercero']) ? $_GET['tercero'] : '';
 
-// Si no se especificó cuenta, se preselecciona la primera cuenta de caja encontrada
-$cuenta_caja = isset($_GET['cuenta']) && $_GET['cuenta'] != ''
-    ? $_GET['cuenta']
-    : (count($cuentas_caja) > 0 ? $cuentas_caja[0]['codigo_cuenta'] : '');
+// "todas" es una opción válida: si el usuario no ha elegido nada todavía,
+// se preselecciona "todas" por defecto (antes se forzaba la primera cuenta).
+$cuenta_banco = isset($_GET['cuenta']) ? $_GET['cuenta'] : 'todas';
 
-$nombre_cuenta_caja = '';
-foreach ($cuentas_caja as $c) {
-    if ($c['codigo_cuenta'] == $cuenta_caja) {
-        $nombre_cuenta_caja = $c['nombre_cuenta'];
+$nombre_cuenta_banco = '';
+foreach ($cuentas_banco as $c) {
+    if ($c['codigo_cuenta'] == $cuenta_banco) {
+        $nombre_cuenta_banco = $c['nombre_cuenta'];
         break;
+    }
+}
+
+// Lista de cuentas a consultar: una sola (si se eligió una específica) o todas las de bancos
+$cuentasAConsultar = [];
+if ($cuenta_banco !== 'todas' && $cuenta_banco !== '') {
+    $cuentasAConsultar = [$cuenta_banco];
+} else {
+    foreach ($cuentas_banco as $c) {
+        $cuentasAConsultar[] = $c['codigo_cuenta'];
     }
 }
 
 // ================== LISTA DE TERCEROS QUE HAN TENIDO MOVIMIENTO EN CAJA ==================
 $sql_terceros = "SELECT DISTINCT tercero_identificacion, tercero_nombre 
                   FROM libro_diario 
-                  WHERE codigo_cuenta LIKE '1105%' 
+                  WHERE codigo_cuenta LIKE '1110%' 
                     AND tercero_identificacion IS NOT NULL 
                     AND tercero_identificacion != ''
                   ORDER BY tercero_nombre";
 $stmt_terceros = $pdo->query($sql_terceros);
 $lista_terceros = $stmt_terceros->fetchAll(PDO::FETCH_ASSOC);
 
-// ================== SALDO INICIAL (todo lo acumulado antes de la fecha desde) ==================
-$saldoCorriente = 0;
+// ================== SALDO INICIAL POR CUENTA (todo lo acumulado antes de la fecha desde) ==================
+// Se guarda un saldo corriente INDEPENDIENTE por cada cuenta bancaria, para no mezclar
+// el dinero de una cuenta con el de otra cuando se consultan "todas" a la vez.
+$saldoPorCuenta = [];
 
-if ($cuenta_caja != '') {
+foreach ($cuentasAConsultar as $codigoCuenta) {
     $sql_saldo_inicial = "SELECT 
                             COALESCE(SUM(debito), 0) as total_debito,
                             COALESCE(SUM(credito), 0) as total_credito
                           FROM libro_diario
                           WHERE codigo_cuenta = :cuenta
                             AND fecha < :desde";
-    $params_si = [':cuenta' => $cuenta_caja, ':desde' => $fecha_desde];
+    $params_si = [':cuenta' => $codigoCuenta, ':desde' => $fecha_desde];
 
     if ($tercero != '') {
         $sql_saldo_inicial .= " AND tercero_identificacion = :tercero";
@@ -78,20 +89,28 @@ if ($cuenta_caja != '') {
     $stmt_si->execute($params_si);
     $mov_inicial = $stmt_si->fetch(PDO::FETCH_ASSOC);
 
-    // Caja es cuenta de activo (naturaleza débito)
-    $saldoCorriente = floatval($mov_inicial['total_debito']) - floatval($mov_inicial['total_credito']);
+    // Bancos es cuenta de activo (naturaleza débito)
+    $saldoPorCuenta[$codigoCuenta] = floatval($mov_inicial['total_debito']) - floatval($mov_inicial['total_credito']);
 }
 
-$saldoInicialPeriodo = $saldoCorriente;
+$saldoInicialPeriodo = array_sum($saldoPorCuenta);
 
-// ================== MOVIMIENTOS DEL PERIODO ==================
+// ================== MOVIMIENTOS DEL PERIODO (de una cuenta o de todas) ==================
 $movimientos = [];
 
-if ($cuenta_caja != '') {
+if (count($cuentasAConsultar) > 0) {
+    $placeholders = [];
+    $params_mov = [':desde' => $fecha_desde, ':hasta' => $fecha_hasta];
+
+    foreach ($cuentasAConsultar as $indice => $codigoCuenta) {
+        $clave = ':cta' . $indice;
+        $placeholders[] = $clave;
+        $params_mov[$clave] = $codigoCuenta;
+    }
+
     $sql_mov = "SELECT * FROM libro_diario
-                WHERE codigo_cuenta = :cuenta
+                WHERE codigo_cuenta IN (" . implode(',', $placeholders) . ")
                   AND fecha BETWEEN :desde AND :hasta";
-    $params_mov = [':cuenta' => $cuenta_caja, ':desde' => $fecha_desde, ':hasta' => $fecha_hasta];
 
     if ($tercero != '') {
         $sql_mov .= " AND tercero_identificacion = :tercero";
@@ -125,17 +144,20 @@ $totalCredito = 0;
 $filasReporte = [];
 
 foreach ($movimientos as $mov) {
+    $codigoCuentaFila = $mov['codigo_cuenta'];
     $debito = floatval($mov['debito']);
     $credito = floatval($mov['credito']);
 
-    $saldoInicialFila = $saldoCorriente;
-    $saldoCorriente += ($debito - $credito);
-    $saldoFinalFila = $saldoCorriente;
+    // Cada cuenta lleva su propio saldo corriente, independiente de las demás
+    $saldoInicialFila = $saldoPorCuenta[$codigoCuentaFila];
+    $saldoPorCuenta[$codigoCuentaFila] += ($debito - $credito);
+    $saldoFinalFila = $saldoPorCuenta[$codigoCuentaFila];
 
     $totalDebito += $debito;
     $totalCredito += $credito;
 
     $filasReporte[] = [
+        'cuenta' => $codigoCuentaFila . ' - ' . $mov['nombre_cuenta'],
         'comprobante' => formatearComprobante($mov['tipo_documento'], $mov['numero_documento']),
         'fecha' => $mov['fecha'],
         'tercero_identificacion' => $mov['tercero_identificacion'],
@@ -147,14 +169,14 @@ foreach ($movimientos as $mov) {
     ];
 }
 
-$saldoFinalPeriodo = $saldoCorriente;
+$saldoFinalPeriodo = array_sum($saldoPorCuenta);
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
-  <title>Movimiento de Caja - SOFI</title>
+  <title>Libro de Cuentas de Banco - SOFI</title>
   <link href="../../assets/img/favicon.png" rel="icon">
   <link href="https://fonts.googleapis.com/css?family=Open+Sans:300,400,600,700|Raleway:300,400,500,600,700|Poppins:300,400,500,600,700" rel="stylesheet">
   <link href="../../assets/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
@@ -248,8 +270,8 @@ $saldoFinalPeriodo = $saldoCorriente;
     </button>
     <div class="container" data-aos="fade-up">
       <div class="section-title">
-        <h2><i class="fa-solid fa-cash-register"></i> Movimiento de Caja</h2>
-        <p>Detalle cronológico de entradas y salidas de una cuenta de caja, con saldo corriente</p>
+        <h2><i class="fa-solid fa-university"></i> Libro de Cuentas de Banco</h2>
+        <p>Detalle cronológico de consignaciones, retiros y transferencias de una cuenta bancaria, con saldo corriente</p>
 
         <div class="text-center empresa-info mt-3 p-3" style="border-radius: 5px;">
           <div style="margin-bottom: 10px;"><strong><?= htmlspecialchars($nombre_empresa) ?></strong></div>
@@ -262,16 +284,18 @@ $saldoFinalPeriodo = $saldoCorriente;
 
       <form method="get" class="row g-3 mb-4">
         <div class="col-md-3">
-          <label>Cuenta de Caja:</label>
+          <label>Cuenta Bancaria:</label>
           <select name="cuenta" class="form-select">
-            <?php if (count($cuentas_caja) == 0): ?>
-              <option value="">No hay cuentas de caja registradas</option>
+            <?php if (count($cuentas_banco) == 0): ?>
+              <option value="">No hay cuentas bancarias registradas</option>
+            <?php else: ?>
+              <option value="todas" <?= $cuenta_banco == 'todas' ? 'selected' : '' ?>>-- Todas --</option>
+              <?php foreach ($cuentas_banco as $c): ?>
+                <option value="<?= htmlspecialchars($c['codigo_cuenta']) ?>" <?= $c['codigo_cuenta'] == $cuenta_banco ? 'selected' : '' ?>>
+                  <?= htmlspecialchars($c['codigo_cuenta']) ?> - <?= htmlspecialchars($c['nombre_cuenta']) ?>
+                </option>
+              <?php endforeach; ?>
             <?php endif; ?>
-            <?php foreach ($cuentas_caja as $c): ?>
-              <option value="<?= htmlspecialchars($c['codigo_cuenta']) ?>" <?= $c['codigo_cuenta'] == $cuenta_caja ? 'selected' : '' ?>>
-                <?= htmlspecialchars($c['codigo_cuenta']) ?> - <?= htmlspecialchars($c['nombre_cuenta']) ?>
-              </option>
-            <?php endforeach; ?>
           </select>
         </div>
         <div class="col-md-3">
@@ -303,9 +327,13 @@ $saldoFinalPeriodo = $saldoCorriente;
         </div>
       </form>
 
-      <?php if ($cuenta_caja != ''): ?>
+      <?php if ($cuenta_banco == 'todas'): ?>
       <div class="cuenta-actual">
-        <strong>Cuenta consultada:</strong> <?= htmlspecialchars($cuenta_caja) ?> - <?= htmlspecialchars($nombre_cuenta_caja) ?>
+        <strong>Cuenta consultada:</strong> Todas las cuentas bancarias (<?= count($cuentasAConsultar) ?>)
+      </div>
+      <?php elseif ($cuenta_banco != ''): ?>
+      <div class="cuenta-actual">
+        <strong>Cuenta consultada:</strong> <?= htmlspecialchars($cuenta_banco) ?> - <?= htmlspecialchars($nombre_cuenta_banco) ?>
       </div>
       <?php endif; ?>
 
@@ -325,6 +353,7 @@ $saldoFinalPeriodo = $saldoCorriente;
           <table class="table-balance">
             <thead>
               <tr>
+                <th>Cuenta</th>
                 <th>Comprobante</th>
                 <th>Fecha</th>
                 <th>Identificación del Tercero</th>
@@ -336,13 +365,14 @@ $saldoFinalPeriodo = $saldoCorriente;
               </tr>
             </thead>
             <tbody>
-              <?php if ($cuenta_caja == ''): ?>
+              <?php if (count($cuentasAConsultar) == 0): ?>
                 <tr>
-                  <td colspan="8" class="text-center text-muted py-3">No hay ninguna cuenta de caja (1105xx) registrada todavía en el libro diario</td>
+                  <td colspan="9" class="text-center text-muted py-3">No hay ninguna cuenta bancaria (1110xx) registrada todavía en el libro diario</td>
                 </tr>
               <?php elseif (count($filasReporte) > 0): ?>
                 <?php foreach ($filasReporte as $fila): ?>
                   <tr>
+                    <td><?= htmlspecialchars($fila['cuenta']) ?></td>
                     <td><?= htmlspecialchars($fila['comprobante']) ?></td>
                     <td><?= date('d/m/Y', strtotime($fila['fecha'])) ?></td>
                     <td><?= htmlspecialchars($fila['tercero_identificacion']) ?></td>
@@ -354,7 +384,7 @@ $saldoFinalPeriodo = $saldoCorriente;
                   </tr>
                 <?php endforeach; ?>
                 <tr class="total-general">
-                  <td colspan="4">TOTALES DEL PERÍODO</td>
+                  <td colspan="5">TOTALES DEL PERÍODO<?= $cuenta_banco == 'todas' ? ' (todas las cuentas)' : '' ?></td>
                   <td class="text-end">$<?= number_format($saldoInicialPeriodo, 2, ',', '.') ?></td>
                   <td class="text-end">$<?= number_format($totalDebito, 2, ',', '.') ?></td>
                   <td class="text-end">$<?= number_format($totalCredito, 2, ',', '.') ?></td>
@@ -362,7 +392,7 @@ $saldoFinalPeriodo = $saldoCorriente;
                 </tr>
               <?php else: ?>
                 <tr>
-                  <td colspan="4">Sin movimientos en el período</td>
+                  <td colspan="5">Sin movimientos en el período</td>
                   <td class="text-end">$<?= number_format($saldoInicialPeriodo, 2, ',', '.') ?></td>
                   <td class="text-end">$0,00</td>
                   <td class="text-end">$0,00</td>
@@ -389,7 +419,7 @@ $saldoFinalPeriodo = $saldoCorriente;
         desde: document.querySelector('input[name="desde"]').value,
         hasta: document.querySelector('input[name="hasta"]').value
       });
-      window.location.href = `exportar_movimientocaja_excel.php?${params}`;
+      window.location.href = `exportar_bancos_excel.php?${params}`;
     }
 
     function exportarPDF() {
@@ -399,12 +429,8 @@ $saldoFinalPeriodo = $saldoCorriente;
         desde: document.querySelector('input[name="desde"]').value,
         hasta: document.querySelector('input[name="hasta"]').value
       });
-      window.open(`exportar_movimientocaja_pdf.php?${params}`, '_blank');
+      window.open(`exportar_bancos_pdf.php?${params}`, '_blank');
     }
   </script>
-
-  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/asistente/asistente-widget.php'; ?>
-  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/notificaciones/notificaciones-widget.php'; ?>
-
 </body>
 </html>

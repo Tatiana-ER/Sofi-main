@@ -101,6 +101,196 @@ class LibroDiario {
         $stmt->execute([':id' => $categoriaId]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
+
+    /**
+     * Ejecuta el cierre contable de un año fiscal completo.
+     * - Calcula la utilidad/pérdida del ejercicio (ingresos - costos - gastos)
+     * - Genera el asiento de cierre que deja en cero las cuentas 4, 5, 6 y 7
+     * - Traslada el resultado a la cuenta de patrimonio 360501 (Utilidad del ejercicio)
+     */
+    public function ejecutarCierreContable($anoFiscal) {
+        // 1. Verificar que no exista ya un cierre ACTIVO para ese año
+        $stmtCheck = $this->pdo->prepare(
+            "SELECT id FROM cierres_contables WHERE ano_fiscal = :ano AND estado = 'activo'"
+        );
+        $stmtCheck->execute([':ano' => $anoFiscal]);
+        if ($stmtCheck->fetch()) {
+            throw new Exception("Ya existe un cierre contable activo para el año $anoFiscal. Revierte el cierre existente antes de volver a cerrarlo.");
+        }
+
+        $fechaInicio = $anoFiscal . '-01-01';
+        $fechaCierre = $anoFiscal . '-12-31';
+
+        $this->pdo->beginTransaction();
+
+        try {
+            // 2. Obtener el saldo del año de cada cuenta de ingresos, costos y gastos
+            $sql = "SELECT 
+                        codigo_cuenta, 
+                        nombre_cuenta,
+                        SUBSTRING(codigo_cuenta, 1, 1) as clase,
+                        COALESCE(SUM(debito), 0) as total_debito,
+                        COALESCE(SUM(credito), 0) as total_credito
+                    FROM libro_diario
+                    WHERE fecha BETWEEN :inicio AND :fin
+                    AND SUBSTRING(codigo_cuenta, 1, 1) IN ('4', '5', '6', '7')
+                    GROUP BY codigo_cuenta, nombre_cuenta";
+
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([':inicio' => $fechaInicio, ':fin' => $fechaCierre]);
+            $cuentas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // 3. Crear primero el registro del cierre para tener su ID
+            //    (la utilidad se actualiza al final, cuando ya la calculamos)
+            $stmtInsertCierre = $this->pdo->prepare(
+                "INSERT INTO cierres_contables (ano_fiscal, fecha_cierre, utilidad_ejercicio) 
+                VALUES (:ano, :fecha, 0)"
+            );
+            $stmtInsertCierre->execute([':ano' => $anoFiscal, ':fecha' => $fechaCierre]);
+            $idCierre = $this->pdo->lastInsertId();
+
+            $totalIngresos = 0;
+            $totalCostosGastos = 0;
+
+            // 4. Generar una línea de cierre por cada cuenta con saldo distinto de cero
+            foreach ($cuentas as $cuenta) {
+                $debito = floatval($cuenta['total_debito']);
+                $credito = floatval($cuenta['total_credito']);
+                $clase = $cuenta['clase'];
+
+                if ($clase == '4') {
+                    // Ingresos: naturaleza crédito. Saldo = credito - debito
+                    $saldo = $credito - $debito;
+                    $totalIngresos += $saldo;
+
+                    if ($saldo == 0) continue;
+
+                    // Para cerrarla (dejarla en cero) se hace lo contrario a su naturaleza
+                    $debitoCierre = $saldo > 0 ? $saldo : 0;
+                    $creditoCierre = $saldo < 0 ? abs($saldo) : 0;
+                } else {
+                    // Costos (6,7) y Gastos (5): naturaleza débito. Saldo = debito - credito
+                    $saldo = $debito - $credito;
+                    $totalCostosGastos += $saldo;
+
+                    if ($saldo == 0) continue;
+
+                    $creditoCierre = $saldo > 0 ? $saldo : 0;
+                    $debitoCierre = $saldo < 0 ? abs($saldo) : 0;
+                }
+
+                $this->registrarMovimiento([
+                    'fecha' => $fechaCierre,
+                    'tipo_documento' => 'cierre_contable',
+                    'numero_documento' => 'CIERRE-' . $anoFiscal,
+                    'id_documento' => $idCierre,
+                    'codigo_cuenta' => $cuenta['codigo_cuenta'],
+                    'nombre_cuenta' => $cuenta['nombre_cuenta'],
+                    'concepto' => "Cierre contable año $anoFiscal - cancelación de saldo",
+                    'debito' => $debitoCierre,
+                    'credito' => $creditoCierre
+                ]);
+            }
+
+            // 5. Calcular la utilidad/pérdida del ejercicio y trasladarla a patrimonio
+            $utilidadEjercicio = $totalIngresos - $totalCostosGastos;
+
+            if ($utilidadEjercicio > 0) {
+                $this->registrarMovimiento([
+                    'fecha' => $fechaCierre,
+                    'tipo_documento' => 'cierre_contable',
+                    'numero_documento' => 'CIERRE-' . $anoFiscal,
+                    'id_documento' => $idCierre,
+                    'codigo_cuenta' => '360505',
+                    'nombre_cuenta' => 'Utilidad del ejercicio',
+                    'concepto' => "Cierre contable año $anoFiscal - traslado de utilidad a patrimonio",
+                    'debito' => 0,
+                    'credito' => $utilidadEjercicio
+                ]);
+            } elseif ($utilidadEjercicio < 0) {
+                $this->registrarMovimiento([
+                    'fecha' => $fechaCierre,
+                    'tipo_documento' => 'cierre_contable',
+                    'numero_documento' => 'CIERRE-' . $anoFiscal,
+                    'id_documento' => $idCierre,
+                    'codigo_cuenta' => '361005',
+                    'nombre_cuenta' => 'Pérdida del ejercicio',
+                    'concepto' => "Cierre contable año $anoFiscal - traslado de pérdida a patrimonio",
+                    'debito' => abs($utilidadEjercicio),
+                    'credito' => 0
+                ]);
+            }
+
+            // 6. Actualizar el registro del cierre con la utilidad ya calculada
+            $stmtUpdate = $this->pdo->prepare(
+                "UPDATE cierres_contables SET utilidad_ejercicio = :utilidad WHERE id = :id"
+            );
+            $stmtUpdate->execute([':utilidad' => $utilidadEjercicio, ':id' => $idCierre]);
+
+            $this->pdo->commit();
+
+            return [
+                'id_cierre' => $idCierre,
+                'ano_fiscal' => $anoFiscal,
+                'utilidad_ejercicio' => $utilidadEjercicio
+            ];
+
+        } catch (Exception $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Revierte un cierre contable activo: elimina el asiento de cierre generado
+     * y marca el registro como 'reversado' (no lo borra, para dejar historial).
+     */
+    public function reversarCierreContable($anoFiscal) {
+        $stmt = $this->pdo->prepare(
+            "SELECT id FROM cierres_contables WHERE ano_fiscal = :ano AND estado = 'activo'"
+        );
+        $stmt->execute([':ano' => $anoFiscal]);
+        $cierre = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$cierre) {
+            throw new Exception("No hay un cierre contable activo para el año $anoFiscal.");
+        }
+
+        $idCierre = $cierre['id'];
+
+        $this->pdo->beginTransaction();
+
+        try {
+            // Eliminar todas las líneas del asiento de cierre generadas para este cierre
+            $this->eliminarMovimientos('cierre_contable', $idCierre);
+
+            // Marcar el cierre como reversado (se conserva el registro como historial)
+            $stmtUpdate = $this->pdo->prepare(
+                "UPDATE cierres_contables SET estado = 'reversado' WHERE id = :id"
+            );
+            $stmtUpdate->execute([':id' => $idCierre]);
+
+            $this->pdo->commit();
+
+        } catch (Exception $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Verifica si el año de una fecha dada ya tiene un cierre contable ACTIVO.
+     * Se usa para bloquear la creación/edición/eliminación de documentos
+     * dentro de un periodo ya cerrado.
+     */
+    public function existeCierreActivoParaFecha($fecha) {
+        $anio = date('Y', strtotime($fecha));
+        $stmt = $this->pdo->prepare(
+            "SELECT id FROM cierres_contables WHERE ano_fiscal = :anio AND estado = 'activo'"
+        );
+        $stmt->execute([':anio' => $anio]);
+        return $stmt->fetch() !== false;
+    }
     
     /**
  * Registra asientos de Factura de Venta
@@ -129,43 +319,117 @@ public function registrarFacturaVenta($idFactura) {
     $stmt = $this->pdo->prepare($sqlDetalle);
     $stmt->execute([':id_factura' => $idFactura]);
     $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // DEBUG: Verificar que se estén obteniendo los detalles
+    if (empty($detalles)) {
+        error_log("DEBUG VENTA: No se encontraron detalles (JOIN vacío) para factura ID: " . $idFactura);
+    }
     
-    // Determinar si es efectivo, transferencia o crédito
-    $formaPago = $factura['formaPago'];
-    $esCredito = stripos($formaPago, 'credito') !== false;
-    
-    // 1. REGISTRO DEL DÉBITO (Cliente o Medio de Pago)
-    if ($esCredito) {
-        // DEBITO: Clientes
-        $this->registrarMovimiento([
-            'fecha' => $factura['fecha'],
-            'tipo_documento' => 'factura_venta',
-            'numero_documento' => $factura['consecutivo'],
-            'id_documento' => $idFactura,
-            'codigo_cuenta' => '130505',
-            'nombre_cuenta' => 'Clientes Nacionales',
-            'tercero_identificacion' => $factura['identificacion'],
-            'tercero_nombre' => $factura['nombre'],
-            'concepto' => "Venta a crédito según factura {$factura['consecutivo']}",
-            'debito' => $factura['valorTotal'],
-            'credito' => 0
-        ]);
+    // 1. VERIFICAR SI HAY MULTIPLES MEDIOS DE PAGO
+    $sqlMediosPago = "SELECT * FROM medios_pago_factura 
+                     WHERE factura_id = :factura_id AND tipo_factura = 'venta'";
+    $stmt = $this->pdo->prepare($sqlMediosPago);
+    $stmt->execute([':factura_id' => $idFactura]);
+    $mediosPago = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // REGISTRO DEL DEBITO (Cliente o Medio de Pago)
+    if (!empty($mediosPago)) {
+        // Multiples medios de pago: procesar cada uno individualmente
+        $totalMediosPago = 0;
+
+        foreach ($mediosPago as $medio) {
+            $valor = floatval($medio['valor']);
+            $totalMediosPago += $valor;
+
+            $esCredito = stripos($medio['forma_pago'], 'credito') !== false ||
+                        stripos($medio['forma_pago'], 'crédito') !== false;
+
+            if ($esCredito) {
+                // DEBITO: Clientes
+                $this->registrarMovimiento([
+                    'fecha' => $factura['fecha'],
+                    'tipo_documento' => 'factura_venta',
+                    'numero_documento' => $factura['consecutivo'],
+                    'id_documento' => $idFactura,
+                    'codigo_cuenta' => '130505',
+                    'nombre_cuenta' => 'Clientes Nacionales',
+                    'tercero_identificacion' => $factura['identificacion'],
+                    'tercero_nombre' => $factura['nombre'],
+                    'concepto' => "Venta a crédito según factura {$factura['consecutivo']} - {$medio['forma_pago']}",
+                    'debito' => $valor,
+                    'credito' => 0
+                ]);
+            } else {
+                // DEBITO: Medio de pago especifico
+                $formaPagoCompleta = $medio['forma_pago'] . ' - ' . $medio['cuenta_contable'];
+                $cuentaPago = $this->obtenerCuentaMedioPago($formaPagoCompleta);
+
+                $this->registrarMovimiento([
+                    'fecha' => $factura['fecha'],
+                    'tipo_documento' => 'factura_venta',
+                    'numero_documento' => $factura['consecutivo'],
+                    'id_documento' => $idFactura,
+                    'codigo_cuenta' => $cuentaPago['codigo'],
+                    'nombre_cuenta' => $cuentaPago['nombre'],
+                    'tercero_identificacion' => $factura['identificacion'],
+                    'tercero_nombre' => $factura['nombre'],
+                    'concepto' => "Cobro venta según factura {$factura['consecutivo']} - {$medio['forma_pago']}",
+                    'debito' => $valor,
+                    'credito' => 0
+                ]);
+            }
+        }
+
+        // Validar que la suma de medios de pago coincida con el valor total
+        $valorTotalFactura = floatval($factura['valorTotal']);
+        $diferencia = abs($valorTotalFactura - $totalMediosPago);
+
+        if ($diferencia > 0.01) {
+            throw new Exception(sprintf(
+                "Error en medios de pago: Total factura=%.2f, Suma medios pago=%.2f, Diferencia=%.2f",
+                $valorTotalFactura,
+                $totalMediosPago,
+                $diferencia
+            ));
+        }
+
     } else {
-        // DEBITO: Caja/Banco según medio de pago
-        $cuentaPago = $this->obtenerCuentaMedioPago($formaPago);
-        $this->registrarMovimiento([
-            'fecha' => $factura['fecha'],
-            'tipo_documento' => 'factura_venta',
-            'numero_documento' => $factura['consecutivo'],
-            'id_documento' => $idFactura,
-            'codigo_cuenta' => $cuentaPago['codigo'],
-            'nombre_cuenta' => $cuentaPago['nombre'],
-            'tercero_identificacion' => $factura['identificacion'],
-            'tercero_nombre' => $factura['nombre'],
-            'concepto' => "Cobro venta según factura {$factura['consecutivo']}",
-            'debito' => $factura['valorTotal'],
-            'credito' => 0
-        ]);
+        // Metodo antiguo: usar solo formaPago de la factura (compatibilidad con facturas viejas)
+        $formaPago = $factura['formaPago'];
+        $esCredito = stripos($formaPago, 'credito') !== false;
+
+        if ($esCredito) {
+            // DEBITO: Clientes
+            $this->registrarMovimiento([
+                'fecha' => $factura['fecha'],
+                'tipo_documento' => 'factura_venta',
+                'numero_documento' => $factura['consecutivo'],
+                'id_documento' => $idFactura,
+                'codigo_cuenta' => '130505',
+                'nombre_cuenta' => 'Clientes Nacionales',
+                'tercero_identificacion' => $factura['identificacion'],
+                'tercero_nombre' => $factura['nombre'],
+                'concepto' => "Venta a crédito según factura {$factura['consecutivo']}",
+                'debito' => $factura['valorTotal'],
+                'credito' => 0
+            ]);
+        } else {
+            // DEBITO: Caja/Banco según medio de pago
+            $cuentaPago = $this->obtenerCuentaMedioPago($formaPago);
+            $this->registrarMovimiento([
+                'fecha' => $factura['fecha'],
+                'tipo_documento' => 'factura_venta',
+                'numero_documento' => $factura['consecutivo'],
+                'id_documento' => $idFactura,
+                'codigo_cuenta' => $cuentaPago['codigo'],
+                'nombre_cuenta' => $cuentaPago['nombre'],
+                'tercero_identificacion' => $factura['identificacion'],
+                'tercero_nombre' => $factura['nombre'],
+                'concepto' => "Cobro venta según factura {$factura['consecutivo']}",
+                'debito' => $factura['valorTotal'],
+                'credito' => 0
+            ]);
+        }
     }
     
     // 2. CREDITO: IVA por Pagar
@@ -557,30 +821,75 @@ public function registrarFacturaCompra($idFactura) {
         $stmt = $this->pdo->prepare($sqlRecibo);
         $stmt->execute([':id' => $idRecibo]);
         $recibo = $stmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if (!$recibo) {
             throw new Exception("Recibo de caja no encontrado");
         }
-        
-        // Obtener cuenta del medio de pago
-        $cuentaPago = $this->obtenerCuentaMedioPago($recibo['formaPago']);
-        
-        // 1. DEBITO: Caja/Banco
-        $this->registrarMovimiento([
-            'fecha' => $recibo['fecha'],
-            'tipo_documento' => 'recibo_caja',
-            'numero_documento' => $recibo['consecutivo'],
-            'id_documento' => $idRecibo,
-            'codigo_cuenta' => $cuentaPago['codigo'],
-            'nombre_cuenta' => $cuentaPago['nombre'],
-            'tercero_identificacion' => $recibo['identificacion'],
-            'tercero_nombre' => $recibo['nombre'],
-            'concepto' => "Recibo de caja No. {$recibo['consecutivo']} - Pago de {$recibo['nombre']}",
-            'debito' => $recibo['valorTotal'],
-            'credito' => 0
-        ]);
-        
-        // 2. CREDITO: Clientes
+
+        // Verificar si hay múltiples medios de pago
+        $sqlMediosPago = "SELECT * FROM medios_pago_recibo_caja WHERE recibo_id = :recibo_id";
+        $stmt = $this->pdo->prepare($sqlMediosPago);
+        $stmt->execute([':recibo_id' => $idRecibo]);
+        $mediosPago = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!empty($mediosPago)) {
+            // Múltiples medios de pago: un DEBITO por cada uno
+            $totalMediosPago = 0;
+
+            foreach ($mediosPago as $medio) {
+                $valor = floatval($medio['valor']);
+                $totalMediosPago += $valor;
+
+                $formaPagoCompleta = $medio['forma_pago'] . ' - ' . $medio['cuenta_contable'];
+                $cuentaPago = $this->obtenerCuentaMedioPago($formaPagoCompleta);
+
+                // DEBITO: Caja/Banco según medio de pago
+                $this->registrarMovimiento([
+                    'fecha' => $recibo['fecha'],
+                    'tipo_documento' => 'recibo_caja',
+                    'numero_documento' => $recibo['consecutivo'],
+                    'id_documento' => $idRecibo,
+                    'codigo_cuenta' => $cuentaPago['codigo'],
+                    'nombre_cuenta' => $cuentaPago['nombre'],
+                    'tercero_identificacion' => $recibo['identificacion'],
+                    'tercero_nombre' => $recibo['nombre'],
+                    'concepto' => "Recibo de caja No. {$recibo['consecutivo']} - {$medio['forma_pago']}",
+                    'debito' => $valor,
+                    'credito' => 0
+                ]);
+            }
+
+            // Validar que la suma de medios de pago coincida con el valor total
+            $valorTotalRecibo = floatval($recibo['valorTotal']);
+            $diferencia = abs($valorTotalRecibo - $totalMediosPago);
+
+            if ($diferencia > 0.01) {
+                throw new Exception(sprintf(
+                    "Error en medios de pago del recibo: Total recibo=%.2f, Suma medios pago=%.2f, Diferencia=%.2f",
+                    $valorTotalRecibo, $totalMediosPago, $diferencia
+                ));
+            }
+
+        } else {
+            // Compatibilidad con recibos antiguos (un solo medio de pago en formaPago)
+            $cuentaPago = $this->obtenerCuentaMedioPago($recibo['formaPago']);
+
+            $this->registrarMovimiento([
+                'fecha' => $recibo['fecha'],
+                'tipo_documento' => 'recibo_caja',
+                'numero_documento' => $recibo['consecutivo'],
+                'id_documento' => $idRecibo,
+                'codigo_cuenta' => $cuentaPago['codigo'],
+                'nombre_cuenta' => $cuentaPago['nombre'],
+                'tercero_identificacion' => $recibo['identificacion'],
+                'tercero_nombre' => $recibo['nombre'],
+                'concepto' => "Recibo de caja No. {$recibo['consecutivo']} - Pago de {$recibo['nombre']}",
+                'debito' => $recibo['valorTotal'],
+                'credito' => 0
+            ]);
+        }
+
+        // CREDITO: Clientes (siempre, sin importar cuántos medios de pago hubo)
         $this->registrarMovimiento([
             'fecha' => $recibo['fecha'],
             'tipo_documento' => 'recibo_caja',
@@ -610,7 +919,7 @@ public function registrarFacturaCompra($idFactura) {
             throw new Exception("Comprobante de egreso no encontrado");
         }
         
-        // 1. DEBITO: Proveedores
+        // 1. DEBITO: Proveedores (siempre, por el valor total)
         $this->registrarMovimiento([
             'fecha' => $comprobante['fecha'],
             'tipo_documento' => 'comprobante_egreso',
@@ -624,22 +933,68 @@ public function registrarFacturaCompra($idFactura) {
             'debito' => $comprobante['valorTotal'],
             'credito' => 0
         ]);
-        
-        // 2. CREDITO: Caja/Banco
-        $cuentaPago = $this->obtenerCuentaMedioPago($comprobante['formaPago']);
-        $this->registrarMovimiento([
-            'fecha' => $comprobante['fecha'],
-            'tipo_documento' => 'comprobante_egreso',
-            'numero_documento' => $comprobante['consecutivo'],
-            'id_documento' => $idComprobante,
-            'codigo_cuenta' => $cuentaPago['codigo'],
-            'nombre_cuenta' => $cuentaPago['nombre'],
-            'tercero_identificacion' => $comprobante['identificacion'],
-            'tercero_nombre' => $comprobante['nombre'],
-            'concepto' => "Egreso por pago comprobante No. {$comprobante['consecutivo']}",
-            'debito' => 0,
-            'credito' => $comprobante['valorTotal']
-        ]);
+
+        // 2. Verificar si hay múltiples medios de pago
+        $sqlMediosPago = "SELECT * FROM medios_pago_comprobante_egreso WHERE comprobante_id = :comprobante_id";
+        $stmt = $this->pdo->prepare($sqlMediosPago);
+        $stmt->execute([':comprobante_id' => $idComprobante]);
+        $mediosPago = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!empty($mediosPago)) {
+            // Múltiples medios de pago: un CREDITO por cada uno
+            $totalMediosPago = 0;
+
+            foreach ($mediosPago as $medio) {
+                $valor = floatval($medio['valor']);
+                $totalMediosPago += $valor;
+
+                $formaPagoCompleta = $medio['forma_pago'] . ' - ' . $medio['cuenta_contable'];
+                $cuentaPago = $this->obtenerCuentaMedioPago($formaPagoCompleta);
+
+                // CREDITO: Caja/Banco según medio de pago
+                $this->registrarMovimiento([
+                    'fecha' => $comprobante['fecha'],
+                    'tipo_documento' => 'comprobante_egreso',
+                    'numero_documento' => $comprobante['consecutivo'],
+                    'id_documento' => $idComprobante,
+                    'codigo_cuenta' => $cuentaPago['codigo'],
+                    'nombre_cuenta' => $cuentaPago['nombre'],
+                    'tercero_identificacion' => $comprobante['identificacion'],
+                    'tercero_nombre' => $comprobante['nombre'],
+                    'concepto' => "Egreso por pago comprobante No. {$comprobante['consecutivo']} - {$medio['forma_pago']}",
+                    'debito' => 0,
+                    'credito' => $valor
+                ]);
+            }
+
+            // Validar que la suma de medios de pago coincida con el valor total
+            $valorTotalComprobante = floatval($comprobante['valorTotal']);
+            $diferencia = abs($valorTotalComprobante - $totalMediosPago);
+
+            if ($diferencia > 0.01) {
+                throw new Exception(sprintf(
+                    "Error en medios de pago del comprobante: Total comprobante=%.2f, Suma medios pago=%.2f, Diferencia=%.2f",
+                    $valorTotalComprobante, $totalMediosPago, $diferencia
+                ));
+            }
+
+        } else {
+            // Compatibilidad con comprobantes antiguos (un solo medio de pago en formaPago)
+            $cuentaPago = $this->obtenerCuentaMedioPago($comprobante['formaPago']);
+            $this->registrarMovimiento([
+                'fecha' => $comprobante['fecha'],
+                'tipo_documento' => 'comprobante_egreso',
+                'numero_documento' => $comprobante['consecutivo'],
+                'id_documento' => $idComprobante,
+                'codigo_cuenta' => $cuentaPago['codigo'],
+                'nombre_cuenta' => $cuentaPago['nombre'],
+                'tercero_identificacion' => $comprobante['identificacion'],
+                'tercero_nombre' => $comprobante['nombre'],
+                'concepto' => "Egreso por pago comprobante No. {$comprobante['consecutivo']}",
+                'debito' => 0,
+                'credito' => $comprobante['valorTotal']
+            ]);
+        }
     }
     
     /**

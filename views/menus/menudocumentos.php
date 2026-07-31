@@ -108,6 +108,13 @@
               <p>Documento que se utiliza en la contabilidad para registrar y respaldar cualquier transacción financiera dentro de la empresa. Su objetivo es dejar constancia formal y detallada de las operaciones realizadas, ya sea ingresos, egresos, ajustes, transferencias u otros movimientos que afecten las cuentas de la empresa.</p>
             </div>
           </div>
+          <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="600">
+            <div class="icon-box">
+              <i class="bi bi-lock"></i>
+              <h4><a href="../documentos/documentoscierrecontable.php">CIERRE CONTABLE</a></h4>
+              <p>Cierra el año fiscal para trasladar la utilidad o pérdida del ejercicio a patrimonio y dejar las cuentas de ingresos, costos y gastos listas para iniciar el año siguiente.</p>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -136,6 +143,7 @@
   <script src="../../assets/js/main.js"></script>
   
   <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/asistente/asistente-widget.php'; ?>
+  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/notificaciones/notificaciones-widget.php'; ?>
 
 </body>
 

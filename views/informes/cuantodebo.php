@@ -826,7 +826,9 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
         showConfirmButton: false
       });
     }
-  </script>
+    </script>
 
+    <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/asistente/asistente-widget.php'; ?>
+    <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/notificaciones/notificaciones-widget.php'; ?>
 </body>
 </html>

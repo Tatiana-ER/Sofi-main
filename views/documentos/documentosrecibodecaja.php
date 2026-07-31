@@ -1246,7 +1246,7 @@ document.addEventListener("DOMContentLoaded", () => {
         
         fechaInput.value = fechaLocal;
       }
-    });
+    }); 
   </script>
 
   <!-- Vendor JS -->
@@ -1254,8 +1254,9 @@ document.addEventListener("DOMContentLoaded", () => {
   <script src="../../assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="../../assets/vendor/glightbox/js/glightbox.min.js"></script>
   <script src="../../assets/js/main.js"></script>
-  
+
   <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/asistente/asistente-widget.php'; ?>
+  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/notificaciones/notificaciones-widget.php'; ?>
 
 </body>
 </html>

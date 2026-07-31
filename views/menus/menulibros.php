@@ -121,6 +121,13 @@
               <p>Es un reporte detallado de todas las transacciones que afectan el efectivo disponible de la empresa. Este libro refleja tanto las entradas (ingresos) como las salidas (egresos) de dinero en efectivo, permitiendo un control preciso sobre el flujo de caja de la empresa en un período específico.</p>
             </div>
           </div>
+          <div class="col-md-6 d-flex align-items-stretch mb-4" data-aos="fade-up" data-aos-delay="800">
+            <div class="icon-box">
+              <i class="bi bi-bank"></i>
+              <h4><a href="../libros/librosbancos.php">Libro de cuentas de banco</a></h4>
+              <p>Es un reporte detallado de todas las transacciones que afectan las cuentas bancarias de la empresa (consignaciones, retiros y transferencias). Permite ver el saldo corriente de cada cuenta bancaria por separado, o el consolidado de todas, en un período específico.</p>
+            </div>
+          </div>
         </div>
 
       </div>
@@ -149,6 +156,8 @@
   <script src="../../assets/js/main.js"></script>
   
   <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/asistente/asistente-widget.php'; ?>
+  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/notificaciones/notificaciones-widget.php'; ?>
+  
 </body>
 
 </html>
