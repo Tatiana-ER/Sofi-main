@@ -521,10 +521,10 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
 
           <div class="mt-4">
-            <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
-            <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion">Modificar</button>
-            <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-danger" name="accion">Eliminar</button>
-            <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">Cancelar</button>
+            <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar" name="accion">Agregar</button>
+            <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion">Modificar</button>
+            <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion">Eliminar</button>
+            <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">Cancelar</button>
           </div>
 
           <!-- Botón Documentos Eliminados -->

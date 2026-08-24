@@ -503,11 +503,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['identificacion']) || 
 
     $identificacion = $_POST['identificacion'] ?? '';
     $nombreCliente = $_POST['nombreCliente'] ?? '';
-    $cliente = null;
 
     if (!empty($identificacion)) {
         $stmt = $pdo->prepare("
-            SELECT cedula, CONCAT(nombres, ' ', apellidos) AS nombreCompleto
+            SELECT cedula, tipoPersona,
+                   CASE 
+                       WHEN tipoPersona = 'Juridica' THEN razonSocial
+                       ELSE CONCAT(nombres, ' ', apellidos)
+                   END AS nombreCompleto
             FROM catalogosterceros
             WHERE cedula = :cedula AND tipoTercero LIKE '%Cliente%'
             LIMIT 1
@@ -515,28 +518,37 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['identificacion']) || 
         $stmt->bindParam(':cedula', $identificacion, PDO::PARAM_STR);
         $stmt->execute();
         $cliente = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($cliente) {
+            echo json_encode([
+                "nombre" => $cliente['nombreCompleto'],
+                "identificacion" => $cliente['cedula']
+            ]);
+        } else {
+            echo json_encode(["nombre" => "No encontrado o no es cliente"]);
+        }
+        exit;
+
     } elseif (!empty($nombreCliente)) {
         $likeNombre = "%$nombreCliente%";
         $stmt = $pdo->prepare("
-            SELECT cedula, CONCAT(nombres, ' ', apellidos) AS nombreCompleto
+            SELECT cedula, tipoPersona,
+                   CASE 
+                       WHEN tipoPersona = 'Juridica' THEN razonSocial
+                       ELSE CONCAT(nombres, ' ', apellidos)
+                   END AS nombreCompleto
             FROM catalogosterceros
-            WHERE CONCAT(nombres, ' ', apellidos) LIKE :nombre AND tipoTercero LIKE '%Cliente%'
-            LIMIT 1
+            WHERE (CASE WHEN tipoPersona = 'Juridica' THEN razonSocial ELSE CONCAT(nombres, ' ', apellidos) END) LIKE :nombre
+              AND tipoTercero LIKE '%Cliente%'
+            LIMIT 10
         ");
         $stmt->bindParam(':nombre', $likeNombre, PDO::PARAM_STR);
         $stmt->execute();
-        $cliente = $stmt->fetch(PDO::FETCH_ASSOC);
-    }
+        $clientes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if ($cliente) {
-        echo json_encode([
-            "nombre" => $cliente['nombreCompleto'],
-            "identificacion" => $cliente['cedula']
-        ]);
-    } else {
-        echo json_encode(["nombre" => "No encontrado o no es cliente"]);
+        echo json_encode($clientes);
+        exit;
     }
-    exit;
 }
 
 // Buscar producto por código (para el select)
@@ -781,6 +793,39 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     .validacion-error { color: #a94442; font-weight: 600; font-size: 0.9rem; }
     .validacion-exito { color: #2f6f4e; font-weight: 600; font-size: 0.9rem; }
+
+    .suggestions-box {
+    position: absolute;
+    background: #ffffff;
+    border: 1px solid #0d6efd;
+    border-top: none;
+    max-height: 250px;
+    overflow-y: auto;
+    width: calc(100% - 2px);
+    z-index: 1000;
+    box-shadow: 0 6px 10px rgba(0,0,0,0.15);
+    padding: 0;
+    margin: 0;
+    }
+    .suggestion-item {
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f1f1;
+    transition: background-color 0.2s;
+    }
+    .suggestion-item:last-child { border-bottom: none; }
+    .suggestion-item:hover { background: #e9f5ff; }
+    .position-relative { position: relative; }
+
+    /* Ancho fijo para el menú de acciones (3 puntitos).
+   Al moverlo a <body> vía JS para que el scroll de la tabla no lo recorte,
+   necesita un ancho explícito: si se deja en "auto" puede calcularse mal
+   en el instante justo del reposicionamiento y verse estirado. */
+    .dropdown-menu {
+    width: 220px;
+    min-width: 220px;
+    max-width: 220px;
+    }
   </style>
   </style>
 
@@ -835,17 +880,18 @@ document.addEventListener("DOMContentLoaded", () => {
           <!-- Identificación y Nombre -->
           <div class="row g-3">
             <div class="col-md-4">
-              <label for="identificacion" class="form-label fw-bold">Identificación del Cliente (NIT o CC)*</label>
-              <input type="number" class="form-control" id="identificacion" name="identificacion"
+            <label for="identificacion" class="form-label fw-bold">Identificación del Cliente (NIT o CC)*</label>
+            <input type="number" class="form-control" id="identificacion" name="identificacion"
                     placeholder="Ej: 123456789"
                     value="<?php echo $identificacion; ?>" required>
             </div>
 
-            <div class="col-md-8">
-              <label for="nombre" class="form-label fw-bold">Nombre del cliente</label>
-              <input type="text" class="form-control" id="nombre" name="nombre"
+            <div class="col-md-8 position-relative">
+            <label for="nombre" class="form-label fw-bold">Nombre del cliente</label>
+            <input type="text" class="form-control" id="nombre" name="nombre" autocomplete="off"
                     placeholder="Nombre del cliente"
                     value="<?php echo $nombre; ?>">
+            <div id="sugerenciasCliente" class="suggestions-box" style="display:none;"></div>
             </div>
           </div>
 
@@ -1071,10 +1117,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         <!-- Botones de acción -->
         <div class="mt-4">
-          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
-          <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion">Modificar</button>
-          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-danger" name="accion">Eliminar</button>
-          <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">Cancelar</button>
+          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar" name="accion">Agregar</button>
+          <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion">Modificar</button>
+          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion">Eliminar</button>
+          <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">Cancelar</button>
         </div>
       </form>
 
@@ -1149,9 +1195,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td class="col-observaciones" title="<?php echo htmlspecialchars($usuario['observaciones']); ?>">
                     <?php echo htmlspecialchars($usuario['observaciones']); ?>
                 </td>
-                <td>
+                <td class="text-center">
                     <div class="dropdown">
-                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
                         <i class="fas fa-ellipsis-vertical"></i>
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end">
@@ -1264,6 +1310,8 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         // Buscar por nombre
+        const sugerenciasCliente = document.getElementById("sugerenciasCliente");
+
         inputNombre.addEventListener("input", function () {
             const valor = this.value.trim();
             if (valor.length >= 3) {
@@ -1274,11 +1322,33 @@ document.addEventListener("DOMContentLoaded", () => {
                 })
                 .then(res => res.json())
                 .then(data => {
-                    if (data.identificacion) {
-                        inputIdentificacion.value = data.identificacion;
+                    sugerenciasCliente.innerHTML = "";
+                    if (Array.isArray(data) && data.length > 0) {
+                        data.forEach(c => {
+                            const div = document.createElement("div");
+                            div.className = "suggestion-item";
+                            div.innerHTML = `<strong>${c.cedula}</strong> - ${c.nombreCompleto}`;
+                            div.addEventListener("click", () => {
+                                inputIdentificacion.value = c.cedula;
+                                inputNombre.value = c.nombreCompleto;
+                                sugerenciasCliente.style.display = "none";
+                            });
+                            sugerenciasCliente.appendChild(div);
+                        });
+                        sugerenciasCliente.style.display = "block";
+                    } else {
+                        sugerenciasCliente.style.display = "none";
                     }
                 })
                 .catch(console.error);
+            } else {
+                sugerenciasCliente.style.display = "none";
+            }
+        });
+
+        document.addEventListener("click", function (e) {
+            if (!e.target.closest("#nombre") && !e.target.closest("#sugerenciasCliente")) {
+                sugerenciasCliente.style.display = "none";
             }
         });
 
@@ -1928,6 +1998,73 @@ document.addEventListener("DOMContentLoaded", () => {
             
             fechaInput.value = fechaLocal;
           }
+        });
+
+        // Solución: mover el menú desplegable a <body> para que no lo recorte el scroll de la tabla
+        document.addEventListener('show.bs.dropdown', function (e) {
+            const button = e.target;
+            const menu = button.nextElementSibling; // el <ul class="dropdown-menu">
+
+            if (!menu || !menu.classList.contains('dropdown-menu')) return;
+
+            // Guarda dónde estaba originalmente para devolverlo después
+            menu._originalParent = menu.parentNode;
+            menu._originalNextSibling = menu.nextSibling;
+
+            document.body.appendChild(menu);
+            menu.style.position = 'fixed';
+            menu.style.zIndex = '3000';
+            menu.style.display = 'block';
+            menu.style.width = '220px'; // ancho fijo: evita que se estire al reposicionar
+
+            const posicionar = () => {
+                const rect = button.getBoundingClientRect();
+                const menuAncho = menu.offsetWidth;
+
+                // Alinea el borde derecho del menú con el borde derecho del botón (como dropdown-menu-end)
+                let left = rect.right - menuAncho;
+                if (left < 8) left = 8; // evita que se salga por la izquierda
+
+                let top = rect.bottom + 4;
+                // Si no cabe abajo, lo abre hacia arriba
+                if (top + menu.offsetHeight > window.innerHeight) {
+                    top = rect.top - menu.offsetHeight - 4;
+                }
+
+                menu.style.top = `${top}px`;
+                menu.style.left = `${left}px`;
+            };
+
+            posicionar();
+            // Reposiciona si se hace scroll o resize mientras el menú está abierto
+            window.addEventListener('scroll', posicionar, true);
+            window.addEventListener('resize', posicionar);
+            menu._posicionar = posicionar;
+        });
+
+        document.addEventListener('hide.bs.dropdown', function (e) {
+            const button = e.target;
+            const menu = button.nextElementSibling?.classList.contains('dropdown-menu')
+                ? button.nextElementSibling
+                : document.body.querySelector('.dropdown-menu[style*="position: fixed"]');
+
+            if (!menu || !menu._originalParent) return;
+
+            window.removeEventListener('scroll', menu._posicionar, true);
+            window.removeEventListener('resize', menu._posicionar);
+
+            // Lo regresa a su lugar original en la fila de la tabla
+            if (menu._originalNextSibling) {
+                menu._originalParent.insertBefore(menu, menu._originalNextSibling);
+            } else {
+                menu._originalParent.appendChild(menu);
+            }
+            menu.style.position = '';
+            menu.style.zIndex = '';
+            menu.style.top = '';
+            menu.style.left = '';
+            menu.style.display = '';
+            menu.style.width = '';
         });
 
         </script>

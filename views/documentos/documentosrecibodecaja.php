@@ -63,24 +63,55 @@ if (isset($_GET['get_detalles']) && isset($_GET['idRecibo'])) {
     exit;
 }
 
-// Buscar cliente
+// Buscar cliente por identificación
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['buscar_cliente'])) {
     $identificacion = $_POST['identificacion'];
-    
-    $stmt = $pdo->prepare("SELECT nombres, apellidos FROM catalogosterceros WHERE cedula = :cedula AND tipoTercero = 'cliente'");
+
+    $stmt = $pdo->prepare("
+        SELECT cedula, tipoPersona,
+               CASE 
+                   WHEN tipoPersona = 'Juridica' THEN razonSocial
+                   ELSE CONCAT(nombres, ' ', apellidos)
+               END AS nombreCompleto
+        FROM catalogosterceros
+        WHERE cedula = :cedula AND tipoTercero LIKE '%Cliente%'
+    ");
     $stmt->bindParam(':cedula', $identificacion);
     $stmt->execute();
     $cliente = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     if ($cliente) {
         echo json_encode([
-            "nombre" => trim($cliente['nombres'] . " " . $cliente['apellidos'])
+            "nombre" => $cliente['nombreCompleto'],
+            "identificacion" => $cliente['cedula']
         ]);
     } else {
-        echo json_encode([
-            "nombre" => "No encontrado o no es un cliente"
-        ]);
+        echo json_encode(["nombre" => "No encontrado o no es un cliente"]);
     }
+    exit;
+}
+
+// Buscar cliente por nombre (autocompletado)
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['buscar_cliente_nombre'])) {
+    $nombreBuscar = $_POST['nombre'] ?? '';
+    $likeNombre = "%$nombreBuscar%";
+
+    $stmt = $pdo->prepare("
+        SELECT cedula, tipoPersona,
+               CASE 
+                   WHEN tipoPersona = 'Juridica' THEN razonSocial
+                   ELSE CONCAT(nombres, ' ', apellidos)
+               END AS nombreCompleto
+        FROM catalogosterceros
+        WHERE (CASE WHEN tipoPersona = 'Juridica' THEN razonSocial ELSE CONCAT(nombres, ' ', apellidos) END) LIKE :nombre
+          AND tipoTercero LIKE '%Cliente%'
+        LIMIT 10
+    ");
+    $stmt->bindParam(':nombre', $likeNombre, PDO::PARAM_STR);
+    $stmt->execute();
+    $clientes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode($clientes);
     exit;
 }
 
@@ -98,6 +129,23 @@ $valorTotal = $_POST['valorTotal'] ?? "";
 $formaPago = $_POST['formaPago'] ?? "";
 $observaciones = $_POST['observaciones'] ?? "";
 $accion = $_POST['accion'] ?? "";
+
+// Procesar múltiples medios de pago
+$mediosPagoArray = [];
+if (isset($_POST['metodosPago']) && is_array($_POST['metodosPago'])) {
+    foreach ($_POST['metodosPago'] as $index => $metodoData) {
+        if (!empty($metodoData['metodo']) && !empty($metodoData['valor'])) {
+            $partes = explode(' - ', $metodoData['metodo']);
+            $mediosPagoArray[] = [
+                'metodo' => $metodoData['metodo'],
+                'forma_pago' => $partes[0] ?? $metodoData['metodo'],
+                'cuenta_contable' => $partes[1] ?? '',
+                'valor' => floatval($metodoData['valor'])
+            ];
+        }
+    }
+}
+$mediosPagoRecibo = []; // Se llena en btnEditar
 
 // Datos de facturas (JSON)
 $facturasData = $_POST['facturasData'] ?? "";
@@ -167,6 +215,26 @@ switch($accion) {
     case "btnAgregar":
         try {
             $pdo->beginTransaction();
+
+            // Candado de cierre contable: no permitir registrar en un año ya cerrado
+            if ($libroDiario->existeCierreActivoParaFecha($fecha)) {
+                throw new Exception("No se puede registrar esta factura: el año " . date('Y', strtotime($fecha)) . " ya tiene un cierre contable activo. Si necesitas hacer ajustes, primero revierte el cierre de ese año.");
+            }
+
+            // Validar suma de medios de pago contra el valor total
+            $sumaMediosPago = array_sum(array_column($mediosPagoArray, 'valor'));
+            $diferencia = abs($sumaMediosPago - floatval($valorTotal));
+
+            if ($diferencia > 0.01) {
+                $mensajeError = "La suma de los medios de pago (".number_format($sumaMediosPago, 2).") ";
+                $mensajeError .= "no coincide con el valor total (".number_format($valorTotal, 2)."). ";
+                $mensajeError .= $sumaMediosPago < floatval($valorTotal)
+                    ? "Faltan ".number_format(floatval($valorTotal) - $sumaMediosPago, 2)
+                    : "Sobran ".number_format($sumaMediosPago - floatval($valorTotal), 2);
+                throw new Exception($mensajeError);
+            }
+
+            $formaPago = implode(', ', array_column($mediosPagoArray, 'metodo'));
             
             // Validar saldos disponibles antes de procesar - MODIFICADO
             if (!empty($facturasData)) {
@@ -229,6 +297,24 @@ switch($accion) {
                     ]);
                 }
             }
+
+            // Insertar múltiples medios de pago
+            if (!empty($mediosPagoArray)) {
+                $sqlMedioPago = "INSERT INTO medios_pago_recibo_caja 
+                                  (recibo_id, forma_pago, cuenta_contable, nombre_cuenta, valor)
+                                  VALUES (:recibo_id, :forma_pago, :cuenta_contable, :nombre_cuenta, :valor)";
+                $stmtMedioPago = $pdo->prepare($sqlMedioPago);
+
+                foreach ($mediosPagoArray as $medio) {
+                    $stmtMedioPago->execute([
+                        ':recibo_id' => $idRecibo,
+                        ':forma_pago' => $medio['forma_pago'],
+                        ':cuenta_contable' => $medio['cuenta_contable'],
+                        ':nombre_cuenta' => $medio['cuenta_contable'],
+                        ':valor' => $medio['valor']
+                    ]);
+                }
+            }
             
             // Actualizar saldos de las facturas
             actualizarSaldosFacturas($pdo, $facturasData);
@@ -250,9 +336,37 @@ switch($accion) {
     case "btnModificar":
         try {
             $pdo->beginTransaction();
+
+            // Candado de cierre contable: verificar tanto la fecha original como la nueva
+            $stmtFechaOriginal = $pdo->prepare("SELECT fecha FROM docrecibodecaja WHERE id = :id");
+            $stmtFechaOriginal->execute([':id' => $txtId]);
+            $fechaOriginal = $stmtFechaOriginal->fetchColumn();
+
+            if ($fechaOriginal && $libroDiario->existeCierreActivoParaFecha($fechaOriginal)) {
+                throw new Exception("No se puede modificar esta factura: pertenece al año " . date('Y', strtotime($fechaOriginal)) . ", que ya tiene un cierre contable activo.");
+            }
+
+            if ($libroDiario->existeCierreActivoParaFecha($fecha)) {
+                throw new Exception("No se puede mover esta factura al año " . date('Y', strtotime($fecha)) . ": ese año ya tiene un cierre contable activo.");
+            }
             
             // Restaurar saldos de las facturas del recibo original
             restaurarSaldosFacturas($pdo, $txtId);
+
+            // Validar suma de medios de pago contra el valor total
+            $sumaMediosPago = array_sum(array_column($mediosPagoArray, 'valor'));
+            $diferencia = abs($sumaMediosPago - floatval($valorTotal));
+
+            if ($diferencia > 0.01) {
+                $mensajeError = "La suma de los medios de pago (".number_format($sumaMediosPago, 2).") ";
+                $mensajeError .= "no coincide con el valor total (".number_format($valorTotal, 2)."). ";
+                $mensajeError .= $sumaMediosPago < floatval($valorTotal)
+                    ? "Faltan ".number_format(floatval($valorTotal) - $sumaMediosPago, 2)
+                    : "Sobran ".number_format($sumaMediosPago - floatval($valorTotal), 2);
+                throw new Exception($mensajeError);
+            }
+
+            $formaPago = implode(', ', array_column($mediosPagoArray, 'metodo'));
             
             // Validar nuevos saldos - MODIFICADO
             if (!empty($facturasData)) {
@@ -305,6 +419,10 @@ switch($accion) {
             $stmtDelete = $pdo->prepare("DELETE FROM detalle_recibo_caja WHERE idRecibo = :idRecibo");
             $stmtDelete->execute([':idRecibo' => $txtId]);
 
+            // Eliminar medios de pago antiguos
+            $stmtDeleteMedios = $pdo->prepare("DELETE FROM medios_pago_recibo_caja WHERE recibo_id = :idRecibo");
+            $stmtDeleteMedios->execute([':idRecibo' => $txtId]);
+
             // ✨ NUEVO: Eliminar asientos contables antiguos
             $libroDiario->eliminarMovimientos('recibo_caja', $txtId);
 
@@ -329,6 +447,23 @@ switch($accion) {
                     ]);
                 }
             }
+
+            if (!empty($mediosPagoArray)) {
+                $sqlMedioPago = "INSERT INTO medios_pago_recibo_caja 
+                                  (recibo_id, forma_pago, cuenta_contable, nombre_cuenta, valor)
+                                  VALUES (:recibo_id, :forma_pago, :cuenta_contable, :nombre_cuenta, :valor)";
+                $stmtMedioPago = $pdo->prepare($sqlMedioPago);
+
+                foreach ($mediosPagoArray as $medio) {
+                    $stmtMedioPago->execute([
+                        ':recibo_id' => $txtId,
+                        ':forma_pago' => $medio['forma_pago'],
+                        ':cuenta_contable' => $medio['cuenta_contable'],
+                        ':nombre_cuenta' => $medio['cuenta_contable'],
+                        ':valor' => $medio['valor']
+                    ]);
+                }
+            }
             
             // Actualizar nuevos saldos
             actualizarSaldosFacturas($pdo, $facturasData);
@@ -350,6 +485,15 @@ switch($accion) {
     case "btnEliminar":
       try {
           $pdo->beginTransaction();
+
+          // Candado de cierre contable
+          $stmtFechaEliminar = $pdo->prepare("SELECT fecha FROM docrecibodecaja WHERE id = :id");
+          $stmtFechaEliminar->execute([':id' => $txtId]);
+          $fechaEliminar = $stmtFechaEliminar->fetchColumn();
+
+          if ($fechaEliminar && $libroDiario->existeCierreActivoParaFecha($fechaEliminar)) {
+              throw new Exception("No se puede eliminar este recibo: pertenece al año " . date('Y', strtotime($fechaEliminar)) . ", que ya tiene un cierre contable activo.");
+          }
           
           // ✨ NUEVO: Eliminar asientos contables
           $libroDiario->eliminarMovimientos('recibo_caja', $txtId);
@@ -374,8 +518,13 @@ switch($accion) {
   break;
 
     case "btnEditar":
-        // Los datos ya vienen en $_POST desde los campos hidden
-        break;
+      // Los datos ya vienen en $_POST desde los campos hidden
+      // Cargar medios de pago asociados al recibo
+      $stmtMedios = $pdo->prepare("SELECT * FROM medios_pago_recibo_caja WHERE recibo_id = :id");
+      $stmtMedios->bindParam(':id', $txtId);
+      $stmtMedios->execute();
+      $mediosPagoRecibo = $stmtMedios->fetchAll(PDO::FETCH_ASSOC);
+      break;
 }
 
 // Consulta para mostrar la tabla con información de detalles
@@ -531,13 +680,13 @@ document.addEventListener("DOMContentLoaded", () => {
       padding: 15px;
       background: #f8f9fa;
       border-radius: 5px;
-      border: 2px solid #0d6efd;
+      border: 2px solid #103669;
     }
     
     .totals label {
       font-weight: bold;
       font-size: 18px;
-      color: #0d6efd;
+      color: #103669;
       margin-right: 10px;
     }
     
@@ -547,8 +696,8 @@ document.addEventListener("DOMContentLoaded", () => {
       font-weight: bold;
       text-align: right;
       display: inline-block;
-      border: 2px solid #0d6efd;
-      color: #0d6efd;
+      border: 2px solid #103669;
+      color: #103669;
     }
     
     .badge {
@@ -601,6 +750,94 @@ document.addEventListener("DOMContentLoaded", () => {
       color: #6c757d;
       font-style: italic;
     }
+
+    .metodos-pago-container {
+  margin-top: 20px;
+  padding: 18px 20px;
+  border: 1px solid #dfe3e8;
+  border-radius: 6px;
+  background-color: #fafbfc;
+}
+.metodos-pago-container h5 {
+  color: #2c3e50;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid #e5e8eb;
+  padding-bottom: 10px;
+}
+.metodo-pago-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.metodo-pago-row select,
+.metodo-pago-row input { flex: 1; }
+.btn-metodo {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  border: 1px solid #d7dbe0;
+  background-color: #f1f3f5;
+  color: #495057;
+}
+.btn-metodo.btn-success:hover { background-color: #e2e8ef; color: #2c3e50; }
+.btn-metodo.btn-danger:hover { background-color: #f3dede; color: #7a3232; }
+.total-medios-pago {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background-color: #ffffff;
+  border: 1px solid #dfe3e8;
+  border-left: 3px solid #2c3e50;
+  border-radius: 4px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+.validacion-error { color: #a94442; font-weight: 600; font-size: 0.9rem; }
+.validacion-exito { color: #2f6f4e; font-weight: 600; font-size: 0.9rem; }
+
+.table-container {
+    overflow-x: auto;
+    overflow-y: visible;
+}
+
+.suggestions-box {
+  position: absolute;
+  background: #ffffff;
+  border: 1px solid #0d6efd;
+  border-top: none;
+  max-height: 250px;
+  overflow-y: auto;
+  width: calc(100% - 2px);
+  z-index: 1000;
+  box-shadow: 0 6px 10px rgba(0,0,0,0.15);
+  padding: 0;
+  margin: 0;
+}
+.suggestion-item {
+  padding: 10px;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f1f1;
+  transition: background-color 0.2s;
+}
+.suggestion-item:last-child { border-bottom: none; }
+.suggestion-item:hover { background: #e9f5ff; }
+.position-relative { position: relative; }
+
+/* Ancho fijo para el menú de acciones (3 puntitos).
+   Al moverlo a <body> vía JS para que el scroll de la tabla no lo recorte,
+   necesita un ancho explícito: si se deja en "auto" puede calcularse mal
+   en el instante justo del reposicionamiento y verse estirado. */
+.dropdown-menu {
+  width: 220px;
+  min-width: 220px;
+  max-width: 220px;
+}
   </style>
 </head>
 
@@ -664,14 +901,15 @@ document.addEventListener("DOMContentLoaded", () => {
           <div class="col-md-6">
             <label for="identificacion" class="form-label fw-bold">Identificación del Cliente*</label>
             <input type="number" class="form-control" id="identificacion" name="identificacion"
-                   placeholder="Ej: 123456789"
-                   value="<?php echo htmlspecialchars($identificacion); ?>" required>
+                  placeholder="Ej: 123456789"
+                  value="<?php echo htmlspecialchars($identificacion); ?>" required>
           </div>
-          <div class="col-md-6">
+          <div class="col-md-6 position-relative">
             <label for="nombre" class="form-label fw-bold">Nombre del cliente*</label>
-            <input type="text" class="form-control" id="nombre" name="nombre"
-                   placeholder="Nombre del cliente"
-                   value="<?php echo htmlspecialchars($nombre); ?>" readonly required>
+            <input type="text" class="form-control" id="nombre" name="nombre" autocomplete="off"
+                  placeholder="Nombre del cliente"
+                  value="<?php echo htmlspecialchars($nombre); ?>" required>
+            <div id="sugerenciasCliente" class="suggestions-box" style="display:none;"></div>
           </div>
         </div>
 
@@ -711,19 +949,60 @@ document.addEventListener("DOMContentLoaded", () => {
                  value="<?php echo htmlspecialchars($valorTotal); ?>" readonly>
         </div>
 
-        <!-- Forma de Pago -->
-        <div class="row g-3 mt-3">
-          <div class="col-md-6">
-            <label for="formaPago" class="form-label fw-bold">Forma de Pago*</label>
-            <select id="formaPago" name="formaPago" class="form-control" required>
-              <option value="">Seleccione una opción</option>
-              <?php foreach ($mediosPago as $medio): ?>
-                <option value="<?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>" 
-                        <?php if($formaPago == $medio['metodoPago']) echo 'selected'; ?>>
-                  <?= htmlspecialchars($medio['metodoPago']) ?> - <?= htmlspecialchars($medio['cuentaContable']) ?>
-                </option>
+        <!-- NUEVA SECCION: Multiples medios de pago -->
+        <div class="metodos-pago-container">
+          <h5 class="fw-bold mb-3">Metodos de Pago</h5>
+
+          <div id="medios-pago-container">
+            <?php if (!empty($mediosPagoRecibo)): ?>
+              <?php foreach ($mediosPagoRecibo as $index => $medio): ?>
+                <div class="metodo-pago-row" data-index="<?= $index ?>">
+                  <select name="metodosPago[<?= $index ?>][metodo]" class="form-select select-metodo-pago" required>
+                    <option value="">Seleccione método</option>
+                    <?php foreach ($mediosPago as $mp): ?>
+                      <?php $valorCompleto = $mp['metodoPago'] . ' - ' . $mp['cuentaContable']; ?>
+                      <option value="<?= htmlspecialchars($valorCompleto) ?>"
+                        <?= ($valorCompleto == ($medio['forma_pago'] . ' - ' . $medio['cuenta_contable'])) ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($mp['metodoPago']) ?> - <?= htmlspecialchars($mp['cuentaContable']) ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                  <input type="number" name="metodosPago[<?= $index ?>][valor]" class="form-control valor-metodo"
+                        placeholder="Valor" step="0.01" min="0"
+                        value="<?= number_format($medio['valor'], 2, '.', '') ?>" required>
+                  <?php if ($index == 0): ?>
+                    <button type="button" class="btn btn-success btn-metodo" onclick="agregarMedioPago()"><i class="fas fa-plus"></i></button>
+                  <?php else: ?>
+                    <button type="button" class="btn btn-danger btn-metodo" onclick="eliminarMedioPago(this)"><i class="fas fa-minus"></i></button>
+                  <?php endif; ?>
+                </div>
               <?php endforeach; ?>
-            </select>
+            <?php else: ?>
+              <div class="metodo-pago-row" data-index="0">
+                <select name="metodosPago[0][metodo]" class="form-select select-metodo-pago" required>
+                  <option value="">Seleccione método</option>
+                  <?php foreach ($mediosPago as $mp): ?>
+                    <option value="<?= htmlspecialchars($mp['metodoPago'] . ' - ' . $mp['cuentaContable']) ?>">
+                      <?= htmlspecialchars($mp['metodoPago']) ?> - <?= htmlspecialchars($mp['cuentaContable']) ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+                <input type="number" name="metodosPago[0][valor]" class="form-control valor-metodo"
+                      placeholder="Valor" step="0.01" min="0"
+                      value="<?php echo isset($valorTotal) && !empty($valorTotal) ? $valorTotal : '0.00'; ?>" required>
+                <button type="button" class="btn btn-success btn-metodo" onclick="agregarMedioPago()"><i class="fas fa-plus"></i></button>
+              </div>
+            <?php endif; ?>
+          </div>
+
+          <div class="total-medios-pago">
+            <div class="row">
+              <div class="col-md-6">
+                <span>Total medios de pago: </span>
+                <span id="total-medios-pago"><?php echo isset($valorTotal) && !empty($valorTotal) ? $valorTotal : '0.00'; ?></span>
+              </div>
+              <div class="col-md-6"><span id="validacion-medios-pago"></span></div>
+            </div>
           </div>
         </div>
 
@@ -736,16 +1015,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
         <!-- Botones -->
         <div class="mt-4 mb-4">
-          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">
+          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar" name="accion">
             <i class="fas fa-save"></i> Guardar Recibo
           </button>
-          <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion" style="display:none;">
+          <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion" style="display:none;">
             <i class="fas fa-edit"></i> Modificar
           </button>
-          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-danger" name="accion" style="display:none;">
+          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion" style="display:none;">
             <i class="fas fa-trash"></i> Eliminar
           </button>
-          <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">
+          <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">
             <i class="fas fa-times"></i> Cancelar
           </button>
         </div>
@@ -785,47 +1064,40 @@ document.addEventListener("DOMContentLoaded", () => {
                   </td>
                   <td><strong style="color: #198754;">$<?php echo number_format($recibo['valorTotal'], 2); ?></strong></td>
                   <td><?php echo htmlspecialchars($recibo['formaPago']); ?></td>
-                  <td>
-                    <div class="acciones-contenedor">
-                      <form action="" method="post" style="display:flex; gap:5px;">
-                        <input type="hidden" name="txtId" value="<?php echo $recibo['id']; ?>">
-                        <input type="hidden" name="fecha" value="<?php echo $recibo['fecha']; ?>">
-                        <input type="hidden" name="consecutivo" value="<?php echo $recibo['consecutivo']; ?>">
-                        <input type="hidden" name="identificacion" value="<?php echo $recibo['identificacion']; ?>">
-                        <input type="hidden" name="nombre" value="<?php echo $recibo['nombre']; ?>">
-                        <input type="hidden" name="numeroFactura" value="<?php echo $recibo['numeroFactura']; ?>">
-                        <input type="hidden" name="fechaVencimiento" value="<?php echo $recibo['fechaVencimiento']; ?>">
-                        <input type="hidden" name="valor" value="<?php echo $recibo['valor']; ?>">
-                        <input type="hidden" name="valorTotal" value="<?php echo $recibo['valorTotal']; ?>">
-                        <input type="hidden" name="formaPago" value="<?php echo $recibo['formaPago']; ?>">
-                        <input type="hidden" name="observaciones" value="<?php echo $recibo['observaciones']; ?>">
-
-                        <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info" title="Editar">
-                          <i class="fas fa-edit"></i>
-                        </button>
-                        <button type="submit" name="accion" value="btnEliminar" class="btn btn-sm btn-danger" title="Eliminar">
-                          <i class="fas fa-trash-alt"></i>
-                        </button>
-                      </form>
-                      <!-- NUEVOS BOTONES -->
-                      <a href="ver_recibo_caja.php?id=<?php echo $recibo['id']; ?>" 
-                        class="btn btn-sm btn-primary" 
-                        target="_blank" 
-                        title="Ver/Imprimir">
-                        <i class="fas fa-print"></i>
-                      </a>
-                      <a href="../../exports/pdf/generar_pdf_recibo_caja.php?id=<?php echo $recibo['id']; ?>" 
-                        class="btn btn-sm btn-danger" 
-                        target="_blank" 
-                        title="Descargar PDF">
-                        <i class="fas fa-file-pdf"></i>
-                      </a>
-                      <a href="../../exports/excel/generar_excel_recibo_caja.php?id=<?php echo $recibo['id']; ?>" 
-                        class="btn btn-sm btn-success" 
-                        target="_blank" 
-                        title="Descargar Excel">
-                        <i class="fas fa-file-excel"></i>
-                      </a>
+                  <td class="text-center">
+                    <div class="dropdown">
+                      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
+                        <i class="fas fa-ellipsis-vertical"></i>
+                      </button>
+                      <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                          <form action="" method="post" class="d-inline">
+                            <input type="hidden" name="txtId" value="<?php echo $recibo['id']; ?>">
+                            <input type="hidden" name="fecha" value="<?php echo $recibo['fecha']; ?>">
+                            <input type="hidden" name="consecutivo" value="<?php echo $recibo['consecutivo']; ?>">
+                            <input type="hidden" name="identificacion" value="<?php echo $recibo['identificacion']; ?>">
+                            <input type="hidden" name="nombre" value="<?php echo $recibo['nombre']; ?>">
+                            <input type="hidden" name="numeroFactura" value="<?php echo $recibo['numeroFactura']; ?>">
+                            <input type="hidden" name="fechaVencimiento" value="<?php echo $recibo['fechaVencimiento']; ?>">
+                            <input type="hidden" name="valor" value="<?php echo $recibo['valor']; ?>">
+                            <input type="hidden" name="valorTotal" value="<?php echo $recibo['valorTotal']; ?>">
+                            <input type="hidden" name="formaPago" value="<?php echo $recibo['formaPago']; ?>">
+                            <input type="hidden" name="observaciones" value="<?php echo $recibo['observaciones']; ?>">
+                            <button type="submit" name="accion" value="btnEditar" class="dropdown-item"><i class="fas fa-edit me-2"></i>Editar</button>
+                          </form>
+                        </li>
+                        <li>
+                          <form action="" method="post" class="d-inline">
+                            <input type="hidden" name="txtId" value="<?php echo $recibo['id']; ?>">
+                            <button type="submit" name="accion" value="btnEliminar" class="dropdown-item text-danger"
+                            onclick="return confirm('¿Eliminar este recibo?');"><i class="fas fa-trash-alt me-2"></i>Eliminar</button>
+                          </form>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="ver_recibo_caja.php?id=<?php echo $recibo['id']; ?>" target="_blank"><i class="fas fa-print me-2"></i>Ver / Imprimir</a></li>
+                        <li><a class="dropdown-item" href="../../exports/pdf/generar_pdf_recibo_caja.php?id=<?php echo $recibo['id']; ?>" target="_blank"><i class="fas fa-file-pdf me-2"></i>Descargar PDF</a></li>
+                        <li><a class="dropdown-item" href="../../exports/excel/generar_excel_recibo_caja.php?id=<?php echo $recibo['id']; ?>" target="_blank"><i class="fas fa-file-excel me-2"></i>Descargar Excel</a></li>
+                      </ul>
                     </div>
                   </td>
                 </tr>
@@ -893,6 +1165,52 @@ document.addEventListener("DOMContentLoaded", () => {
           document.getElementById("facturasBody").innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 30px;"><i class="fas fa-search" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;"></i>Ingrese una identificación</td></tr>';
         }
       }
+    });
+
+    // Buscar cliente por nombre (autocompletado) - usando el mismo campo "nombre"
+    const inputNombreCliente = document.getElementById("nombre");
+    const sugerenciasCliente = document.getElementById("sugerenciasCliente");
+
+    inputNombreCliente.addEventListener("input", function () {
+        const valor = this.value.trim();
+        if (valor.length >= 3) {
+            fetch("", {
+                method: "POST",
+                body: new URLSearchParams({ buscar_cliente_nombre: "1", nombre: valor }),
+                headers: { "Content-Type": "application/x-www-form-urlencoded" }
+            })
+            .then(r => r.json())
+            .then(data => {
+                sugerenciasCliente.innerHTML = "";
+                if (Array.isArray(data) && data.length > 0) {
+                    data.forEach(c => {
+                        const div = document.createElement("div");
+                        div.className = "suggestion-item";
+                        div.innerHTML = `<strong>${c.cedula}</strong> - ${c.nombreCompleto}`;
+                        div.addEventListener("click", () => {
+                            document.getElementById("identificacion").value = c.cedula;
+                            inputNombreCliente.value = c.nombreCompleto;
+                            sugerenciasCliente.style.display = "none";
+                            // Dispara la carga de facturas pendientes para este cliente
+                            document.getElementById("identificacion").dispatchEvent(new Event("input"));
+                        });
+                        sugerenciasCliente.appendChild(div);
+                    });
+                    sugerenciasCliente.style.display = "block";
+                } else {
+                    sugerenciasCliente.style.display = "none";
+                }
+            })
+            .catch(err => console.error("Error:", err));
+        } else {
+            sugerenciasCliente.style.display = "none";
+        }
+    });
+
+    document.addEventListener("click", function (e) {
+        if (!e.target.closest("#nombre") && !e.target.closest("#sugerenciasCliente")) {
+            sugerenciasCliente.style.display = "none";
+        }
     });
 
     // Cargar facturas pendientes
@@ -1059,6 +1377,74 @@ document.addEventListener("DOMContentLoaded", () => {
       return d.toLocaleDateString('es-CO');
     }
 
+    let contadorMediosPago = 1;
+
+function agregarMedioPago() {
+    const container = document.getElementById('medios-pago-container');
+    const newRow = document.createElement('div');
+    newRow.className = 'metodo-pago-row';
+    newRow.setAttribute('data-index', contadorMediosPago);
+
+    const valorTotal = parseFloat(document.getElementById('valorTotal').value) || 0;
+    const totalActual = calcularTotalMediosPago(false);
+    const valorRestante = Math.max(0, valorTotal - totalActual);
+
+    newRow.innerHTML = `
+        <select name="metodosPago[${contadorMediosPago}][metodo]" class="form-select select-metodo-pago" required>
+            <option value="">Seleccione método</option>
+            <?php foreach ($mediosPago as $mp): ?>
+                <option value="<?= htmlspecialchars($mp['metodoPago'] . ' - ' . $mp['cuentaContable']) ?>">
+                    <?= htmlspecialchars($mp['metodoPago']) ?> - <?= htmlspecialchars($mp['cuentaContable']) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <input type="number" name="metodosPago[${contadorMediosPago}][valor]" class="form-control valor-metodo"
+              placeholder="Valor" step="0.01" min="0" value="${valorRestante.toFixed(2)}" required>
+        <button type="button" class="btn btn-danger btn-metodo" onclick="eliminarMedioPago(this)"><i class="fas fa-minus"></i></button>
+    `;
+
+    container.appendChild(newRow);
+    contadorMediosPago++;
+    newRow.querySelector('.valor-metodo').addEventListener('input', calcularTotalMediosPago);
+    calcularTotalMediosPago();
+}
+
+function eliminarMedioPago(button) {
+    const row = button.closest('.metodo-pago-row');
+    if (document.querySelectorAll('.metodo-pago-row').length > 1) {
+        row.remove();
+        calcularTotalMediosPago();
+    } else {
+        Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debe haber al menos un método de pago', confirmButtonColor: '#3085d6' });
+    }
+}
+
+function calcularTotalMediosPago(updateUI = true) {
+    let total = 0;
+    document.querySelectorAll('.valor-metodo').forEach(input => { total += parseFloat(input.value) || 0; });
+
+    if (updateUI) {
+        document.getElementById('total-medios-pago').textContent = total.toFixed(2);
+        const valorTotal = parseFloat(document.getElementById('valorTotal').value) || 0;
+        const validacionElement = document.getElementById('validacion-medios-pago');
+
+        if (Math.abs(total - valorTotal) < 0.01) {
+            validacionElement.textContent = 'Total correcto';
+            validacionElement.className = 'validacion-exito';
+        } else {
+            const diferencia = valorTotal - total;
+            validacionElement.textContent = diferencia > 0 ? `Faltan: ${diferencia.toFixed(2)}` : `Sobran: ${Math.abs(diferencia).toFixed(2)}`;
+            validacionElement.className = 'validacion-error';
+        }
+    }
+    return total;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.valor-metodo').forEach(input => input.addEventListener('input', calcularTotalMediosPago));
+    calcularTotalMediosPago();
+});
+
     // Calcular total - MODIFICADO
     function calcularTotal() {
       let total = 0;
@@ -1092,6 +1478,7 @@ document.addEventListener("DOMContentLoaded", () => {
               fechaVencimiento: fechaVenc
             });
           }
+
         }
       });
       
@@ -1099,7 +1486,15 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("numeroFactura").value = facturasSeleccionadas.join(', ');
       document.getElementById("valor").value = valoresAplicados.join(', ');
       document.getElementById("fechaVencimiento").value = fechasVencimiento.join(', ');
+
       document.getElementById("facturasData").value = JSON.stringify(facturasData);
+
+      // Autoactualizar el primer medio de pago si solo hay uno
+      const valorInputs = document.querySelectorAll('.valor-metodo');
+      if (valorInputs.length === 1 && !modoEdicion) {
+          valorInputs[0].value = total.toFixed(2);
+      }
+      calcularTotalMediosPago();
     }
 
     // Modo agregar/editar
@@ -1183,6 +1578,20 @@ document.addEventListener("DOMContentLoaded", () => {
           });
           return false;
         }
+
+        const totalMediosPago = calcularTotalMediosPago(false);
+        const valorTotalNum = parseFloat(valorTotal) || 0;
+
+        if (Math.abs(totalMediosPago - valorTotalNum) > 0.01) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'warning',
+                title: 'Atención',
+                text: 'La suma de los medios de pago no coincide con el valor total',
+                confirmButtonColor: '#3085d6'
+            });
+            return false;
+        }
       }
     });
 
@@ -1246,7 +1655,74 @@ document.addEventListener("DOMContentLoaded", () => {
         
         fechaInput.value = fechaLocal;
       }
-    }); 
+    });
+
+    // Solución: mover el menú desplegable a <body> para que no lo recorte el scroll de la tabla
+    document.addEventListener('show.bs.dropdown', function (e) {
+        const button = e.target;
+        const menu = button.nextElementSibling; // el <ul class="dropdown-menu">
+
+        if (!menu || !menu.classList.contains('dropdown-menu')) return;
+
+        // Guarda dónde estaba originalmente para devolverlo después
+        menu._originalParent = menu.parentNode;
+        menu._originalNextSibling = menu.nextSibling;
+
+        document.body.appendChild(menu);
+        menu.style.position = 'fixed';
+        menu.style.zIndex = '3000';
+        menu.style.display = 'block';
+        menu.style.width = '220px'; // ancho fijo: evita que se estire al reposicionar
+
+        const posicionar = () => {
+            const rect = button.getBoundingClientRect();
+            const menuAncho = menu.offsetWidth;
+
+            // Alinea el borde derecho del menú con el borde derecho del botón (como dropdown-menu-end)
+            let left = rect.right - menuAncho;
+            if (left < 8) left = 8; // evita que se salga por la izquierda
+
+            let top = rect.bottom + 4;
+            // Si no cabe abajo, lo abre hacia arriba
+            if (top + menu.offsetHeight > window.innerHeight) {
+                top = rect.top - menu.offsetHeight - 4;
+            }
+
+            menu.style.top = `${top}px`;
+            menu.style.left = `${left}px`;
+        };
+
+        posicionar();
+        // Reposiciona si se hace scroll o resize mientras el menú está abierto
+        window.addEventListener('scroll', posicionar, true);
+        window.addEventListener('resize', posicionar);
+        menu._posicionar = posicionar;
+    });
+
+    document.addEventListener('hide.bs.dropdown', function (e) {
+        const button = e.target;
+        const menu = button.nextElementSibling?.classList.contains('dropdown-menu')
+            ? button.nextElementSibling
+            : document.body.querySelector('.dropdown-menu[style*="position: fixed"]');
+
+        if (!menu || !menu._originalParent) return;
+
+        window.removeEventListener('scroll', menu._posicionar, true);
+        window.removeEventListener('resize', menu._posicionar);
+
+        // Lo regresa a su lugar original en la fila de la tabla
+        if (menu._originalNextSibling) {
+            menu._originalParent.insertBefore(menu, menu._originalNextSibling);
+        } else {
+            menu._originalParent.appendChild(menu);
+        }
+        menu.style.position = '';
+        menu.style.zIndex = '';
+        menu.style.top = '';
+        menu.style.left = '';
+        menu.style.display = '';
+        menu.style.width = '';
+    });
   </script>
 
   <!-- Vendor JS -->
@@ -1254,9 +1730,6 @@ document.addEventListener("DOMContentLoaded", () => {
   <script src="../../assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="../../assets/vendor/glightbox/js/glightbox.min.js"></script>
   <script src="../../assets/js/main.js"></script>
-
-  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/asistente/asistente-widget.php'; ?>
-  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/notificaciones/notificaciones-widget.php'; ?>
 
 </body>
 </html>
