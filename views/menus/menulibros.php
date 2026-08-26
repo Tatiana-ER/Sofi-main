@@ -1,3 +1,4 @@
+<?php require_once $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/auth_check.php'; ?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -52,7 +53,7 @@
             <a class="nav-link scrollto active" href="../../perfil.php" style="color: darkblue;">Mi Negocio</a>
           </li>
           <li>
-            <a class="nav-link scrollto active" href="../../index.php" style="color: darkblue;">Cerrar Sesión</a>
+            <a class="nav-link scrollto active" href="inicioSesion/cerrarSesion.php" style="color: darkblue;">Cerrar Sesión</a>
           </li>
         </ul>
       </nav><!-- .navbar -->

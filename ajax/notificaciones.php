@@ -32,9 +32,12 @@ try {
         case 'listar':
         default:
             $notificaciones = $centro->obtenerTodas();
+            $noLeidas = $centro->contarNoLeidas($notificaciones);
+
             echo json_encode([
                 'success' => true,
                 'total' => count($notificaciones),
+                'no_leidas' => $noLeidas,
                 'notificaciones' => $notificaciones
             ]);
             break;

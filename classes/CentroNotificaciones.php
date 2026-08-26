@@ -1,20 +1,5 @@
 <?php
-/**
- * CentroNotificaciones
- *
- * Genera las notificaciones del sistema en formato de oraciones planas,
- * listas para mostrarse en el ícono de campana (centro de notificaciones).
- *
- * Fuentes activas:
- *   - Cartera de clientes (facturav)     -> vencida / próxima a vencer
- *   - Cartera de proveedores (facturac)  -> vencida / próxima a vencer
- *   - Inventario (productoinventarios)   -> agotado / stock bajo
- *
- * Cada notificación tiene una 'key' estable (no cambia aunque pasen los
- * días) que permite marcarla como leída y que no vuelva a aparecer, aunque
- * la consulta SQL la siga generando.
- * Requiere la tabla notificaciones_leidas.
- */
+
 class CentroNotificaciones {
 
     private $pdo;
@@ -72,15 +57,12 @@ class CentroNotificaciones {
             $diasParaVencer = $this->calcularDiasParaVencer($factura['fecha_vencimiento']);
             $documento = !empty($factura['numero_factura']) ? $factura['numero_factura'] : $factura['documento'];
             $linkCliente = "views/informes/edadesdecarteraclientes.php?identificacion=" . urlencode($factura['identificacion']);
-
-            // La key NO incluye los días ni el monto: así, aunque pase el
-            // tiempo y la mora aumente, sigue siendo "la misma" notificación
-            // y si el usuario ya la marcó leída, no vuelve a aparecer.
-            $key = $this->generarKey('cliente', $factura['identificacion'] . '|' . $documento);
+            $idBase = $factura['identificacion'] . '|' . $documento;
 
             if ($diasParaVencer < 0) {
                 $diasVencida = abs($diasParaVencer);
                 $severidad = $diasVencida > 60 ? 'alta' : ($diasVencida > 30 ? 'media' : 'baja');
+                $key = $this->generarKey('cliente_vencida', $idBase . '|' . $severidad);
 
                 $notificaciones[] = [
                     'key'       => $key,
@@ -95,6 +77,8 @@ class CentroNotificaciones {
                 $texto = $diasParaVencer == 0
                     ? "vence hoy"
                     : "vence en {$diasParaVencer} día" . ($diasParaVencer == 1 ? '' : 's');
+
+                $key = $this->generarKey('cliente_proxima', $idBase);
 
                 $notificaciones[] = [
                     'key'       => $key,
@@ -151,12 +135,12 @@ class CentroNotificaciones {
             $diasParaVencer = $this->calcularDiasParaVencer($factura['fecha_vencimiento']);
             $documento = !empty($factura['numero_factura']) ? $factura['numero_factura'] : $factura['documento'];
             $linkProveedor = "views/informes/edadesdecarteraproveedores.php?identificacion=" . urlencode($factura['identificacion']);
-
-            $key = $this->generarKey('proveedor', $factura['identificacion'] . '|' . $documento);
+            $idBase = $factura['identificacion'] . '|' . $documento;
 
             if ($diasParaVencer < 0) {
                 $diasVencida = abs($diasParaVencer);
                 $severidad = $diasVencida > 60 ? 'alta' : ($diasVencida > 30 ? 'media' : 'baja');
+                $key = $this->generarKey('proveedor_vencida', $idBase . '|' . $severidad);
 
                 $notificaciones[] = [
                     'key'       => $key,
@@ -171,6 +155,8 @@ class CentroNotificaciones {
                 $texto = $diasParaVencer == 0
                     ? "vence hoy"
                     : "vence en {$diasParaVencer} día" . ($diasParaVencer == 1 ? '' : 's');
+
+                $key = $this->generarKey('proveedor_proxima', $idBase);
 
                 $notificaciones[] = [
                     'key'       => $key,
@@ -204,40 +190,39 @@ class CentroNotificaciones {
 
         foreach ($productos as $p) {
             $cantidad = (int) $p['cantidad'];
-            $key = $this->generarKey('inventario', $p['codigoProducto']);
-            // RUTA CORREGIDA: views/informes/existencias.php (confirmada por el usuario)
             $link = "views/informes/existencias.php?codigo=" . urlencode($p['codigoProducto']);
 
             if ($cantidad <= 0) {
-                $notificaciones[] = [
-                    'key'       => $key,
-                    'tipo'      => 'inventario_agotado',
-                    'severidad' => 'alta',
-                    'mensaje'   => "El producto \"{$p['descripcionProducto']}\" está agotado (0 unidades)",
-                    'monto'     => 0,
-                    'dias'      => 0,
-                    'link'      => $link
-                ];
+                $severidad = 'alta';
+                $tipo = 'inventario_agotado';
+                $mensaje = "El producto \"{$p['descripcionProducto']}\" está agotado (0 unidades)";
             } else {
-                $notificaciones[] = [
-                    'key'       => $key,
-                    'tipo'      => 'inventario_bajo',
-                    'severidad' => 'baja',
-                    'mensaje'   => "El producto \"{$p['descripcionProducto']}\" tiene stock bajo ({$cantidad} unidad" . ($cantidad == 1 ? '' : 'es') . ")",
-                    'monto'     => 0,
-                    'dias'      => 0,
-                    'link'      => $link
-                ];
+                $severidad = 'baja';
+                $tipo = 'inventario_bajo';
+                $mensaje = "El producto \"{$p['descripcionProducto']}\" tiene stock bajo ({$cantidad} unidad" . ($cantidad == 1 ? '' : 'es') . ")";
             }
+
+            $key = $this->generarKey('inventario', $p['codigoProducto'] . '|' . $severidad);
+
+            $notificaciones[] = [
+                'key'       => $key,
+                'tipo'      => $tipo,
+                'severidad' => $severidad,
+                'mensaje'   => $mensaje,
+                'monto'     => 0,
+                'dias'      => 0,
+                'link'      => $link
+            ];
         }
 
         return $notificaciones;
     }
 
     /**
-     * Reúne TODAS las notificaciones del sistema, quita las ya leídas,
-     * y ordena por urgencia: primero vencidas (de mayor a menor mora),
-     * luego próximas a vencer/stock bajo.
+     * Reúne TODAS las notificaciones activas del sistema (sin ocultar las
+     * leídas), marca cuáles ya fueron leídas, y ordena: primero las NO
+     * leídas (de más urgente a menos urgente), luego las leídas (en el
+     * mismo orden de urgencia).
      */
     public function obtenerTodas() {
         $todas = [];
@@ -245,9 +230,14 @@ class CentroNotificaciones {
         $todas = array_merge($todas, $this->obtenerNotificacionesCarteraProveedores());
         $todas = array_merge($todas, $this->obtenerNotificacionesInventario());
 
-        $todas = $this->filtrarLeidas($todas);
+        $todas = $this->marcarLeidas($todas);
 
         usort($todas, function ($a, $b) {
+            // No leídas primero
+            if ($a['leida'] !== $b['leida']) {
+                return $a['leida'] ? 1 : -1;
+            }
+
             $aVencida = strpos($a['tipo'], 'vencid') !== false || $a['tipo'] === 'inventario_agotado';
             $bVencida = strpos($b['tipo'], 'vencid') !== false || $b['tipo'] === 'inventario_agotado';
 
@@ -263,14 +253,29 @@ class CentroNotificaciones {
         return $todas;
     }
 
+    /**
+     * Cuenta cuántas de las notificaciones activas todavía NO se han leído.
+     * Útil para el badge de la campana.
+     */
+    public function contarNoLeidas($notificaciones = null) {
+        if ($notificaciones === null) {
+            $notificaciones = $this->obtenerTodas();
+        }
+        return count(array_filter($notificaciones, function ($n) {
+            return !$n['leida'];
+        }));
+    }
+
     // =================================================================
     // LEÍDAS
     // =================================================================
 
     /**
-     * Quita del arreglo las notificaciones cuya key ya está marcada como leída.
+     * Anota cada notificación con 'leida' => true/false, SIN quitarla de
+     * la lista. Las leídas se siguen mostrando (atenuadas en el frontend)
+     * mientras la situación exista.
      */
-    private function filtrarLeidas($notificaciones) {
+    private function marcarLeidas($notificaciones) {
         if (empty($notificaciones)) {
             return $notificaciones;
         }
@@ -283,15 +288,17 @@ class CentroNotificaciones {
         $leidas = $stmt->fetchAll(PDO::FETCH_COLUMN);
         $leidasSet = array_flip($leidas);
 
-        return array_values(array_filter($notificaciones, function ($n) use ($leidasSet) {
-            return !isset($leidasSet[$n['key']]);
-        }));
+        foreach ($notificaciones as &$n) {
+            $n['leida'] = isset($leidasSet[$n['key']]);
+        }
+        unset($n);
+
+        return $notificaciones;
     }
 
     /**
-     * Marca UNA notificación como leída (se deja de mostrar hasta que
-     * la situación cambie de tal forma que genere una key distinta,
-     * por ejemplo: la factura se paga y luego se genera otra nueva).
+     * Marca UNA notificación como leída. Sigue apareciendo en el panel
+     * (atenuada) hasta que la situación se resuelva por sí sola.
      */
     public function marcarComoLeida($key) {
         $stmt = $this->pdo->prepare("
@@ -302,8 +309,8 @@ class CentroNotificaciones {
     }
 
     /**
-     * Marca TODAS las notificaciones actualmente visibles como leídas.
-     * Útil para un botón "Marcar todas como leídas".
+     * Marca TODAS las notificaciones actualmente activas como leídas.
+     * Siguen apareciendo en el panel (atenuadas); el badge queda en 0.
      */
     public function marcarTodasComoLeidas() {
         $todas = [];
@@ -320,10 +327,7 @@ class CentroNotificaciones {
 
     /**
      * Genera una key estable de 32 caracteres para una notificación.
-     * OJO: solo debe incluir datos que identifiquen la ocurrencia
-     * (ej. identificación + número de factura, o código de producto),
-     * nunca datos que cambian con el tiempo (días, monto), o la
-     * notificación "leída" dejaría de coincidir al día siguiente.
+     * Incluye SIEMPRE la severidad (ver nota al inicio de la clase).
      */
     private function generarKey($tipo, $identificador) {
         return md5($tipo . '|' . $identificador);

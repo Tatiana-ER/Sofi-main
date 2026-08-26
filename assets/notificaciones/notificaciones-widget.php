@@ -1,14 +1,5 @@
 <?php
-/**
- * Widget de Centro de Notificaciones.
- *
- * Incluir en cualquier vista con:
- *   <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/notificaciones/notificaciones-widget.php'; ?>
- *
- * NOVEDAD: al hacer clic en una notificación, primero se avisa al servidor
- * (accion=marcarLeida) para que no vuelva a aparecer, y solo después se
- * navega al link. El badge se actualiza al instante sin esperar recarga.
- */
+
 ?>
 <style>
     .notif-nav-item {
@@ -110,12 +101,18 @@
     .notif-item:hover {
         background: #f8f9fa;
     }
+    .notif-item.leida {
+        opacity: 0.5;
+    }
     .notif-dot {
         flex-shrink: 0;
         width: 10px;
         height: 10px;
         border-radius: 50%;
         margin-top: 5px;
+    }
+    .notif-item.leida .notif-dot {
+        background: #adb5bd !important;
     }
     .notif-dot.alta { background: #dc3545; }
     .notif-dot.media { background: #fd7e14; }
@@ -130,6 +127,9 @@
         color: #198754;
         margin-top: 2px;
         display: block;
+    }
+    .notif-item.leida .notif-monto {
+        color: #6c757d;
     }
     #notif-empty {
         padding: 30px 16px;
@@ -166,7 +166,6 @@
 
     const AJAX_URL = '/Sofi-main/ajax/notificaciones.php';
 
-    // Insertar el ítem de campana dentro del <ul> del menú, ANTES de "Inicio"
     function insertarCampanaEnNav() {
         const navUl = document.querySelector('#navbar > ul');
         if (!navUl) {
@@ -204,17 +203,59 @@
             return '$' + numero.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
-        function actualizarBadge(total) {
-            if (total === 0) {
+        function actualizarBadge(noLeidas) {
+            if (noLeidas === 0) {
                 badge.style.display = 'none';
             } else {
-                badge.textContent = total > 99 ? '99+' : total;
+                badge.textContent = noLeidas > 99 ? '99+' : noLeidas;
                 badge.style.display = 'flex';
             }
         }
 
         function mostrarVacio() {
             body.innerHTML = '<div id="notif-empty"><i class="bi bi-check-circle-fill" style="font-size:28px;color:#28a745;display:block;margin-bottom:8px;"></i>No hay notificaciones pendientes</div>';
+        }
+
+        function renderizar(data) {
+            actualizarBadge(data.no_leidas);
+
+            if (data.total === 0) {
+                mostrarVacio();
+                return;
+            }
+
+            body.innerHTML = '';
+            data.notificaciones.forEach(n => {
+                const a = document.createElement('a');
+                a.href = '/Sofi-main/' + n.link;
+                a.className = 'notif-item' + (n.leida ? ' leida' : '');
+                a.dataset.key = n.key;
+                a.innerHTML = `
+                    <span class="notif-dot ${n.severidad}"></span>
+                    <div class="notif-texto">
+                        ${n.mensaje}
+                        ${n.monto > 0 ? `<span class="notif-monto">${formatearMoneda(n.monto)}</span>` : ''}
+                    </div>
+                `;
+
+                // Al hacer clic: marcar como leída en el servidor y LUEGO navegar.
+                // La notificación NO se quita del panel (solo se atenuará la
+                // próxima vez que se abra), porque puede seguir activa.
+                a.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const destino = a.href;
+
+                    fetch(AJAX_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: 'accion=marcarLeida&key=' + encodeURIComponent(n.key)
+                    }).finally(() => {
+                        window.location.href = destino;
+                    });
+                });
+
+                body.appendChild(a);
+            });
         }
 
         function cargarNotificaciones() {
@@ -225,45 +266,7 @@
                         body.innerHTML = '<div id="notif-empty">No se pudieron cargar las notificaciones</div>';
                         return;
                     }
-
-                    actualizarBadge(data.total);
-
-                    if (data.total === 0) {
-                        mostrarVacio();
-                        return;
-                    }
-
-                    body.innerHTML = '';
-                    data.notificaciones.forEach(n => {
-                        const a = document.createElement('a');
-                        a.href = '/Sofi-main/' + n.link;
-                        a.className = 'notif-item';
-                        a.dataset.key = n.key;
-                        a.innerHTML = `
-                            <span class="notif-dot ${n.severidad}"></span>
-                            <div class="notif-texto">
-                                ${n.mensaje}
-                                ${n.monto > 0 ? `<span class="notif-monto">${formatearMoneda(n.monto)}</span>` : ''}
-                            </div>
-                        `;
-
-                        // Al hacer clic: marcar como leída en el servidor,
-                        // quitarla del panel al instante, y LUEGO navegar.
-                        a.addEventListener('click', function (e) {
-                            e.preventDefault();
-                            const destino = a.href;
-
-                            fetch(AJAX_URL, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                body: 'accion=marcarLeida&key=' + encodeURIComponent(n.key)
-                            }).finally(() => {
-                                window.location.href = destino;
-                            });
-                        });
-
-                        body.appendChild(a);
-                    });
+                    renderizar(data);
                 })
                 .catch(() => {
                     body.innerHTML = '<div id="notif-empty">Error al cargar notificaciones</div>';
@@ -291,8 +294,8 @@
             })
             .then(res => res.json())
             .then(() => {
-                actualizarBadge(0);
-                mostrarVacio();
+                // Las notificaciones siguen visibles, solo cambia su estado a "leída"
+                cargarNotificaciones();
             });
         });
 

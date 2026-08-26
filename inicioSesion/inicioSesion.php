@@ -33,32 +33,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         $usuario = $stmt->fetch();
 
-        if ($usuario) {
+        // Verificación segura ÚNICAMENTE con password_verify.
+        // Se elimina la comparación en texto plano.
+        if ($usuario && password_verify($password, $usuario['password'])) {
 
-            $passwordValida = false;
+            // Evita fijación de sesión: se genera un ID nuevo
+            // ANTES de guardar los datos del usuario en sesión.
+            session_regenerate_id(true);
 
-            if (password_verify($password, $usuario['password'])) {
-                $passwordValida = true;
-            } elseif ($password === $usuario['password']) {
-                $passwordValida = true;
-            }
+            $_SESSION['usuario']     = $usuario['username'];
+            $_SESSION['user_id']     = $usuario['id'];
+            $_SESSION['rol_id']      = $usuario['rol_id'];
+            $_SESSION['rol_nombre']  = $usuario['rol_nombre'];
+            $_SESSION['last_activity'] = time();
 
-            if ($passwordValida) {
-
-                $_SESSION['usuario'] = $usuario['username'];
-                $_SESSION['user_id'] = $usuario['id'];
-                $_SESSION['rol_id'] = $usuario['rol_id'];
-                $_SESSION['rol_nombre'] = $usuario['rol_nombre'];
-
-                header("Location: ../dashboard.php");
-                exit();
-
-            } else {
-
-                header("Location: ../index.php?error=credenciales_invalidas");
-                exit();
-
-            }
+            header("Location: ../dashboard.php");
+            exit();
 
         } else {
 

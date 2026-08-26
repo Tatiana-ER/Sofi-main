@@ -286,7 +286,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <a class="nav-link scrollto active" href="perfil.php" style="color: darkblue;">Mi Negocio</a>
           </li>
           <li>
-            <a class="nav-link scrollto active" href="logout.php" style="color: darkblue;">Cerrar Sesión</a>
+            <a class="nav-link scrollto active" href="index.php" style="color: darkblue;">Cerrar Sesión</a>
           </li>
         </ul>
         <i class="bi bi-list mobile-nav-toggle"></i>
