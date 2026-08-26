@@ -318,12 +318,12 @@ $saldoFinalPeriodo = array_sum($saldoPorCuenta);
           <input type="date" name="hasta" class="form-control" value="<?= htmlspecialchars($fecha_hasta) ?>">
         </div>
         <div class="col-md-2 d-flex align-items-end">
-          <button type="submit" class="btn btn-primary w-100">
+          <button type="submit" class="btn w-100" style="background-color: #103669; color: white;">
             <i class="fa-solid fa-search"></i> Buscar
           </button>
         </div>
         <div class="col-md-12 mt-2">
-          <button type="button" class="btn-limpiar" onclick="window.location.href = window.location.pathname">Limpiar Filtros</button>
+          <button type="button" class="btn-cancelar" onclick="window.location.href = window.location.pathname">Limpiar Filtros</button>
         </div>
       </form>
 
@@ -339,10 +339,10 @@ $saldoFinalPeriodo = array_sum($saldoPorCuenta);
 
       <?php if (count($filasReporte) > 0): ?>
       <div class="mb-3 text-end">
-        <button onclick="exportarPDF()" class="btn btn-secondary">
+        <button onclick="exportarPDF()" class="btn-agregar">
           <i class="fa-solid fa-file-pdf"></i> Exportar PDF
         </button>
-        <button onclick="exportarExcel()" class="btn btn-success">
+        <button onclick="exportarExcel()" class="btn-agregar-excel">
           <i class="fa-solid fa-file-excel"></i> Exportar Excel
         </button>
       </div>

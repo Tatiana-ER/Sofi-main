@@ -206,7 +206,7 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
       text-align: left;
     }
     .table-container th {
-      background-color: #0d6efd;
+      background-color: #103669;
       color: white;
       font-weight: bold;
     }
@@ -226,30 +226,7 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
     .btn-eliminar:hover {
       background-color: #c82333;
     }
-    .btn-limpiar {
-      background-color: #6c757d;
-      color: white;
-      border: none;
-      padding: 8px 15px;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-right: 10px;
-    }
-    .btn-limpiar:hover {
-      background-color: #5a6268;
-    }
-    .btn-exportar {
-      background-color: #17a2b8;
-      color: white;
-      border: none;
-      padding: 8px 15px;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-left: 10px;
-    }
-    .btn-exportar:hover {
-      background-color: #138496;
-    }
+
   </style>
 </head>
 
@@ -352,13 +329,13 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
         </div>
 
         <div class="mt-4">
-          <button type="button" class="btn-limpiar" onclick="limpiarTabla()">
+          <button type="button" class="btn-cancelar" onclick="limpiarTabla()">
             <i class="fas fa-eraser"></i> Limpiar Tabla
           </button>
-          <button type="button" class="btn btn-primary" onclick="generarPDF()">
+          <button type="button" class="btn-agregar" onclick="generarPDF()">
             <i class="fas fa-file-pdf"></i> Generar PDF
           </button>
-          <button type="button" class="btn btn-success ms-2" onclick="exportarExcel()" style="background-color: #17a2b8; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; margin-left: 10px;">
+          <button type="button" class="btn-agregar-excel" onclick="exportarExcel()">
             <i class="fas fa-file-excel"></i> Generar Excel
           </button>
         </div>
@@ -574,8 +551,8 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
         text: "¿Desea eliminar este proveedor de la tabla?",
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33',
+        confirmButtonColor: '#103669',
+        cancelButtonColor: '#eb0404',
         confirmButtonText: 'Sí, eliminar',
         cancelButtonText: 'Cancelar'
       }).then((result) => {
@@ -620,8 +597,8 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
         text: "Se eliminarán todos los proveedores de la tabla",
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33',
+        confirmButtonColor: '#103669',
+        cancelButtonColor: '#eb0404',
         confirmButtonText: 'Sí, limpiar',
         cancelButtonText: 'Cancelar'
       }).then((result) => {

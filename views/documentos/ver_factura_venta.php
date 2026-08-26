@@ -60,6 +60,9 @@ if (!empty($perfil['razon'])) {
 <head>
     <meta charset="utf-8">
     <title>Factura de Venta #<?= $factura['consecutivo'] ?></title>
+
+    <!-- Favicons -->
+    <link href="../../assets/img/favicon.png" rel="icon">
     <style>
         @media print {
             .no-print { display: none; }

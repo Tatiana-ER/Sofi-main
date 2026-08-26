@@ -63,6 +63,9 @@ $diferencia = $sumaDebito - $sumaCredito;
 <head>
     <meta charset="utf-8">
     <title>Comprobante Contable #<?= $comprobante['consecutivo'] ?></title>
+
+    <!-- Favicons -->
+    <link href="../../assets/img/favicon.png" rel="icon">
     <style>
         @media print {
             .no-print { display: none; }
@@ -382,9 +385,9 @@ $diferencia = $sumaDebito - $sumaCredito;
         <div style="margin-top: 20px; padding: 15px; background-color: <?= ($diferencia == 0) ? '#d4edda' : '#f8d7da' ?>; border: 1px solid <?= ($diferencia == 0) ? '#c3e6cb' : '#f5c6cb' ?>; border-radius: 4px;">
             <strong style="color: <?= ($diferencia == 0) ? '#155724' : '#721c24' ?>;">
                 <?php if ($diferencia == 0): ?>
-                    ✓ COMPROBANTE EQUILIBRADO - Débito igual a Crédito
+                    COMPROBANTE EQUILIBRADO - Débito igual a Crédito
                 <?php else: ?>
-                    ⚠ COMPROBANTE DESEQUILIBRADO - Débito ($<?= number_format($sumaDebito, 2) ?>) diferente de Crédito ($<?= number_format($sumaCredito, 2) ?>)
+                    COMPROBANTE DESEQUILIBRADO - Débito ($<?= number_format($sumaDebito, 2) ?>) diferente de Crédito ($<?= number_format($sumaCredito, 2) ?>)
                 <?php endif; ?>
             </strong>
         </div>

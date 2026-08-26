@@ -86,7 +86,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Guardado exitosamente',
         text: 'El método de pago se ha agregado correctamente',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -95,7 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Modificado correctamente',
         text: 'Los datos del método de pago se actualizaron con éxito',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -104,7 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Eliminado correctamente',
         text: 'El método de pago fue eliminado del registro',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
   }
@@ -169,7 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     .metodo-header:hover {
-      background: linear-gradient(135deg, #5f9fffff 0%, #71aaffff 100%);
+      background-color: #e9ecef;
     }
 
     .metodo-header i {
@@ -191,16 +191,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     .cuenta-row {
       background-color: #f8f9fa;
-      border-left: 4px solid #667eea;
-    }
-
-    .cuenta-row:hover {
-      background-color: #e9ecef;
+      border-left: 4px solid #103669;
     }
 
     .cuenta-codigo {
       font-weight: 600;
-      color: #667eea;
+      color: #103669;
     }
 
     .cuenta-nombre {
@@ -273,10 +269,10 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
 
       <div class="mt-4">
-        <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
-        <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion" style="display:none;">Modificar</button>
-        <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-danger" name="accion" style="display:none;">Eliminar</button>
-        <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">Cancelar</button>
+        <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar" name="accion">Agregar</button>
+        <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion" style="display:none;">Modificar</button>
+        <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion" style="display:none;">Eliminar</button>
+        <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">Cancelar</button>
       </div>
     </form>
 
@@ -330,19 +326,65 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td></td>
                 <td class="cuenta-codigo"><?php echo $codigoCuenta; ?></td>
                 <td class="cuenta-nombre"><?php echo $nombreCuenta; ?></td>
-                <td>
-                  <form action="" method="post" style="display: inline;">
-                    <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
-                    <input type="hidden" name="metodoPago" value="<?php echo $usuario['metodoPago']; ?>">
-                    <input type="hidden" name="cuentaContable" value="<?php echo $usuario['cuentaContable']; ?>">
-                    <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-medio" title="Editar">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
-                        <i class="fas fa-trash-alt"></i>
-                    </button>
-                  </form>
-                </td>
+                <td class="text-center">
+                  <div class="dropdown">
+
+                      <button class="btn btn-sm btn-outline-secondary"
+                              type="button"
+                              data-bs-toggle="dropdown"
+                              data-bs-display="static"
+                              aria-expanded="false"
+                              title="Opciones">
+                          <i class="fas fa-ellipsis-vertical"></i>
+                      </button>
+
+                      <ul class="dropdown-menu dropdown-menu-end">
+
+                          <!-- EDITAR -->
+                          <li>
+                              <form action="" method="post" class="d-inline">
+
+                                  <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                                  <input type="hidden" name="metodoPago" value="<?php echo $usuario['metodoPago']; ?>">
+                                  <input type="hidden" name="cuentaContable" value="<?php echo $usuario['cuentaContable']; ?>">
+
+                                  <button type="submit"
+                                          name="accion"
+                                          value="btnEditar"
+                                          class="dropdown-item">
+
+                                      <i class="fas fa-edit me-2"></i>
+                                      Editar
+
+                                  </button>
+
+                              </form>
+                          </li>
+
+                          <!-- ELIMINAR -->
+                          <li>
+                              <form action="" method="post" class="d-inline">
+
+                                  <input type="hidden"
+                                        name="txtId"
+                                        value="<?php echo $usuario['id']; ?>">
+
+                                  <button type="submit"
+                                          value="btnEliminar"
+                                          name="accion"
+                                          class="dropdown-item text-danger">
+
+                                      <i class="fas fa-trash-alt me-2"></i>
+                                      Eliminar
+
+                                  </button>
+
+                              </form>
+                          </li>
+
+                      </ul>
+                  </div>
+              </td>
               </tr>
               <?php endforeach; ?>
             </tbody>
@@ -446,7 +488,7 @@ document.addEventListener("DOMContentLoaded", () => {
           showCancelButton: true,
           confirmButtonText: "Sí, continuar",
           cancelButtonText: "Cancelar",
-          confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+          confirmButtonColor: accion === "btnModificar" ? "#103669" : "#eb0404",
           cancelButtonColor: "#6c757d",
         }).then((result) => {
           if (result.isConfirmed) {
@@ -508,6 +550,73 @@ $(document).ready(function() {
   }
 
 });
+
+// Solución: mover el menú desplegable a <body> para que no lo recorte el scroll de la tabla
+    document.addEventListener('show.bs.dropdown', function (e) {
+        const button = e.target;
+        const menu = button.nextElementSibling; // el <ul class="dropdown-menu">
+
+        if (!menu || !menu.classList.contains('dropdown-menu')) return;
+
+        // Guarda dónde estaba originalmente para devolverlo después
+        menu._originalParent = menu.parentNode;
+        menu._originalNextSibling = menu.nextSibling;
+
+        document.body.appendChild(menu);
+        menu.style.position = 'fixed';
+        menu.style.zIndex = '3000';
+        menu.style.display = 'block';
+        menu.style.width = '220px'; // ancho fijo: evita que se estire al reposicionar
+
+        const posicionar = () => {
+            const rect = button.getBoundingClientRect();
+            const menuAncho = menu.offsetWidth;
+
+            // Alinea el borde derecho del menú con el borde derecho del botón (como dropdown-menu-end)
+            let left = rect.right - menuAncho;
+            if (left < 8) left = 8; // evita que se salga por la izquierda
+
+            let top = rect.bottom + 4;
+            // Si no cabe abajo, lo abre hacia arriba
+            if (top + menu.offsetHeight > window.innerHeight) {
+                top = rect.top - menu.offsetHeight - 4;
+            }
+
+            menu.style.top = `${top}px`;
+            menu.style.left = `${left}px`;
+        };
+
+        posicionar();
+        // Reposiciona si se hace scroll o resize mientras el menú está abierto
+        window.addEventListener('scroll', posicionar, true);
+        window.addEventListener('resize', posicionar);
+        menu._posicionar = posicionar;
+    });
+
+    document.addEventListener('hide.bs.dropdown', function (e) {
+        const button = e.target;
+        const menu = button.nextElementSibling?.classList.contains('dropdown-menu')
+            ? button.nextElementSibling
+            : document.body.querySelector('.dropdown-menu[style*="position: fixed"]');
+
+        if (!menu || !menu._originalParent) return;
+
+        window.removeEventListener('scroll', menu._posicionar, true);
+        window.removeEventListener('resize', menu._posicionar);
+
+        // Lo regresa a su lugar original en la fila de la tabla
+        if (menu._originalNextSibling) {
+            menu._originalParent.insertBefore(menu, menu._originalNextSibling);
+        } else {
+            menu._originalParent.appendChild(menu);
+        }
+        menu.style.position = '';
+        menu.style.zIndex = '';
+        menu.style.top = '';
+        menu.style.left = '';
+        menu.style.display = '';
+        menu.style.width = '';
+    });
 </script>
   </div>
 </section>

@@ -527,14 +527,14 @@ $lista_terceros = array_values($terceros_unificados);
     }
     
     .resultado-final {
-      background-color: #054a85;
+      background-color: #ffffff;
       color: white !important;
       font-weight: bold;
       font-size: 1.2rem;
     }
     
     .resultado-final td {
-      color: white !important;
+      color: #000000 !important;
       padding: 15px 12px !important;
     }
     
@@ -638,7 +638,7 @@ $lista_terceros = array_values($terceros_unificados);
               </select>
           </div>
           <div class="col-md-2 d-flex align-items-end">
-              <button type="submit" class="btn btn-primary w-100">
+              <button type="submit" class="btn w-100" style="background-color: #103669; color: white;">
                   <i class="fa-solid fa-search"></i> Buscar
               </button>
           </div>
@@ -654,7 +654,7 @@ $lista_terceros = array_values($terceros_unificados);
           </div>
           <!-- Botón para limpiar filtros -->
           <div class="col-md-12 mt-3">
-              <button type="button" class="btn-limpiar" onclick="limpiarFiltros()">
+              <button type="button" class="btn-cancelar" onclick="limpiarFiltros()">
                   Limpiar Filtros
               </button>
           </div>
@@ -663,10 +663,10 @@ $lista_terceros = array_values($terceros_unificados);
       <!-- Botones de exportación -->
       <?php if (count($ingresos) > 0 || count($costos) > 0 || count($gastos) > 0): ?>
       <div class="mb-3 text-end">
-        <button onclick="exportarPDF()" class="btn btn-secondary">
+        <button onclick="exportarPDF()" class="btn-agregar">
           <i class="fa-solid fa-file-pdf"></i> Exportar PDF
         </button>
-        <button onclick="exportarExcel()" class="btn btn-success">
+        <button onclick="exportarExcel()" class="btn-agregar-excel">
           <i class="fa-solid fa-file-excel"></i> Exportar Excel
         </button>
       </div>

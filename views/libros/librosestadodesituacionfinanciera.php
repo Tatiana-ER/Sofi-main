@@ -749,9 +749,9 @@ $esta_equilibrado = abs($diferencia) < 0.01;
               </select>
           </div>
           <div class="col-md-2 d-flex align-items-end">
-              <button type="submit" class="btn btn-primary w-100">
-                  <i class="fa-solid fa-search"></i> Buscar
-              </button>
+                <button type="submit" class="btn w-100" style="background-color: #103669; color: white;">
+                    <i class="fa-solid fa-search"></i> Buscar
+                </button>
           </div>
           <!-- Checkbox para mostrar saldo inicial -->
           <div class="col-md-12 mt-2">
@@ -765,7 +765,7 @@ $esta_equilibrado = abs($diferencia) < 0.01;
           </div>
           <!-- Botón para limpiar filtros -->
           <div class="col-md-12 mt-3">
-              <button type="button" class="btn-limpiar" onclick="limpiarFiltros()">
+              <button type="button" class="btn-cancelar" onclick="limpiarFiltros()">
                 </i> Limpiar Filtros
               </button>
           </div>
@@ -774,10 +774,10 @@ $esta_equilibrado = abs($diferencia) < 0.01;
       <!-- Botones de exportación -->
       <?php if (count($activos) > 0 || count($pasivos) > 0 || count($patrimonios) > 0): ?>
       <div class="mb-3 text-end">
-        <button onclick="exportarPDF()" class="btn btn-secondary">
+        <button onclick="exportarPDF()" class="btn-agregar">
           <i class="fa-solid fa-file-pdf"></i> Exportar PDF
         </button>
-        <button onclick="exportarExcel()" class="btn btn-success">
+        <button onclick="exportarExcel()" class="btn-agregar-excel">
           <i class="fa-solid fa-file-excel"></i> Exportar Excel
         </button>
       </div>

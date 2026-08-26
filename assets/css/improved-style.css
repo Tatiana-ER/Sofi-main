@@ -559,7 +559,7 @@ th {
   background-color: #103669;
   color: #fff;
   font-weight: 600;
-  padding: 6px 8px; /* un poco más de espacio solo para el encabezado */
+  padding: 8px 10px; /* un poco más de espacio solo para el encabezado */
 }
 
 /* Alterna color en filas */
@@ -646,7 +646,7 @@ td form {
 
 /* Estilos del botón regresar */
 .btn-ir {
-  background-color: #054a85;
+  background-color: #103669;
   color: white;
   padding: 10px 25px;
   border: none;
@@ -922,7 +922,21 @@ form {
       margin-left: 10px;
     }
     .btn-agregar:hover {
-      background-color: #0069d9;
+      background-color: #0855a7;
+    }
+
+    .btn-agregar-excel {
+      background-color: #10693d;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-top: 20px;
+      margin-left: 10px;
+    }
+    .btn-agregar-excel:hover {
+      background-color: #49c34d;
     }
 
     .btn-modificar {
@@ -966,25 +980,12 @@ form {
     .btn-cancelar:hover {
       background-color: #5a6268;
     }
-
-    .btn-generar {
-      background-color: #28a745;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-top: 20px;
-    }
-    .btn-generar:hover {
-      background-color: #218838;
-    }
     .btn-exportar {
       background-color: #17a2b8;
       color: white;
       padding: 10px 20px;
       border: none;
-      border-radius: 4px;
+      border-radius: 10px;
       cursor: pointer;
       margin-top: 20px;
       margin-left: 10px;
@@ -1107,4 +1108,123 @@ form {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* =========================================
+   TABLA DE TERCEROS
+   ========================================= */
+
+.tabla-terceros {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: auto;
+}
+
+.tabla-terceros th,
+.tabla-terceros td {
+    padding: 8px 10px;
+    vertical-align: middle;
+}
+
+/* Información principal */
+.tabla-terceros .info-principal {
+    font-weight: 600;
+    color: #333;
+    line-height: 1.25;
+}
+
+/* Información secundaria */
+.tabla-terceros .info-secundaria {
+    font-size: 0.82rem;
+    color: #6c757d;
+    margin-top: 2px;
+    line-height: 1.25;
+}
+
+/* Tercera línea */
+.tabla-terceros .info-terciaria {
+    font-size: 0.78rem;
+    color: #6c757d;
+    margin-top: 3px;
+    line-height: 1.25;
+}
+
+/* Iconos pequeños de teléfono, correo, dirección */
+.tabla-terceros .icono-info {
+    width: 15px;
+    margin-right: 3px;
+    font-size: 0.75rem;
+}
+
+/* Estado activo */
+.tabla-terceros .estado-activo {
+    color: #198754;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.tabla-terceros .estado-activo i {
+    margin-right: 3px;
+}
+
+/* Estado inactivo */
+.tabla-terceros .estado-inactivo {
+    color: #dc3545;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.tabla-terceros .estado-inactivo i {
+    margin-right: 3px;
+}
+
+/* Ancho fijo para el menú de acciones (3 puntitos).
+   Al moverlo a <body> vía JS para que el scroll de la tabla no lo recorte,
+   necesita un ancho explícito: si se deja en "auto" puede calcularse mal
+   en el instante justo del reposicionamiento y verse estirado. */
+  .dropdown-menu {
+    width: 220px;
+    min-width: 220px;
+    max-width: 220px;
+  }
+
+  /* =========================================
+   TABLA CUENTAS CONTABLES
+   ========================================= */
+
+.tabla-cuentas {
+    width: 100%;
+}
+
+/* Centrar verticalmente las celdas */
+.tabla-cuentas th,
+.tabla-cuentas td {
+    vertical-align: middle;
+    padding: 8px 10px;
+}
+
+/* Columna de configuración */
+.tabla-cuentas .configuracion-cuenta {
+    min-width: 135px;
+}
+
+/* Cada línea de configuración */
+.tabla-cuentas .configuracion-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    line-height: 1.7;
+    white-space: nowrap;
+}
+
+/* Iconos */
+.tabla-cuentas .configuracion-item i {
+    width: 16px;
+}
+
+/* Naturaleza contable */
+.tabla-cuentas .naturaleza-cuenta {
+    font-weight: 600;
+    white-space: nowrap;
 }

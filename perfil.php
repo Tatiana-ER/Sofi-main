@@ -534,7 +534,7 @@ document.addEventListener("DOMContentLoaded", () => {
               <!-- Botón -->
               <div class="mt-4">
                   <?php if (!$perfilExiste || $modoEdicion): ?>
-                      <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">
+                      <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar" name="accion">
                           <?php echo $perfilExiste ? 'Actualizar' : 'Guardar'; ?>
                       </button>
                   <?php endif; ?>

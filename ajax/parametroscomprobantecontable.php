@@ -76,7 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Guardado exitosamente',
         text: 'El parametro comprobante contable se ha agregado correctamente',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -85,7 +85,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Modificado correctamente',
         text: 'Los datos se actualizaron con éxito',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -94,7 +94,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Eliminado correctamente',
         text: 'El parametro comprobante contable fue eliminado del registro',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
   }
@@ -239,10 +239,10 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
 
         <div class="mt-4">
-          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary"  name="accion" >Guardar</button>
-          <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-primary"  name="accion" >Modificar</button>
-          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-primary"  name="accion" >Eliminar</button>
-          <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">Cancelar</button>
+          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar"  name="accion" >Guardar</button>
+          <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar"  name="accion" >Modificar</button>
+          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item"  name="accion" >Eliminar</button>
+          <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">Cancelar</button>
         </div>
 
       </form>
@@ -266,24 +266,63 @@ document.addEventListener("DOMContentLoaded", () => {
             <td><?php echo $usuario['descripcionDocumento']; ?></td>
             <td><?php echo $usuario['consecutivo']; ?></td>
             <td><?php echo $usuario['activo']? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
-            <td>
-              <form action="" method="post" style="display:inline-block;">
-                <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
-                <input type="hidden" name="codigoDocumento" value="<?php echo $usuario['codigoDocumento']; ?>">
-                <input type="hidden" name="descripcionDocumento" value="<?php echo $usuario['descripcionDocumento']; ?>">
-                <input type="hidden" name="consecutivo" value="1"> <!-- CAMBIO AQUÍ: Siempre 1 -->
-                <input type="hidden" name="activo" value="<?php echo $usuario['activo'] ?>">
-                <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-cuenta" title="Editar">
-                    <i class="fas fa-edit"></i>
-                </button>
-              </form>
-              <form action="" method="post" style="display:inline-block;">
-                <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
-                <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-              </form>
-            </td>
+            <td class="text-center">
+              <div class="dropdown">
+
+                  <button class="btn btn-sm btn-outline-secondary"
+                          type="button"
+                          data-bs-toggle="dropdown"
+                          data-bs-display="static"
+                          aria-expanded="false"
+                          title="Opciones">
+                      <i class="fas fa-ellipsis-vertical"></i>
+                  </button>
+
+                  <ul class="dropdown-menu dropdown-menu-end">
+
+                      <!-- EDITAR -->
+                      <li>
+                          <form action="" method="post" class="d-inline">
+
+                              <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                              <input type="hidden" name="codigoDocumento" value="<?php echo $usuario['codigoDocumento']; ?>">
+                              <input type="hidden" name="descripcionDocumento" value="<?php echo $usuario['descripcionDocumento']; ?>">
+                              <input type="hidden" name="consecutivo" value="1">
+                              <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>">
+
+                              <button type="submit"
+                                      name="accion"
+                                      value="btnEditar"
+                                      class="dropdown-item">
+                                  <i class="fas fa-edit me-2"></i>
+                                  Editar
+                              </button>
+
+                          </form>
+                      </li>
+
+                      <!-- ELIMINAR -->
+                      <li>
+                          <form action="" method="post" class="d-inline">
+
+                              <input type="hidden"
+                                    name="txtId"
+                                    value="<?php echo $usuario['id']; ?>">
+
+                              <button type="submit"
+                                      value="btnEliminar"
+                                      name="accion"
+                                      class="dropdown-item text-danger">
+                                  <i class="fas fa-trash-alt me-2"></i>
+                                  Eliminar
+                              </button>
+
+                          </form>
+                      </li>
+
+                  </ul>
+              </div>
+          </td>
           </tr>
         <?php } ?>
       </tbody>
@@ -395,7 +434,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 showCancelButton: true,
                 confirmButtonText: "Sí, continuar",
                 cancelButtonText: "Cancelar",
-                confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+                confirmButtonColor: accion === "btnModificar" ? "#103669" : "#eb0404",
                 cancelButtonColor: "#6c757d",
               }).then((result) => {
                 if (result.isConfirmed) {

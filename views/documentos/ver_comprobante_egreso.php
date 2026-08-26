@@ -59,6 +59,8 @@ if (!empty($perfil['razon'])) {
 <head>
     <meta charset="utf-8">
     <title>Comprobante de Egreso #<?= $comprobante['consecutivo'] ?></title>
+    <!-- Favicons -->
+    <link href="../../assets/img/favicon.png" rel="icon">
     <style>
         @media print {
             .no-print { display: none; }

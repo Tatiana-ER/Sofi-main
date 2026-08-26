@@ -130,7 +130,7 @@ if (isset($_POST['action'])) {
       vertical-align: middle;
     }
     .table-container th {
-      background-color: #0d6efd;
+      background-color: #103669;
       color: white;
       font-weight: 600;
     }
@@ -150,7 +150,7 @@ if (isset($_POST['action'])) {
     .suggestions-box {
       position: absolute;
       background: #ffffff;
-      border: 1px solid #0d6efd;
+      border: 1px solid #103669;
       border-top: none;
       max-height: 250px;
       overflow-y: auto;
@@ -172,34 +172,6 @@ if (isset($_POST['action'])) {
     
     /* Ajuste específico para el input del total */
     #total { text-align: right !important; }
-
-    /* Botones de exportación */
-    .btn-exportar {
-      background-color: #17a2b8;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-top: 20px;
-      margin-left: 10px;
-    }
-    .btn-exportar:hover {
-      background-color: #138496;
-    }
-    .btn-pdf {
-      background-color: #dc3545;
-    }
-    .btn-pdf:hover {
-      background-color: #c82333;
-    }
-    .btn-excel {
-      background-color: #28a745;
-    }
-    .btn-excel:hover {
-      background-color: #218838;
-    }
-
   </style>
 </head>
 
@@ -303,10 +275,10 @@ if (isset($_POST['action'])) {
 
       <!-- Botones de Acción -->
       <div class="mt-4 text-center">
-        <button type="button" class="btn btn-primary" onclick="exportarPDF()">
+        <button type="button" class="btn-agregar" onclick="exportarPDF()">
           <i class="fas fa-file-pdf"></i> Descargar PDF
         </button>
-        <button type="button" class="btn btn-success ms-2" onclick="exportarExcel()">
+        <button type="button" class="btn-agregar-excel" onclick="exportarExcel()">
           <i class="fas fa-file-excel"></i> Descargar Excel
         </button>
         <br><br>

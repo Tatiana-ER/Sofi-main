@@ -138,7 +138,7 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
             icon: 'success',
             title: 'Guardado exitosamente',
             text: 'La cuenta contable se ha agregado correctamente',
-            confirmButtonColor: '#3085d6'
+            confirmButtonColor: '#103669'
           });
           break;
 
@@ -147,7 +147,7 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
             icon: 'success',
             title: 'Modificado correctamente',
             text: 'Los datos se actualizaron con éxito',
-            confirmButtonColor: '#3085d6'
+            confirmButtonColor: '#103669'
           });
           break;
 
@@ -156,7 +156,7 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
             icon: 'success',
             title: 'Eliminado correctamente',
             text: 'La cuenta contable fue eliminada del registro',
-            confirmButtonColor: '#3085d6'
+            confirmButtonColor: '#103669'
           });
           break;
         case "duplicado":
@@ -164,7 +164,7 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
             icon: 'error',
             title: 'Error al guardar',
             text: 'Ya existe un tercero con la misma cédula, correo o teléfono.',
-            confirmButtonColor: '#3085d6'
+            confirmButtonColor: '#103669'
           });
           break;
         case "telefono_invalido":
@@ -172,7 +172,7 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
             icon: 'error',
             title: 'Teléfono no válido',
             text: 'El número de teléfono debe tener entre 7 y 10 dígitos.',
-            confirmButtonColor: '#3085d6'
+            confirmButtonColor: '#103669'
           });
           break;
       }
@@ -418,10 +418,10 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
 
         <!-- Botones -->
         <div class="mt-4">
-          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
-          <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion" style="display:none;">Modificar</button>
-          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-danger" name="accion" style="display:none;">Eliminar</button>
-          <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">Cancelar</button>
+          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar" name="accion">Agregar</button>
+          <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion" style="display:none;">Modificar</button>
+          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion" style="display:none;">Eliminar</button>
+          <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">Cancelar</button>
         </div>
       </form>
 
@@ -431,78 +431,236 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
 
         <div class="row">
           <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Tipo tercero</th>
-                  <th>Tipo persona</th>
-                  <th>Cedula o NIT</th>
-                  <th>Digito</th>
-                  <th>Nombres</th>
-                  <th>Apellidos</th>
-                  <th>Razon social</th>
-                  <th>Departamento</th>
-                  <th>Ciudad</th>
-                  <th>Dirección</th>
-                  <th>Telefono</th>
-                  <th>Correo</th>
-                  <th>Tipo de regimen</th>
-                  <th>Actividad economica</th>
-                  <th>Activo</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
+              <table class="tabla-terceros">
+                  <thead>
+                      <tr>
+                          <th>Tercero</th>
+                          <th>Identificación</th>
+                          <th>Nombre / Razón social</th>
+                          <th>Ubicación</th>
+                          <th>Contacto</th>
+                          <th>Información tributaria</th>
+                          <th>Estado</th>
+                          <th>Acción</th>
+                      </tr>
+                  </thead>
 
-              <?php foreach($lista as $usuario){ ?>
-              <tr>
-                <td><?php echo $usuario['tipoTercero']; ?></td>
-                <td><?php echo $usuario['tipoPersona']; ?></td>
-                <td><?php echo $usuario['cedula']; ?></td>
-                <td><?php echo $usuario['digito']; ?></td>
-                <td><?php echo $usuario['nombres']; ?></td>
-                <td><?php echo $usuario['apellidos']; ?></td>
-                <td><?php echo $usuario['razonSocial']; ?></td>
-                <td><?php echo $usuario['departamento']; ?></td>
-                <td><?php echo $usuario['ciudad']; ?></td>
-                <td><?php echo $usuario['direccion']; ?></td>
-                <td><?php echo $usuario['telefono']; ?></td>
-                <td><?php echo $usuario['correo']; ?></td>
-                <td><?php echo $usuario['tipoRegimen']; ?></td>
-                <td><?php echo $usuario['actividadEconomica']; ?></td>
-                <td><?php echo $usuario['activo'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
-                <td>
-                  <form action="" method="post" style="display: flex; justify-content: center; gap: 6px;">
-                    <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
-                    <input type="hidden" name="tipoTercero" value="<?php echo $usuario['tipoTercero']; ?>">
-                    <input type="hidden" name="tipoPersona" value="<?php echo $usuario['tipoPersona']; ?>">
-                    <input type="hidden" name="cedula" value="<?php echo $usuario['cedula']; ?>">
-                    <input type="hidden" name="digito" value="<?php echo $usuario['digito']; ?>">
-                    <input type="hidden" name="nombres" value="<?php echo $usuario['nombres']; ?>">
-                    <input type="hidden" name="apellidos" value="<?php echo $usuario['apellidos']; ?>">
-                    <input type="hidden" name="razonSocial" value="<?php echo $usuario['razonSocial']; ?>">
-                    <input type="hidden" name="departamento" value="<?php echo $usuario['departamento']; ?>">
-                    <input type="hidden" name="ciudad" value="<?php echo $usuario['ciudad']; ?>">
-                    <input type="hidden" name="direccion" value="<?php echo $usuario['direccion']; ?>">
-                    <input type="hidden" name="telefono" value="<?php echo $usuario['telefono']; ?>">
-                    <input type="hidden" name="correo" value="<?php echo $usuario['correo']; ?>">
-                    <input type="hidden" name="tipoRegimen" value="<?php echo $usuario['tipoRegimen']; ?>">
-                    <input type="hidden" name="actividadEconomica" value="<?php echo $usuario['actividadEconomica']; ?>">
-                    <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>">
+                  <tbody>
+                      <?php foreach($lista as $usuario){ ?>
 
-                    <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-teceros" title="Editar">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                    <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
-                        <i class="fas fa-trash-alt"></i>
-                    </button>
+                      <tr>
 
-                  </form>
-                </td>
-              </tr>
-            <?php } ?>
-            </table>     
-          </div>         
-        </div>
+                          <!-- TIPO DE TERCERO -->
+                          <td>
+                              <div class="info-principal">
+                                  <?php echo $usuario['tipoTercero']; ?>
+                              </div>
+
+                              <div class="info-secundaria">
+                                  <?php echo $usuario['tipoPersona']; ?>
+                              </div>
+                          </td>
+
+
+                          <!-- CÉDULA / NIT -->
+                          <td>
+                              <div class="info-principal">
+                                  <?php echo $usuario['cedula']; ?>
+                                  <?php if(!empty($usuario['digito'])){ ?>
+                                      -<?php echo $usuario['digito']; ?>
+                                  <?php } ?>
+                              </div>
+
+                              <div class="info-secundaria">
+                                  <?php echo !empty($usuario['digito']) ? 'Cédula / NIT' : 'Documento'; ?>
+                              </div>
+                          </td>
+
+
+                          <!-- NOMBRE / RAZÓN SOCIAL -->
+                          <td>
+                              <?php if(!empty($usuario['razonSocial'])){ ?>
+
+                                  <div class="info-principal">
+                                      <?php echo $usuario['razonSocial']; ?>
+                                  </div>
+
+                                  <?php if(!empty($usuario['nombres']) || !empty($usuario['apellidos'])){ ?>
+                                      <div class="info-secundaria">
+                                          <?php echo trim($usuario['nombres'] . ' ' . $usuario['apellidos']); ?>
+                                      </div>
+                                  <?php } ?>
+
+                              <?php } else { ?>
+
+                                  <div class="info-principal">
+                                      <?php echo trim($usuario['nombres'] . ' ' . $usuario['apellidos']); ?>
+                                  </div>
+
+                                  <div class="info-secundaria">
+                                      Persona natural
+                                  </div>
+
+                              <?php } ?>
+                          </td>
+
+
+                          <!-- UBICACIÓN -->
+                          <td>
+                              <div class="info-principal">
+                                  <?php echo $usuario['ciudad']; ?>
+                              </div>
+
+                              <div class="info-secundaria">
+                                  <?php echo $usuario['departamento']; ?>
+                              </div>
+                          </td>
+
+
+                          <!-- CONTACTO -->
+                          <td>
+                              <?php if(!empty($usuario['telefono'])){ ?>
+                                  <div class="info-principal">
+                                      <i class="fas fa-phone-alt icono-info"></i>
+                                      <?php echo $usuario['telefono']; ?>
+                                  </div>
+                              <?php } ?>
+
+                              <?php if(!empty($usuario['correo'])){ ?>
+                                  <div class="info-secundaria">
+                                      <i class="fas fa-envelope icono-info"></i>
+                                      <?php echo $usuario['correo']; ?>
+                                  </div>
+                              <?php } ?>
+
+                              <?php if(!empty($usuario['direccion'])){ ?>
+                                  <div class="info-terciaria">
+                                      <i class="fas fa-map-marker-alt icono-info"></i>
+                                      <?php echo $usuario['direccion']; ?>
+                                  </div>
+                              <?php } ?>
+                          </td>
+
+
+                          <!-- RÉGIMEN / ACTIVIDAD -->
+                          <td>
+                              <div class="info-principal">
+                                  <?php echo $usuario['tipoRegimen']; ?>
+                              </div>
+
+                              <div class="info-secundaria">
+                                  Actividad:
+                                  <?php echo $usuario['actividadEconomica']; ?>
+                              </div>
+                          </td>
+
+
+                          <!-- ESTADO -->
+                          <td class="text-center">
+                              <?php if($usuario['activo']){ ?>
+
+                                  <span class="estado-activo">
+                                      <i class="fas fa-check-circle"></i>
+                                      Activo
+                                  </span>
+
+                              <?php } else { ?>
+
+                                  <span class="estado-inactivo">
+                                      <i class="fas fa-times-circle"></i>
+                                      Inactivo
+                                  </span>
+
+                              <?php } ?>
+                          </td>
+
+
+                          <!-- ACCIONES -->
+                          <td class="text-center">
+                              <div class="dropdown">
+
+                                  <button class="btn btn-sm btn-outline-secondary"
+                                          type="button"
+                                          data-bs-toggle="dropdown"
+                                          data-bs-display="static"
+                                          aria-expanded="false">
+
+                                      <i class="fas fa-ellipsis-vertical"></i>
+
+                                  </button>
+
+
+                                  <ul class="dropdown-menu dropdown-menu-end">
+
+                                      <!-- EDITAR -->
+                                      <li>
+                                          <form action="" method="post" class="d-inline">
+
+                                              <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                                              <input type="hidden" name="tipoTercero" value="<?php echo $usuario['tipoTercero']; ?>">
+                                              <input type="hidden" name="tipoPersona" value="<?php echo $usuario['tipoPersona']; ?>">
+                                              <input type="hidden" name="cedula" value="<?php echo $usuario['cedula']; ?>">
+                                              <input type="hidden" name="digito" value="<?php echo $usuario['digito']; ?>">
+                                              <input type="hidden" name="nombres" value="<?php echo $usuario['nombres']; ?>">
+                                              <input type="hidden" name="apellidos" value="<?php echo $usuario['apellidos']; ?>">
+                                              <input type="hidden" name="razonSocial" value="<?php echo $usuario['razonSocial']; ?>">
+                                              <input type="hidden" name="departamento" value="<?php echo $usuario['departamento']; ?>">
+                                              <input type="hidden" name="ciudad" value="<?php echo $usuario['ciudad']; ?>">
+                                              <input type="hidden" name="direccion" value="<?php echo $usuario['direccion']; ?>">
+                                              <input type="hidden" name="telefono" value="<?php echo $usuario['telefono']; ?>">
+                                              <input type="hidden" name="correo" value="<?php echo $usuario['correo']; ?>">
+                                              <input type="hidden" name="tipoRegimen" value="<?php echo $usuario['tipoRegimen']; ?>">
+                                              <input type="hidden" name="actividadEconomica" value="<?php echo $usuario['actividadEconomica']; ?>">
+                                              <input type="hidden" name="activo" value="<?php echo $usuario['activo']; ?>">
+
+                                              <button type="submit"
+                                                      name="accion"
+                                                      value="btnEditar"
+                                                      class="dropdown-item">
+
+                                                  <i class="fas fa-edit me-2"></i>
+                                                  Editar
+
+                                              </button>
+
+                                          </form>
+                                      </li>
+
+
+                                      <!-- ELIMINAR -->
+                                      <li>
+                                          <form action="" method="post" class="d-inline">
+
+                                              <input type="hidden"
+                                                    name="txtId"
+                                                    value="<?php echo $usuario['id']; ?>">
+
+                                              <button type="submit"
+                                                      name="accion"
+                                                      value="btnEliminar"
+                                                      class="dropdown-item text-danger">
+
+                                                  <i class="fas fa-trash-alt me-2"></i>
+                                                  Eliminar
+
+                                              </button>
+
+                                          </form>
+                                      </li>
+
+                                  </ul>
+
+                              </div>
+                          </td>
+
+                      </tr>
+
+                      <?php } ?>
+                  </tbody>
+
+              </table>
+          </div>
+      </div>
       <script>
 
         document.addEventListener('DOMContentLoaded', function () {
@@ -1067,7 +1225,7 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
                 showCancelButton: true,
                 confirmButtonText: "Sí, continuar",
                 cancelButtonText: "Cancelar",
-                confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+                confirmButtonColor: accion === "btnModificar" ? "#103669" : "#eb0404",
                 cancelButtonColor: "#6c757d",
               }).then((result) => {
                 if (result.isConfirmed) {

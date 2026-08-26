@@ -283,7 +283,7 @@ $historialCierres = $stmtHistorial->fetchAll(PDO::FETCH_ASSOC);
           icon: 'success',
           title: 'Año fiscal cerrado',
           text: 'El año <?= htmlspecialchars($_GET['anio'] ?? '') ?> se cerró correctamente. Utilidad del ejercicio: $<?= htmlspecialchars($_GET['utilidad'] ?? '0') ?>',
-          confirmButtonColor: '#3085d6'
+          confirmButtonColor: '#103669'
         });
         break;
 
@@ -292,7 +292,7 @@ $historialCierres = $stmtHistorial->fetchAll(PDO::FETCH_ASSOC);
           icon: 'success',
           title: 'Cierre revertido',
           text: 'El cierre del año <?= htmlspecialchars($_GET['anio'] ?? '') ?> fue revertido correctamente.',
-          confirmButtonColor: '#3085d6'
+          confirmButtonColor: '#103669'
         });
         break;
 
@@ -302,7 +302,7 @@ $historialCierres = $stmtHistorial->fetchAll(PDO::FETCH_ASSOC);
           icon: 'error',
           title: 'Error',
           text: detalle || 'Ocurrió un error al procesar la operación',
-          confirmButtonColor: '#d33'
+          confirmButtonColor: '#eb0404'
         });
         break;
     }
@@ -323,7 +323,7 @@ $historialCierres = $stmtHistorial->fetchAll(PDO::FETCH_ASSOC);
         showCancelButton: true,
         confirmButtonText: 'Sí, cerrar año',
         cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       }).then((result) => {
         if (result.isConfirmed) {
           this.submit();
@@ -342,7 +342,7 @@ $historialCierres = $stmtHistorial->fetchAll(PDO::FETCH_ASSOC);
           showCancelButton: true,
           confirmButtonText: 'Sí, revertir',
           cancelButtonText: 'Cancelar',
-          confirmButtonColor: '#d33'
+          confirmButtonColor: '#eb0404'
         }).then((result) => {
           if (result.isConfirmed) {
             this.submit();

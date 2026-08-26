@@ -223,7 +223,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 icon: 'success',
                 title: 'Guardado exitosamente',
                 text: 'El registro se ha agregado correctamente',
-                confirmButtonColor: '#3085d6'
+                confirmButtonColor: '#103669'
             });
             break;
         
@@ -233,7 +233,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 icon: 'success',
                 title: 'Modificado correctamente',
                 text: 'Los datos se actualizaron con éxito',
-                confirmButtonColor: '#3085d6'
+                confirmButtonColor: '#103669'
             });
             break;
 
@@ -243,7 +243,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 icon: 'success',
                 title: 'Eliminado correctamente',
                 text: 'El registro fue eliminado',
-                confirmButtonColor: '#3085d6'
+                confirmButtonColor: '#103669'
             });
             break;
     }
@@ -277,7 +277,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Guardado exitosamente',
         text: 'El producto se ha agregado correctamente',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -286,7 +286,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Modificado correctamente',
         text: 'Los datos se actualizaron con éxito',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -295,7 +295,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Eliminada correctamente',
         text: 'La categoria fue eliminada del registro',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
   }
@@ -488,13 +488,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
             <!-- Botón -->
             <div class="mt-4">
-                  <button id="btnGuardarCategoria" value="btnAgregarCategoria" type="submit" class="btn btn-primary" name="accion">
+                  <button id="btnGuardarCategoria" value="btnAgregarCategoria" type="submit" class="btn-agregar" name="accion">
                       Guardar Categoría
                   </button>
-                  <button id="btnModificarCategoria" value="btnModificarCategoria" type="submit" class="btn btn-success d-none" name="accion">
+                  <button id="btnModificarCategoria" value="btnModificarCategoria" type="submit" class="btn-modificar d-none" name="accion">
                       Modificar Categoría
                   </button>
-                  <button id="btnCancelarCategoria" type="button" class="btn btn-secondary d-none">
+                  <button id="btnCancelarCategoria" type="button" class="btn-cancelar d-none">
                       Cancelar Edición
                   </button>
               </div>
@@ -528,28 +528,69 @@ document.addEventListener("DOMContentLoaded", () => {
                             <td><?php echo htmlspecialchars($cat['codigoCuentaInventarios']); ?></td>
                             <td><?php echo htmlspecialchars($cat['codigoCuentaCostos']); ?></td>
                             <td><?php echo htmlspecialchars($cat['codigoCuentaDevoluciones']); ?></td>
-                            <td>
-                                <form action="" method="post" class="d-inline form-accion-categoria">
-                                    <input type="hidden" name="idcategoria" value="<?php echo $cat['id']; ?>">
-                                    <input type="hidden" data-campo="idcategoria" value="<?php echo htmlspecialchars($cat['id']); ?>">
-                                    <input type="hidden" data-campo="categoria" value="<?php echo htmlspecialchars($cat['categoria']); ?>">
-                                    <input type="hidden" data-campo="codigoCuentaVentas" value="<?php echo htmlspecialchars($cat['codigoCuentaVentas']); ?>">
-                                    <input type="hidden" data-campo="cuentaVentas" value="<?php echo htmlspecialchars($cat['cuentaVentas']); ?>">
-                                    <input type="hidden" data-campo="codigoCuentaInventarios" value="<?php echo htmlspecialchars($cat['codigoCuentaInventarios']); ?>">
-                                    <input type="hidden" data-campo="cuentaInventarios" value="<?php echo htmlspecialchars($cat['cuentaInventarios']); ?>">
-                                    <input type="hidden" data-campo="codigoCuentaCostos" value="<?php echo htmlspecialchars($cat['codigoCuentaCostos']); ?>">
-                                    <input type="hidden" data-campo="cuentaCostos" value="<?php echo htmlspecialchars($cat['cuentaCostos']); ?>">
-                                    <input type="hidden" data-campo="codigoCuentaDevoluciones" value="<?php echo htmlspecialchars($cat['codigoCuentaDevoluciones']); ?>">
-                                    <input type="hidden" data-campo="cuentaDevoluciones" value="<?php echo htmlspecialchars($cat['cuentaDevoluciones']); ?>">
-                                    
-                                    <button type="button" class="btn btn-sm btn-info btn-editar-categoria" title="Editar">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <button type="submit" value="btnEliminarCategoria" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
-                                </form>
-                            </td>
+                            <td class="text-center">
+                              <div class="dropdown">
+
+                                  <button class="btn btn-sm btn-outline-secondary"
+                                          type="button"
+                                          data-bs-toggle="dropdown"
+                                          data-bs-display="static"
+                                          aria-expanded="false"
+                                          title="Opciones">
+                                      <i class="fas fa-ellipsis-vertical"></i>
+                                  </button>
+
+                                  <ul class="dropdown-menu dropdown-menu-end">
+
+                                      <!-- EDITAR -->
+                                      <li>
+                                          <form action="" method="post" class="d-inline form-accion-categoria">
+
+                                              <input type="hidden" name="idcategoria" value="<?php echo $cat['id']; ?>">
+
+                                              <input type="hidden" data-campo="idcategoria" value="<?php echo htmlspecialchars($cat['id']); ?>">
+                                              <input type="hidden" data-campo="categoria" value="<?php echo htmlspecialchars($cat['categoria']); ?>">
+                                              <input type="hidden" data-campo="codigoCuentaVentas" value="<?php echo htmlspecialchars($cat['codigoCuentaVentas']); ?>">
+                                              <input type="hidden" data-campo="cuentaVentas" value="<?php echo htmlspecialchars($cat['cuentaVentas']); ?>">
+                                              <input type="hidden" data-campo="codigoCuentaInventarios" value="<?php echo htmlspecialchars($cat['codigoCuentaInventarios']); ?>">
+                                              <input type="hidden" data-campo="cuentaInventarios" value="<?php echo htmlspecialchars($cat['cuentaInventarios']); ?>">
+                                              <input type="hidden" data-campo="codigoCuentaCostos" value="<?php echo htmlspecialchars($cat['codigoCuentaCostos']); ?>">
+                                              <input type="hidden" data-campo="cuentaCostos" value="<?php echo htmlspecialchars($cat['cuentaCostos']); ?>">
+                                              <input type="hidden" data-campo="codigoCuentaDevoluciones" value="<?php echo htmlspecialchars($cat['codigoCuentaDevoluciones']); ?>">
+                                              <input type="hidden" data-campo="cuentaDevoluciones" value="<?php echo htmlspecialchars($cat['cuentaDevoluciones']); ?>">
+
+                                              <button type="button"
+                                                      class="btn dropdown-item btn-editar-categoria">
+                                                  <i class="fas fa-edit me-2"></i>
+                                                  Editar
+                                              </button>
+
+                                          </form>
+                                      </li>
+
+                                      <!-- ELIMINAR -->
+                                      <li>
+                                          <form action="" method="post" class="d-inline">
+
+                                              <input type="hidden"
+                                                    name="idcategoria"
+                                                    value="<?php echo $cat['id']; ?>">
+
+                                              <button type="submit"
+                                                      value="btnEliminarCategoria"
+                                                      name="accion"
+                                                      class="dropdown-item text-danger"
+                                                      onclick="return confirm('¿Eliminar esta categoría?');">
+                                                  <i class="fas fa-trash-alt me-2"></i>
+                                                  Eliminar
+                                              </button>
+
+                                          </form>
+                                      </li>
+
+                                  </ul>
+                              </div>
+                          </td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -697,13 +738,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
             <!-- Botón -->
             <div class="mt-4">
-                <button value="btnAgregarProducto" type="submit" class="btn btn-primary" name="accion" id="btnGuardarProducto">
+                <button value="btnAgregarProducto" type="submit" class="btn-agregar" name="accion" id="btnGuardarProducto">
                     Guardar Producto/Servicio
                 </button>
-                <button id="btnModificarProducto" value="btnModificarProducto" type="submit" class="btn btn-success d-none" name="accion">
+                <button id="btnModificarProducto" value="btnModificarProducto" type="submit" class="btn-modificar d-none" name="accion">
                     Modificar Producto/Servicio
                 </button>
-                <button id="btnCancelarProducto" type="button" class="btn btn-secondary d-none">
+                <button id="btnCancelarProducto" type="button" class="btn-cancelar d-none">
                     Cancelar Edición
                 </button>
             </div>
@@ -747,30 +788,97 @@ document.addEventListener("DOMContentLoaded", () => {
                             <td><?php echo htmlspecialchars(ucfirst($prod['tipoItem'])); ?></td>
                             <td><?php echo $prod['productoIva'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
                             <td><?php echo $prod['activo'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
-                            <td>
-                                <form action="" method="post" class="d-inline form-accion-producto">
-                                    <input type="hidden" name="idproducto" value="<?php echo $prod['id']; ?>">
-                                    <input type="hidden" data-campo="idproducto" value="<?php echo htmlspecialchars($prod['id']); ?>">
-                                    <input type="hidden" data-campo="categoriaInventarios" value="<?php echo htmlspecialchars($prod['idCategoria']); ?>">
-                                    <input type="hidden" data-campo="codigoProducto" value="<?php echo htmlspecialchars($prod['codigoProducto']); ?>">
-                                    <input type="hidden" data-campo="descripcionProducto" value="<?php echo htmlspecialchars($prod['descripcionProducto']); ?>">
-                                    <input type="hidden" data-campo="unidadMedida" value="<?php echo htmlspecialchars($prod['unidadMedida']); ?>">
-                                    <input type="hidden" data-campo="cantidad" value="<?php echo htmlspecialchars($prod['cantidad']); ?>">
-                                    <input type="hidden" data-campo="precioUnitario" value="<?php echo htmlspecialchars($prod['precioUnitario']); ?>"> <!-- NUEVO CAMPO -->
-                                    <input type="hidden" data-campo="costoUnitario" value="<?php echo htmlspecialchars($prod['costoUnitario']); ?>">
-                                    <input type="hidden" data-campo="productoIva" value="<?php echo htmlspecialchars($prod['productoIva']); ?>">
-                                    <input type="hidden" data-campo="facturacionCero" value="<?php echo htmlspecialchars($prod['facturacionCero']); ?>">
-                                    <input type="hidden" data-campo="activo" value="<?php echo htmlspecialchars($prod['activo']); ?>">
-                                    <input type="hidden" data-campo="tipoItem" value="<?php echo htmlspecialchars($prod['tipoItem']); ?>">
+                            <td class="text-center">
+                              <div class="dropdown">
 
-                                    <button type="button" class="btn btn-sm btn-info btn-editar-producto" title="Editar">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <button type="submit" value="btnEliminarProducto" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
-                                        <i class="fas fa-trash-alt"></i>
-                                    </button>
-                                </form>
-                            </td>
+                                  <!-- BOTÓN DE LOS 3 PUNTOS -->
+                                  <button class="btn btn-sm btn-outline-secondary"
+                                          type="button"
+                                          data-bs-toggle="dropdown"
+                                          data-bs-display="static"
+                                          aria-expanded="false"
+                                          title="Opciones">
+                                      <i class="fas fa-ellipsis-vertical"></i>
+                                  </button>
+
+                                  <ul class="dropdown-menu dropdown-menu-end">
+
+                                      <!-- EDITAR -->
+                                      <li>
+                                          <form action="" method="post" class="d-inline form-accion-producto">
+
+                                              <input type="hidden" name="idproducto"
+                                                    value="<?php echo $prod['id']; ?>">
+
+                                              <input type="hidden" data-campo="idproducto"
+                                                    value="<?php echo htmlspecialchars($prod['id']); ?>">
+
+                                              <input type="hidden" data-campo="categoriaInventarios"
+                                                    value="<?php echo htmlspecialchars($prod['idCategoria']); ?>">
+
+                                              <input type="hidden" data-campo="codigoProducto"
+                                                    value="<?php echo htmlspecialchars($prod['codigoProducto']); ?>">
+
+                                              <input type="hidden" data-campo="descripcionProducto"
+                                                    value="<?php echo htmlspecialchars($prod['descripcionProducto']); ?>">
+
+                                              <input type="hidden" data-campo="unidadMedida"
+                                                    value="<?php echo htmlspecialchars($prod['unidadMedida']); ?>">
+
+                                              <input type="hidden" data-campo="cantidad"
+                                                    value="<?php echo htmlspecialchars($prod['cantidad']); ?>">
+
+                                              <input type="hidden" data-campo="precioUnitario"
+                                                    value="<?php echo htmlspecialchars($prod['precioUnitario']); ?>">
+
+                                              <input type="hidden" data-campo="costoUnitario"
+                                                    value="<?php echo htmlspecialchars($prod['costoUnitario']); ?>">
+
+                                              <input type="hidden" data-campo="productoIva"
+                                                    value="<?php echo htmlspecialchars($prod['productoIva']); ?>">
+
+                                              <input type="hidden" data-campo="facturacionCero"
+                                                    value="<?php echo htmlspecialchars($prod['facturacionCero']); ?>">
+
+                                              <input type="hidden" data-campo="activo"
+                                                    value="<?php echo htmlspecialchars($prod['activo']); ?>">
+
+                                              <input type="hidden" data-campo="tipoItem"
+                                                    value="<?php echo htmlspecialchars($prod['tipoItem']); ?>">
+
+                                              <button type="button"
+                                                      class="btn dropdown-item btn-editar-categoria">
+                                                  <i class="fas fa-edit me-2"></i>
+                                                  Editar
+                                              </button>
+
+                                          </form>
+                                      </li>
+
+                                      <!-- ELIMINAR -->
+                                      <li>
+                                          <form action="" method="post" class="d-inline">
+
+                                              <input type="hidden"
+                                                    name="idproducto"
+                                                    value="<?php echo $prod['id']; ?>">
+
+                                              <button type="submit"
+                                                      value="btnEliminarProducto"
+                                                      name="accion"
+                                                      class="dropdown-item text-danger">
+
+                                                  <i class="fas fa-trash-alt me-2"></i>
+                                                  Eliminar
+
+                                              </button>
+
+                                          </form>
+                                      </li>
+
+                                  </ul>
+                              </div>
+                          </td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -1084,7 +1192,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         showCancelButton: true,
                         confirmButtonText: "Sí, continuar",
                         cancelButtonText: "Cancelar",
-                        confirmButtonColor: isModify ? "#3085d6" : "#d33",
+                        confirmButtonColor: isModify ? "#103669" : "#eb0404",
                         cancelButtonColor: "#6c757d",
                     }).then((result) => {
                         if (result.isConfirmed) {
@@ -1120,6 +1228,73 @@ document.addEventListener("DOMContentLoaded", () => {
             });
         });
       });
+
+      // Solución: mover el menú desplegable a <body> para que no lo recorte el scroll de la tabla
+    document.addEventListener('show.bs.dropdown', function (e) {
+        const button = e.target;
+        const menu = button.nextElementSibling; // el <ul class="dropdown-menu">
+
+        if (!menu || !menu.classList.contains('dropdown-menu')) return;
+
+        // Guarda dónde estaba originalmente para devolverlo después
+        menu._originalParent = menu.parentNode;
+        menu._originalNextSibling = menu.nextSibling;
+
+        document.body.appendChild(menu);
+        menu.style.position = 'fixed';
+        menu.style.zIndex = '3000';
+        menu.style.display = 'block';
+        menu.style.width = '220px'; // ancho fijo: evita que se estire al reposicionar
+
+        const posicionar = () => {
+            const rect = button.getBoundingClientRect();
+            const menuAncho = menu.offsetWidth;
+
+            // Alinea el borde derecho del menú con el borde derecho del botón (como dropdown-menu-end)
+            let left = rect.right - menuAncho;
+            if (left < 8) left = 8; // evita que se salga por la izquierda
+
+            let top = rect.bottom + 4;
+            // Si no cabe abajo, lo abre hacia arriba
+            if (top + menu.offsetHeight > window.innerHeight) {
+                top = rect.top - menu.offsetHeight - 4;
+            }
+
+            menu.style.top = `${top}px`;
+            menu.style.left = `${left}px`;
+        };
+
+        posicionar();
+        // Reposiciona si se hace scroll o resize mientras el menú está abierto
+        window.addEventListener('scroll', posicionar, true);
+        window.addEventListener('resize', posicionar);
+        menu._posicionar = posicionar;
+    });
+
+    document.addEventListener('hide.bs.dropdown', function (e) {
+        const button = e.target;
+        const menu = button.nextElementSibling?.classList.contains('dropdown-menu')
+            ? button.nextElementSibling
+            : document.body.querySelector('.dropdown-menu[style*="position: fixed"]');
+
+        if (!menu || !menu._originalParent) return;
+
+        window.removeEventListener('scroll', menu._posicionar, true);
+        window.removeEventListener('resize', menu._posicionar);
+
+        // Lo regresa a su lugar original en la fila de la tabla
+        if (menu._originalNextSibling) {
+            menu._originalParent.insertBefore(menu, menu._originalNextSibling);
+        } else {
+            menu._originalParent.appendChild(menu);
+        }
+        menu.style.position = '';
+        menu.style.zIndex = '';
+        menu.style.top = '';
+        menu.style.left = '';
+        menu.style.display = '';
+        menu.style.width = '';
+    });
       </script>
 
       </div>
@@ -1158,7 +1333,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Tipo de categoría agregado',
         text: 'Ya puedes seleccionarlo en la lista.',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       const nuevoTipo = "<?= addslashes($_GET['nuevoTipo'] ?? '') ?>";
       const selectCategoria = document.getElementById('categoria');
@@ -1172,7 +1347,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'warning',
         title: 'Ya existe',
         text: 'Ese tipo de categoría ya está registrado.',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -1181,7 +1356,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'warning',
         title: 'Atención',
         text: 'Debes escribir un nombre para el nuevo tipo.',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
   }

@@ -657,7 +657,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Guardado exitosamente',
         text: 'La factura de compra se ha agregado y el inventario se ha actualizado',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -666,7 +666,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Modificado correctamente',
         text: 'Los datos se actualizaron y el inventario se ajustó correctamente',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -675,7 +675,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Eliminado correctamente',
         text: 'La factura fue eliminada y el inventario se restauró',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -685,7 +685,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'error',
         title: 'Error',
         text: detalle || 'Ocurrió un error al procesar la operación',
-        confirmButtonColor: '#d33'
+        confirmButtonColor: '#eb0404'
       });
       break;
   }
@@ -1266,42 +1266,44 @@ document.addEventListener("DOMContentLoaded", () => {
                 </td>
                 <td class="text-center">
                     <div class="dropdown">
-                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
-                        <i class="fas fa-ellipsis-vertical"></i>
-                    </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li>
-                        <form action="" method="post" class="d-inline">
-                            <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
-                            <input type="hidden" name="identificacion" value="<?php echo $usuario['identificacion']; ?>">
-                            <input type="hidden" name="nombre" value="<?php echo $usuario['nombre']; ?>">
-                            <input type="hidden" name="fecha" value="<?php echo $usuario['fecha']; ?>">
-                            <input type="hidden" name="consecutivo" value="<?php echo $usuario['consecutivo']; ?>">
-                            <input type="hidden" name="numeroFactura" value="<?php echo $usuario['numeroFactura'] ?? ''; ?>">
-                            <input type="hidden" name="formaPago" value="<?php echo $usuario['formaPago']; ?>">
-                            <input type="hidden" name="fechaVencimiento" value="<?php echo $usuario['fecha_vencimiento'] ?? ''; ?>">
-                            <input type="hidden" name="subtotal" value="<?php echo $usuario['subtotal']; ?>">
-                            <input type="hidden" name="ivaTotal" value="<?php echo $usuario['ivaTotal']; ?>">
-                            <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>">
-                            <input type="hidden" name="valorTotal" value="<?php echo $usuario['valorTotal']; ?>">
-                            <input type="hidden" name="observaciones" value="<?php echo $usuario['observaciones']; ?>">
-                            <input type="hidden" name="selectRetencion" value="<?php echo $usuario['retencion_tarifa'] ?? ''; ?>">
-                            <input type="hidden" name="idParametro" value="<?php echo $usuario['id_parametro'] ?? ''; ?>">
-                            <button type="submit" name="accion" value="btnEditar" class="dropdown-item"><i class="fas fa-edit me-2"></i>Editar</button>
-                        </form>
-                        </li>
-                        <li>
-                        <form action="" method="post" class="d-inline">
-                            <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
-                            <button type="submit" name="accion" value="btnEliminar" class="dropdown-item text-danger"
-                            onclick="return confirm('¿Eliminar esta factura?');"><i class="fas fa-trash-alt me-2"></i>Eliminar</button>
-                        </form>
-                        </li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item" href="ver_factura_compra.php?id=<?php echo $usuario['id']; ?>" target="_blank"><i class="fas fa-print me-2"></i>Ver / Imprimir</a></li>
-                        <li><a class="dropdown-item" href="../../exports/pdf/generar_pdf_factura_compra.php?id=<?php echo $usuario['id']; ?>" target="_blank"><i class="fas fa-file-pdf me-2"></i>Descargar PDF</a></li>
-                        <li><a class="dropdown-item" href="../../exports/excel/generar_excel_factura_compra.php?id=<?php echo $usuario['id']; ?>" target="_blank"><i class="fas fa-file-excel me-2"></i>Descargar Excel</a></li>
-                    </ul>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
+                            <i class="fas fa-ellipsis-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                            <form action="" method="post" class="d-inline">
+                                <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                                <input type="hidden" name="identificacion" value="<?php echo $usuario['identificacion']; ?>">
+                                <input type="hidden" name="nombre" value="<?php echo $usuario['nombre']; ?>">
+                                <input type="hidden" name="fecha" value="<?php echo $usuario['fecha']; ?>">
+                                <input type="hidden" name="consecutivo" value="<?php echo $usuario['consecutivo']; ?>">
+                                <input type="hidden" name="numeroFactura" value="<?php echo $usuario['numeroFactura'] ?? ''; ?>">
+                                <input type="hidden" name="formaPago" value="<?php echo $usuario['formaPago']; ?>">
+                                <input type="hidden" name="fechaVencimiento" value="<?php echo $usuario['fecha_vencimiento'] ?? ''; ?>">
+                                <input type="hidden" name="subtotal" value="<?php echo $usuario['subtotal']; ?>">
+                                <input type="hidden" name="ivaTotal" value="<?php echo $usuario['ivaTotal']; ?>">
+                                <input type="hidden" name="retenciones" value="<?php echo $usuario['retenciones']; ?>">
+                                <input type="hidden" name="valorTotal" value="<?php echo $usuario['valorTotal']; ?>">
+                                <input type="hidden" name="observaciones" value="<?php echo $usuario['observaciones']; ?>">
+                                <input type="hidden" name="selectRetencion" value="<?php echo $usuario['retencion_tarifa'] ?? ''; ?>">
+                                <input type="hidden" name="idParametro" value="<?php echo $usuario['id_parametro'] ?? ''; ?>">
+                                <button type="submit" name="accion" value="btnEditar" class="dropdown-item"><i class="fas fa-edit me-2"></i>Editar</button>
+                            </form>
+                            </li>
+                            <li>
+                            <form action="" method="post" class="d-inline">
+                                <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                                <button type="submit" name="accion" value="btnEliminar" class="dropdown-item text-danger">
+                                    <i class="fas fa-trash-alt me-2"></i>
+                                    Eliminar
+                                </button>
+                            </form>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="ver_factura_compra.php?id=<?php echo $usuario['id']; ?>" target="_blank"><i class="fas fa-print me-2"></i>Ver / Imprimir</a></li>
+                            <li><a class="dropdown-item" href="../../exports/pdf/generar_pdf_factura_compra.php?id=<?php echo $usuario['id']; ?>" target="_blank"><i class="fas fa-file-pdf me-2"></i>Descargar PDF</a></li>
+                            <li><a class="dropdown-item" href="../../exports/excel/generar_excel_factura_compra.php?id=<?php echo $usuario['id']; ?>" target="_blank"><i class="fas fa-file-excel me-2"></i>Descargar Excel</a></li>
+                        </ul>
                     </div>
                 </td>
                 </tr>
@@ -1383,7 +1385,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     .then(response => response.json())
                     .then(data => {
                         if (data.error) {
-                            Swal.fire({ icon: 'warning', title: 'Atención', text: data.error, confirmButtonColor: '#3085d6' });
+                            Swal.fire({ icon: 'warning', title: 'Atención', text: data.error, confirmButtonColor: '#103669' });
                             document.getElementById('consecutivo').value = '';
                             document.getElementById('numeroFactura').value = '';
                             return;
@@ -1547,7 +1549,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     icon: 'warning',
                     title: 'Atención',
                     text: 'Debe haber al menos un método de pago',
-                    confirmButtonColor: '#3085d6'
+                    confirmButtonColor: '#103669'
                 });
             }
         }
@@ -1877,7 +1879,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     icon: 'warning',
                     title: 'Atención',
                     text: 'Debe haber al menos una fila de producto',
-                    confirmButtonColor: '#3085d6'
+                    confirmButtonColor: '#103669'
                 });
             }
         }
@@ -2038,7 +2040,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             showCancelButton: true,
                             confirmButtonText: "Sí, continuar",
                             cancelButtonText: "Cancelar",
-                            confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+                            confirmButtonColor: accion === "btnModificar" ? "#103669" : "#eb0404",
                             cancelButtonColor: "#6c757d",
                         }).then((result) => {
                             if (result.isConfirmed) {
@@ -2090,7 +2092,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     icon: 'error',
                     title: 'Error',
                     text: 'Debe agregar al menos un producto a la factura',
-                    confirmButtonColor: '#d33'
+                    confirmButtonColor: '#eb0404'
                 });
                 return;
             }
@@ -2103,7 +2105,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     icon: 'error',
                     title: 'Error',
                     text: 'Debe seleccionar el tipo de factura',
-                    confirmButtonColor: '#d33'
+                    confirmButtonColor: '#eb0404'
                 });
                 return;
             }
@@ -2121,7 +2123,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     html: `La suma de los medios de pago (${totalMediosPago.toFixed(2)})<br>
                           no coincide con el valor total (${valorTotal.toFixed(2)})<br>
                           <strong>Faltan: ${diferencia.toFixed(2)}</strong>`,
-                    confirmButtonColor: '#d33'
+                    confirmButtonColor: '#eb0404'
                 });
                 return;
             }
@@ -2135,7 +2137,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     icon: 'error',
                     title: 'Error',
                     text: 'Debe seleccionar al menos un método de pago',
-                    confirmButtonColor: '#d33'
+                    confirmButtonColor: '#eb0404'
                 });
                 return;
             }

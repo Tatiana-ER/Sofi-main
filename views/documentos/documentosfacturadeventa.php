@@ -625,7 +625,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Guardado exitosamente',
         text: 'La factura de venta se ha agregado y el inventario se ha actualizado',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -634,7 +634,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Modificado correctamente',
         text: 'Los datos se actualizaron y el inventario se ajustó correctamente',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -643,7 +643,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Eliminado correctamente',
         text: 'La factura fue eliminada y el inventario se restauró',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -653,7 +653,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'error',
         title: 'Error',
         text: detalle || 'Ocurrió un error al procesar la operación',
-        confirmButtonColor: '#d33'
+        confirmButtonColor: '#eb0404'
       });
       break;
   }
@@ -1224,8 +1224,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         <li>
                         <form action="" method="post" class="d-inline">
                             <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
-                            <button type="submit" name="accion" value="btnEliminar" class="dropdown-item text-danger"
-                            onclick="return confirm('¿Eliminar esta factura?');"><i class="fas fa-trash-alt me-2"></i>Eliminar</button>
+                            <button type="submit" name="accion" value="btnEliminar" class="dropdown-item text-danger"><i class="fas fa-trash-alt me-2"></i>Eliminar</button>
                         </form>
                         </li>
                         <li><hr class="dropdown-divider"></li>
@@ -1261,7 +1260,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     .then(response => response.json())
                     .then(data => {
                         if (data.error) {
-                            Swal.fire({ icon: 'warning', title: 'Atención', text: data.error, confirmButtonColor: '#3085d6' });
+                            Swal.fire({ icon: 'warning', title: 'Atención', text: data.error, confirmButtonColor: '#103669' });
                             document.getElementById('consecutivo').value = '';
                             document.getElementById('numeroFactura').value = '';
                             return;
@@ -1406,7 +1405,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 calcularTotalMediosPago();
                 mostrarFechaVencimiento();
             } else {
-                Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debe haber al menos un método de pago', confirmButtonColor: '#3085d6' });
+                Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debe haber al menos un método de pago', confirmButtonColor: '#103669' });
             }
         }
 
@@ -1715,7 +1714,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     icon: 'warning',
                     title: 'Atención',
                     text: 'Debe haber al menos una fila de producto',
-                    confirmButtonColor: '#3085d6'
+                    confirmButtonColor: '#103669'
                 });
             }
         }
@@ -1846,7 +1845,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     confirmButtonText: 'Sí, cancelar',
                     cancelButtonText: 'No',
                     confirmButtonColor: '#6c757d',
-                    cancelButtonColor: '#3085d6'
+                    cancelButtonColor: '#103669'
                 }).then((result) => {
                     if (result.isConfirmed) {
                         modoAgregar();
@@ -1879,7 +1878,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             showCancelButton: true,
                             confirmButtonText: "Sí, continuar",
                             cancelButtonText: "Cancelar",
-                            confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+                            confirmButtonColor: accion === "btnModificar" ? "#103669" : "#eb0404",
                             cancelButtonColor: "#6c757d",
                         }).then((result) => {
                             if (result.isConfirmed) {
@@ -1930,7 +1929,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     icon: 'error',
                     title: 'Error',
                     text: 'Debe agregar al menos un producto a la factura',
-                    confirmButtonColor: '#d33'
+                    confirmButtonColor: '#eb0404'
                 });
                 return;
             }
@@ -1943,7 +1942,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     icon: 'error',
                     title: 'Error',
                     text: 'Debe seleccionar el tipo de factura',
-                    confirmButtonColor: '#d33'
+                    confirmButtonColor: '#eb0404'
                 });
                 return;
             }
@@ -1966,7 +1965,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     html: `La suma de los medios de pago (${totalMediosPago.toFixed(2)})<br>
                           no coincide con el valor total (${valorTotal.toFixed(2)})<br>
                           <strong>Faltan: ${diferencia.toFixed(2)}</strong>`,
-                    confirmButtonColor: '#d33'
+                    confirmButtonColor: '#eb0404'
                 });
                 return;
             }
@@ -1975,7 +1974,7 @@ document.addEventListener("DOMContentLoaded", () => {
               .filter(select => select.value !== "").length;
             if (metodosCompletos === 0) {
                 e.preventDefault();
-                Swal.fire({ icon: 'error', title: 'Error', text: 'Debe seleccionar al menos un método de pago', confirmButtonColor: '#d33' });
+                Swal.fire({ icon: 'error', title: 'Error', text: 'Debe seleccionar al menos un método de pago', confirmButtonColor: '#eb0404' });
                 return;
             }
 

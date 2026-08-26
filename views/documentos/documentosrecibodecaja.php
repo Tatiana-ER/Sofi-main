@@ -560,7 +560,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Guardado exitosamente',
         text: 'El recibo de caja se ha agregado correctamente',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -569,7 +569,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Modificado correctamente',
         text: 'Los datos se actualizaron con éxito',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -578,7 +578,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Eliminado correctamente',
         text: 'El recibo de caja fue eliminado del registro',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
       
@@ -587,7 +587,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'error',
         title: 'Error',
         text: detalle || 'Ocurrió un error al procesar la solicitud',
-        confirmButtonColor: '#d33'
+        confirmButtonColor: '#eb0404'
       });
       break;
   }
@@ -1089,8 +1089,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         <li>
                           <form action="" method="post" class="d-inline">
                             <input type="hidden" name="txtId" value="<?php echo $recibo['id']; ?>">
-                            <button type="submit" name="accion" value="btnEliminar" class="dropdown-item text-danger"
-                            onclick="return confirm('¿Eliminar este recibo?');"><i class="fas fa-trash-alt me-2"></i>Eliminar</button>
+                            <button type="submit" name="accion" value="btnEliminar" class="dropdown-item text-danger"><i class="fas fa-trash-alt me-2"></i>Eliminar</button>
                           </form>
                         </li>
                         <li><hr class="dropdown-divider"></li>
@@ -1223,7 +1222,7 @@ document.addEventListener("DOMContentLoaded", () => {
           icon: 'warning',
           title: 'Atención',
           text: 'Debe ingresar una identificación primero',
-          confirmButtonColor: '#3085d6'
+          confirmButtonColor: '#103669'
         });
         return;
       }
@@ -1263,7 +1262,7 @@ document.addEventListener("DOMContentLoaded", () => {
             icon: 'error',
             title: 'Error',
             text: 'No se pudieron cargar las facturas',
-            confirmButtonColor: '#d33'
+            confirmButtonColor: '#eb0404'
           });
         });
     });
@@ -1337,7 +1336,7 @@ document.addEventListener("DOMContentLoaded", () => {
               icon: 'warning',
               title: 'Valor excedido',
               text: `El valor no puede ser mayor al saldo pendiente (${saldoReal.toFixed(2)})`,
-              confirmButtonColor: '#3085d6'
+              confirmButtonColor: '#103669'
             });
             this.value = saldoReal.toFixed(2);
           }
@@ -1415,7 +1414,7 @@ function eliminarMedioPago(button) {
         row.remove();
         calcularTotalMediosPago();
     } else {
-        Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debe haber al menos un método de pago', confirmButtonColor: '#3085d6' });
+        Swal.fire({ icon: 'warning', title: 'Atención', text: 'Debe haber al menos un método de pago', confirmButtonColor: '#103669' });
     }
 }
 
@@ -1563,7 +1562,7 @@ document.addEventListener('DOMContentLoaded', function() {
             icon: 'warning',
             title: 'Atención',
             text: 'Debe seleccionar al menos una factura y asignar un valor',
-            confirmButtonColor: '#3085d6'
+            confirmButtonColor: '#103669'
           });
           return false;
         }
@@ -1574,7 +1573,7 @@ document.addEventListener('DOMContentLoaded', function() {
             icon: 'warning',
             title: 'Atención',
             text: 'El valor total debe ser mayor a cero',
-            confirmButtonColor: '#3085d6'
+            confirmButtonColor: '#103669'
           });
           return false;
         }
@@ -1588,7 +1587,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 icon: 'warning',
                 title: 'Atención',
                 text: 'La suma de los medios de pago no coincide con el valor total',
-                confirmButtonColor: '#3085d6'
+                confirmButtonColor: '#103669'
             });
             return false;
         }
@@ -1619,7 +1618,7 @@ document.addEventListener('DOMContentLoaded', function() {
               showCancelButton: true,
               confirmButtonText: "Sí, continuar",
               cancelButtonText: "Cancelar",
-              confirmButtonColor: accion === "btnModificar" ? "#ffc107" : "#d33",
+              confirmButtonColor: accion === "btnModificar" ? "#b28b54" : "#eb0404",
               cancelButtonColor: "#6c757d",
             }).then((result) => {
               if (result.isConfirmed) {

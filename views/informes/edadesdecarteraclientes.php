@@ -363,57 +363,6 @@ function calcularDiasMora($fechaVencimiento) {
         box-sizing: border-box;
         padding: 5px;
     }
-    .btn-generar {
-      background-color: #28a745;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-top: 20px;
-    }
-    .btn-generar:hover {
-      background-color: #218838;
-    }
-    .btn-agregar {
-      background-color: #007bff;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-top: 20px;
-      margin-left: 10px;
-    }
-    .btn-agregar:hover {
-      background-color: #0069d9;
-    }
-    .btn-exportar {
-      background-color: #17a2b8;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-top: 20px;
-      margin-left: 10px;
-    }
-    .btn-exportar:hover {
-      background-color: #138496;
-    }
-    .btn-limpiar {
-      background-color: #6c757d;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-top: 20px;
-      margin-left: 10px;
-    }
-    .btn-limpiar:hover {
-      background-color: #5a6268;
-    }
     .total-row {
       font-weight: bold;
       background-color: #e9ecef;
@@ -522,13 +471,13 @@ function calcularDiasMora($fechaVencimiento) {
         <button type="button" class="btn-agregar" onclick="agregarDatosTabla()">
             <i class="fas fa-plus"></i> Agregar a Tabla
         </button>
-        <button type="button" class="btn-limpiar" onclick="limpiarTabla()">
+        <button type="button" class="btn-cancelar" onclick="limpiarTabla()">
             <i class="fas fa-eraser"></i> Limpiar Tabla
         </button>
         <button type="button" class="btn-exportar" onclick="exportarPDF()">
             <i class="fas fa-file-pdf"></i> Exportar a PDF
         </button>
-        <button type="button" class="btn-exportar" onclick="exportarExcel()">
+        <button type="button" class="btn-agregar-excel" onclick="exportarExcel()">
             <i class="fas fa-file-excel"></i> Exportar a Excel
         </button>
       </form>
@@ -982,8 +931,8 @@ function agregarFilaFactura(factura, nombreCliente, claveUnica) {
           text: "¿Desea eliminar esta factura de la tabla?",
           icon: 'warning',
           showCancelButton: true,
-          confirmButtonColor: '#3085d6',
-          cancelButtonColor: '#d33',
+          confirmButtonColor: '#103669',
+          cancelButtonColor: '#eb0404',
           confirmButtonText: 'Sí, eliminar',
           cancelButtonText: 'Cancelar'
       }).then((result) => {
@@ -1027,8 +976,8 @@ function limpiarTabla() {
         text: "Se eliminarán todos los datos de la tabla",
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#3085d6',
-        cancelButtonColor: '#d33',
+        confirmButtonColor: '#103669',
+        cancelButtonColor: '#eb0404',
         confirmButtonText: 'Sí, limpiar',
         cancelButtonText: 'Cancelar'
     }).then((result) => {

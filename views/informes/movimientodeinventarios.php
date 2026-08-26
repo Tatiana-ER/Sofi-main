@@ -140,7 +140,7 @@ $movimientos = $sentenciaMovimientos->fetchAll(PDO::FETCH_ASSOC);
     }
     
     .table-container th {
-      background-color: #0d6efd;
+      background-color: #103669;
       color: white;
       font-weight: 600;
     }
@@ -262,7 +262,7 @@ $movimientos = $sentenciaMovimientos->fetchAll(PDO::FETCH_ASSOC);
 
         <!-- Botón de Búsqueda -->
         <div class="mt-4 text-center">
-          <button type="submit" class="btn btn-primary">
+          <button type="submit" class="btn-agregar">
             <i class="fas fa-search"></i> Buscar
           </button>
         </div>
@@ -331,10 +331,10 @@ $movimientos = $sentenciaMovimientos->fetchAll(PDO::FETCH_ASSOC);
       <!-- Botón de Descarga -->
       <?php if (count($movimientos) > 0): ?>
       <div class="mt-4 text-center">
-        <button type="button" class="btn btn-primary" onclick="generarPDF()">
+        <button type="button" class="btn-agregar" onclick="generarPDF()">
           <i class="fas fa-file-pdf"></i> Descargar PDF
         </button>
-        <button type="button" class="btn btn-success ms-2" onclick="exportarExcel()">
+        <button type="button" class="btn-agregar-excel" onclick="exportarExcel()">
           <i class="fas fa-file-excel"></i> Descargar Excel
         </button>
       </div>
@@ -394,7 +394,7 @@ $movimientos = $sentenciaMovimientos->fetchAll(PDO::FETCH_ASSOC);
         
         if (categoriaId) {
           $.ajax({
-            url: 'obtener_productos_categoria.php',
+            url: '../../ajax/obtener_productos_categoria.php',
             type: 'POST',
             data: { categoriaId: categoriaId },
             dataType: 'json',

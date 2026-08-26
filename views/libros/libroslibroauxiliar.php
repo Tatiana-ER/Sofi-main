@@ -526,11 +526,13 @@ $lista_terceros = array_values($terceros_unificados);
           </select>
         </div>
         <div class="col-md-2 d-flex align-items-end">
-          <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-search"></i> Buscar</button>
+          <button type="submit" class="btn w-100" style="background-color: #103669; color: white;">
+            <i class="fa-solid fa-search"></i> Buscar
+          </button>
         </div>
         <!-- Botón para limpiar filtros -->
         <div class="col-md-12 mt-3">
-          <button type="button" class="btn-limpiar" onclick="limpiarFiltros()">
+          <button type="button" class="btn-cancelar" onclick="limpiarFiltros()">
             Limpiar Filtros
           </button>
         </div>
@@ -538,10 +540,10 @@ $lista_terceros = array_values($terceros_unificados);
 
       <?php if (count($cuentas) > 0): ?>
       <div class="mb-3 text-end">
-        <button onclick="exportarExcel()" class="btn btn-success">
+        <button onclick="exportarExcel()" class="btn-agregar-excel">
           <i class="fa-solid fa-file-excel"></i> Exportar a Excel
         </button>
-        <button onclick="exportarPDF()" class="btn btn-secondary">
+        <button onclick="exportarPDF()" class="btn-agregar">
           <i class="fa-solid fa-file-pdf"></i> Exportar PDF
         </button>
       </div>

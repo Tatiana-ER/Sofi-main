@@ -94,7 +94,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Guardado exitosamente',
         text: 'La cuenta contable se ha agregado correctamente',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -103,7 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Modificado correctamente',
         text: 'Los datos se actualizaron con éxito',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -112,7 +112,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Eliminado correctamente',
         text: 'La cuenta contable fue eliminada del registro',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
   }
@@ -330,10 +330,10 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
 
         <div class="mt-4">
-          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn btn-primary" name="accion">Agregar</button>
-          <button id="btnModificar" value="btnModificar" type="submit" class="btn btn-warning" name="accion">Modificar</button>
-          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn btn-danger" name="accion">Eliminar</button>
-          <button id="btnCancelar" type="button" class="btn btn-secondary" style="display:none;">Cancelar</button>
+          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar" name="accion">Agregar</button>
+          <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion">Modificar</button>
+          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion">Eliminar</button>
+          <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">Cancelar</button>
         </div>
 
       </form>
@@ -400,67 +400,190 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="row">
           <div class="table-container">
 
-            <table id="tablaCuentas">
-              <thead>
-                <tr>
-                  <th>Clase</th>
-                  <th>Grupo</th>
-                  <th>Cuenta</th>
-                  <th>Subcuenta</th>
-                  <th>Auxiliar</th>
-                  <th>Modulo Inventarios</th>
-                  <th>Naturaleza Contable</th>
-                  <th>Control Cartera</th>
-                  <th>Activa</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-              <?php foreach($lista as $usuario){ ?>
-                <tr>
-                  <td><?php echo $usuario['clase']; ?></td>
-                  <td><?php echo $usuario['grupo']; ?></td>
-                  <td><?php echo $usuario['cuenta']; ?></td>
-                  <td><?php echo $usuario['subCuenta']; ?></td>
-                  <td><?php echo $usuario['auxiliar']; ?></td>
-                  <td><?php echo $usuario['moduloInventarios']? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
-                  <td><?php echo $usuario['naturalezaContable']; ?></td>
-                  <td><?php echo $usuario['controlCartera']? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
-                  <td><?php echo $usuario['activa'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
-                  <td>
-
-                  <form action="" method="post">
-
-                  <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>" >
-                  <input type="hidden" name="clase" value="<?php echo $usuario['clase']; ?>" >
-                  <input type="hidden" name="grupo" value="<?php echo $usuario['grupo']; ?>" >
-                  <input type="hidden" name="cuenta" value="<?php echo $usuario['cuenta']; ?>" >
-                  <input type="hidden" name="subcuenta" value="<?php echo $usuario['subCuenta']; ?>" >
-                  <input type="hidden" name="auxiliar" value="<?php echo $usuario['auxiliar']; ?>" >
-                  <input type="hidden" name="moduloInventarios" value="<?php echo $usuario['moduloInventarios']; ?>" >
-                  <input type="hidden" name="naturalezaContable" value="<?php echo $usuario['naturalezaContable']; ?>" >
-                  <input type="hidden" name="controlCartera" value="<?php echo $usuario['controlCartera']; ?>" >
-                  <input type="hidden" name="activa" value="<?php echo $usuario['activa']; ?>" >
+              <table id="tablaCuentas" class="tabla-cuentas">
                   
-                  <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info btn-editar-cuenta" title="Editar">
-                      <i class="fas fa-edit"></i>
-                  </button>
-                  <button type="submit" value="btnEliminar" name="accion" class="btn btn-sm btn-danger" title="Eliminar">
-                      <i class="fas fa-trash-alt"></i>
-                  </button>
-                            
-                  </form>
-                  </td>
+                  <thead>
+                      <tr>
+                          <th>Clase</th>
+                          <th>Grupo</th>
+                          <th>Cuenta</th>
+                          <th>Subcuenta</th>
+                          <th>Auxiliar</th>
+                          <th>Configuración</th>
+                          <th>Naturaleza</th>
+                          <th>Acción</th>
+                      </tr>
+                  </thead>
 
-                </tr>
-              <?php } ?>
-              </tbody>
-            </table>
+                  <tbody>
 
+                  <?php foreach($lista as $usuario){ ?>
+
+                      <tr>
+
+                          <!-- CLASE -->
+                          <td>
+                              <?php echo $usuario['clase']; ?>
+                          </td>
+
+
+                          <!-- GRUPO -->
+                          <td>
+                              <?php echo $usuario['grupo']; ?>
+                          </td>
+
+
+                          <!-- CUENTA -->
+                          <td>
+                              <?php echo $usuario['cuenta']; ?>
+                          </td>
+
+
+                          <!-- SUBCUENTA -->
+                          <td>
+                              <?php echo $usuario['subCuenta']; ?>
+                          </td>
+
+
+                          <!-- AUXILIAR -->
+                          <td>
+                              <?php echo $usuario['auxiliar']; ?>
+                          </td>
+
+
+                          <!-- CONFIGURACIÓN -->
+                          <td class="configuracion-cuenta">
+
+                              <!-- MÓDULO INVENTARIOS -->
+                              <div class="configuracion-item">
+                                  <?php if($usuario['moduloInventarios']){ ?>
+                                      <i class="fas fa-check-circle text-success"></i>
+                                  <?php } else { ?>
+                                      <i class="fas fa-times-circle text-danger"></i>
+                                  <?php } ?>
+
+                                  <span>Inventarios</span>
+                              </div>
+
+
+                              <!-- CONTROL CARTERA -->
+                              <div class="configuracion-item">
+                                  <?php if($usuario['controlCartera']){ ?>
+                                      <i class="fas fa-check-circle text-success"></i>
+                                  <?php } else { ?>
+                                      <i class="fas fa-times-circle text-danger"></i>
+                                  <?php } ?>
+
+                                  <span>Cartera</span>
+                              </div>
+
+
+                              <!-- ACTIVA -->
+                              <div class="configuracion-item">
+                                  <?php if($usuario['activa']){ ?>
+                                      <i class="fas fa-check-circle text-success"></i>
+                                  <?php } else { ?>
+                                      <i class="fas fa-times-circle text-danger"></i>
+                                  <?php } ?>
+
+                                  <span>Activa</span>
+                              </div>
+
+                          </td>
+
+
+                          <!-- NATURALEZA CONTABLE -->
+                          <td>
+                              <span class="naturaleza-cuenta">
+                                  <?php echo $usuario['naturalezaContable']; ?>
+                              </span>
+                          </td>
+
+
+                          <!-- ACCIONES -->
+                          <td class="text-center">
+
+                              <div class="dropdown">
+
+                                  <button class="btn btn-sm btn-outline-secondary"
+                                          type="button"
+                                          data-bs-toggle="dropdown"
+                                          data-bs-display="static"
+                                          aria-expanded="false"
+                                          title="Opciones">
+
+                                      <i class="fas fa-ellipsis-vertical"></i>
+
+                                  </button>
+
+
+                                  <ul class="dropdown-menu dropdown-menu-end">
+
+                                      <!-- EDITAR -->
+                                      <li>
+                                          <form action="" method="post" class="d-inline">
+
+                                              <input type="hidden" name="txtId" value="<?php echo $usuario['id']; ?>">
+                                              <input type="hidden" name="clase" value="<?php echo $usuario['clase']; ?>">
+                                              <input type="hidden" name="grupo" value="<?php echo $usuario['grupo']; ?>">
+                                              <input type="hidden" name="cuenta" value="<?php echo $usuario['cuenta']; ?>">
+                                              <input type="hidden" name="subcuenta" value="<?php echo $usuario['subCuenta']; ?>">
+                                              <input type="hidden" name="auxiliar" value="<?php echo $usuario['auxiliar']; ?>">
+                                              <input type="hidden" name="moduloInventarios" value="<?php echo $usuario['moduloInventarios']; ?>">
+                                              <input type="hidden" name="naturalezaContable" value="<?php echo $usuario['naturalezaContable']; ?>">
+                                              <input type="hidden" name="controlCartera" value="<?php echo $usuario['controlCartera']; ?>">
+                                              <input type="hidden" name="activa" value="<?php echo $usuario['activa']; ?>">
+
+                                              <button type="submit"
+                                                      name="accion"
+                                                      value="btnEditar"
+                                                      class="dropdown-item">
+
+                                                  <i class="fas fa-edit me-2"></i>
+                                                  Editar
+
+                                              </button>
+
+                                          </form>
+                                      </li>
+
+
+                                      <!-- ELIMINAR -->
+                                      <li>
+                                          <form action="" method="post" class="d-inline">
+
+                                              <input type="hidden"
+                                                    name="txtId"
+                                                    value="<?php echo $usuario['id']; ?>">
+
+                                              <button type="submit"
+                                                      name="accion"
+                                                      value="btnEliminar"
+                                                      class="dropdown-item text-danger">
+
+                                                  <i class="fas fa-trash-alt me-2"></i>
+                                                  Eliminar
+
+                                              </button>
+
+                                          </form>
+                                      </li>
+
+                                  </ul>
+
+                              </div>
+
+                          </td>
+
+                      </tr>
+
+                  <?php } ?>
+
+                  </tbody>
+
+              </table>
 
           </div>
-
-
       </div>
     </section>
 
@@ -826,7 +949,7 @@ document.addEventListener("DOMContentLoaded", () => {
               showCancelButton: true,
               confirmButtonText: "Sí, continuar",
               cancelButtonText: "Cancelar",
-              confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+              confirmButtonColor: accion === "btnModificar" ? "#103669" : "#eb0404",
               cancelButtonColor: "#6c757d",
             }).then((result) => {
               if (result.isConfirmed) {
@@ -845,6 +968,73 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         });
       });
+    });
+
+    // Solución: mover el menú desplegable a <body> para que no lo recorte el scroll de la tabla
+    document.addEventListener('show.bs.dropdown', function (e) {
+        const button = e.target;
+        const menu = button.nextElementSibling; // el <ul class="dropdown-menu">
+
+        if (!menu || !menu.classList.contains('dropdown-menu')) return;
+
+        // Guarda dónde estaba originalmente para devolverlo después
+        menu._originalParent = menu.parentNode;
+        menu._originalNextSibling = menu.nextSibling;
+
+        document.body.appendChild(menu);
+        menu.style.position = 'fixed';
+        menu.style.zIndex = '3000';
+        menu.style.display = 'block';
+        menu.style.width = '220px'; // ancho fijo: evita que se estire al reposicionar
+
+        const posicionar = () => {
+            const rect = button.getBoundingClientRect();
+            const menuAncho = menu.offsetWidth;
+
+            // Alinea el borde derecho del menú con el borde derecho del botón (como dropdown-menu-end)
+            let left = rect.right - menuAncho;
+            if (left < 8) left = 8; // evita que se salga por la izquierda
+
+            let top = rect.bottom + 4;
+            // Si no cabe abajo, lo abre hacia arriba
+            if (top + menu.offsetHeight > window.innerHeight) {
+                top = rect.top - menu.offsetHeight - 4;
+            }
+
+            menu.style.top = `${top}px`;
+            menu.style.left = `${left}px`;
+        };
+
+        posicionar();
+        // Reposiciona si se hace scroll o resize mientras el menú está abierto
+        window.addEventListener('scroll', posicionar, true);
+        window.addEventListener('resize', posicionar);
+        menu._posicionar = posicionar;
+    });
+
+    document.addEventListener('hide.bs.dropdown', function (e) {
+        const button = e.target;
+        const menu = button.nextElementSibling?.classList.contains('dropdown-menu')
+            ? button.nextElementSibling
+            : document.body.querySelector('.dropdown-menu[style*="position: fixed"]');
+
+        if (!menu || !menu._originalParent) return;
+
+        window.removeEventListener('scroll', menu._posicionar, true);
+        window.removeEventListener('resize', menu._posicionar);
+
+        // Lo regresa a su lugar original en la fila de la tabla
+        if (menu._originalNextSibling) {
+            menu._originalParent.insertBefore(menu, menu._originalNextSibling);
+        } else {
+            menu._originalParent.appendChild(menu);
+        }
+        menu.style.position = '';
+        menu.style.zIndex = '';
+        menu.style.top = '';
+        menu.style.left = '';
+        menu.style.display = '';
+        menu.style.width = '';
     });
     </script>
   </section>

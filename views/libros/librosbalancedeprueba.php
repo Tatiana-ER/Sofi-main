@@ -493,9 +493,30 @@ $mapeo_tipos = [
     10 => 'Referencia (10 dígitos)'
 ];
 
+$longitudes_existentes = array_column($resultados_niveles, 'longitud');
+
+// Sumar también las longitudes de código presentes en el PUC (cuentas_contables),
+// para incluir niveles que aún no tengan movimientos en libro_diario
+$sql_puc_niveles = "SELECT nivel1, nivel2, nivel3, nivel4, nivel5, nivel6 FROM cuentas_contables LIMIT 1000";
+$stmt_puc_niveles = $pdo->query($sql_puc_niveles);
+$resultados_puc_niveles = $stmt_puc_niveles->fetchAll(PDO::FETCH_ASSOC);
+
+foreach ($resultados_puc_niveles as $fila_puc) {
+    for ($i = 1; $i <= 6; $i++) {
+        $campo = 'nivel' . $i;
+        if (!empty($fila_puc[$campo])) {
+            $partes_puc = explode('-', $fila_puc[$campo], 2);
+            $codigo_puc = trim($partes_puc[0]);
+            $longitud_puc = strlen($codigo_puc);
+            if (!in_array($longitud_puc, $longitudes_existentes)) {
+                $longitudes_existentes[] = $longitud_puc;
+            }
+        }
+    }
+}
+
 // Asegurar que existan los niveles estándar
 $niveles_estandar = [1, 2, 4, 6, 8];
-$longitudes_existentes = array_column($resultados_niveles, 'longitud');
 
 foreach ($niveles_estandar as $nivel) {
     if (!in_array($nivel, $longitudes_existentes)) {
@@ -686,7 +707,7 @@ foreach ($longitudes_existentes as $longitud) {
           </select>
         </div>
         <div class="col-md-2 d-flex align-items-end">
-          <button type="submit" class="btn btn-primary w-100">
+          <button type="submit" class="btn w-100" style="background-color: #103669; color: white;">
             <i class="fa-solid fa-search"></i> Buscar
           </button>
         </div>
@@ -699,16 +720,16 @@ foreach ($longitudes_existentes as $longitud) {
           </div>
         </div>
         <div class="col-md-12 mt-3">
-          <button type="button" class="btn-limpiar" onclick="limpiarFiltros()">Limpiar Filtros</button>
+          <button type="button" class="btn-cancelar" onclick="limpiarFiltros()">Limpiar Filtros</button>
         </div>
       </form>
 
       <?php if (count($cuentas_completas) > 0): ?>
       <div class="mb-3 text-end">
-        <button onclick="exportarPDF()" class="btn btn-secondary">
+        <button onclick="exportarPDF()" class="btn-agregar">
           <i class="fa-solid fa-file-pdf"></i> Exportar PDF
         </button>
-        <button onclick="exportarExcel()" class="btn btn-success">
+        <button onclick="exportarExcel()" class="btn-agregar-excel  ">
           <i class="fa-solid fa-file-excel"></i> Exportar Excel
         </button>
       </div>
@@ -790,7 +811,7 @@ $(document).ready(function() {
     allowClear: true,
     width: '100%',
     ajax: {
-      url: 'buscar_cuentas_balance.php',
+      url: '../../ajax/buscar_cuentas_balance.php',
       dataType: 'json',
       delay: 250,
       data: function (params) {
@@ -866,7 +887,7 @@ $(document).ready(function() {
   
   <?php if (!empty($cuenta_codigo)): ?>
   $.ajax({
-    url: 'buscar_cuentas_balance.php',
+    url: '../../ajax/buscar_cuentas_balance.php',
     data: { id: '<?= htmlspecialchars($cuenta_codigo) ?>' },
     dataType: 'json'
   }).then(function(data) {

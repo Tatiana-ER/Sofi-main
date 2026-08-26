@@ -211,7 +211,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Guardado exitosamente',
         text: 'El comprobante contable se ha agregado correctamente',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -220,7 +220,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Modificado correctamente',
         text: 'Los datos se actualizaron con éxito',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
 
@@ -229,7 +229,7 @@ document.addEventListener("DOMContentLoaded", () => {
         icon: 'success',
         title: 'Eliminado correctamente',
         text: 'El comprobante contable fue eliminado del registro',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
       break;
   }
@@ -349,6 +349,16 @@ document.addEventListener("DOMContentLoaded", () => {
         margin: 0;
         gap: 3px;
     }
+
+    /* Ancho fijo para el menú de acciones (3 puntitos).
+   Al moverlo a <body> vía JS para que el scroll de la tabla no lo recorte,
+   necesita un ancho explícito: si se deja en "auto" puede calcularse mal
+   en el instante justo del reposicionamiento y verse estirado. */
+  .dropdown-menu {
+    width: 220px;
+    min-width: 220px;
+    max-width: 220px;
+  }
   </style>
 
 </head>
@@ -552,44 +562,83 @@ document.addEventListener("DOMContentLoaded", () => {
                   <td><?php echo $comprobante['fecha']; ?></td>
                   <td><?php echo $comprobante['consecutivo']; ?></td>
                   <td><?php echo $comprobante['observaciones']; ?></td>
-                  <td>
-                        <div class="acciones-contenedor">
-                            <!-- Formulario para editar y eliminar -->
-                            <form action="" method="post">
-                                <input type="hidden" name="txtId" value="<?php echo $comprobante['id']; ?>" >
-                                <input type="hidden" name="fecha" value="<?php echo $comprobante['fecha']; ?>" >
-                                <input type="hidden" name="consecutivo" value="<?php echo $comprobante['consecutivo']; ?>" >
-                                <input type="hidden" name="observaciones" value="<?php echo $comprobante['observaciones']; ?>" >
-                                
-                                <button type="submit" name="accion" value="btnEditar" class="btn btn-sm btn-info" title="Editar">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button type="submit" name="accion" value="btnEliminar" class="btn btn-sm btn-danger" title="Eliminar">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            </form>
+                  <td class="text-center">
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary" 
+                                type="button" 
+                                data-bs-toggle="dropdown" 
+                                data-bs-display="static" 
+                                aria-expanded="false">
+                            <i class="fas fa-ellipsis-vertical"></i>
+                        </button>
 
-                            <!-- Botones de visualización y descarga -->
-                            <a href="ver_comprobante_contable.php?id=<?php echo $comprobante['id']; ?>" 
-                                class="btn btn-sm btn-primary" 
-                                target="_blank" 
-                                title="Ver/Imprimir">
-                                <i class="fas fa-print"></i>
-                            </a>
-                            <a href="../../exports/pdf/generar_pdf_comprobante_contable.php?id=<?php echo $comprobante['id']; ?>" 
-                                class="btn btn-sm btn-danger" 
-                                target="_blank" 
-                                title="Descargar PDF">
-                                <i class="fas fa-file-pdf"></i>
-                            </a>
-                            <a href="../../exports/excel/generar_excel_comprobante_contable.php?id=<?php echo $comprobante['id']; ?>" 
-                                class="btn btn-sm btn-success" 
-                                target="_blank" 
-                                title="Descargar Excel">
-                                <i class="fas fa-file-excel"></i>
-                            </a>
-                        </div>
-                    </td>
+                        <ul class="dropdown-menu dropdown-menu-end">
+
+                            <!-- Editar -->
+                            <li>
+                                <form action="" method="post" class="d-inline">
+                                    <input type="hidden" name="txtId" value="<?php echo $comprobante['id']; ?>">
+                                    <input type="hidden" name="fecha" value="<?php echo $comprobante['fecha']; ?>">
+                                    <input type="hidden" name="consecutivo" value="<?php echo $comprobante['consecutivo']; ?>">
+                                    <input type="hidden" name="observaciones" value="<?php echo $comprobante['observaciones']; ?>">
+
+                                    <button type="submit" 
+                                            name="accion" 
+                                            value="btnEditar" 
+                                            class="dropdown-item">
+                                        <i class="fas fa-edit me-2"></i>Editar
+                                    </button>
+                                </form>
+                            </li>
+
+                            <!-- Eliminar -->
+                            <li>
+                                <form action="" method="post" class="d-inline">
+                                    <input type="hidden" name="txtId" value="<?php echo $comprobante['id']; ?>">
+
+                                    <button type="submit" 
+                                            name="accion" 
+                                            value="btnEliminar" 
+                                            class="dropdown-item text-danger">
+                                        <i class="fas fa-trash-alt me-2"></i>Eliminar
+                                    </button>
+                                </form>
+                            </li>
+
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+
+                            <!-- Ver / Imprimir -->
+                            <li>
+                                <a class="dropdown-item" 
+                                  href="ver_comprobante_contable.php?id=<?php echo $comprobante['id']; ?>" 
+                                  target="_blank">
+                                    <i class="fas fa-print me-2"></i>Ver / Imprimir
+                                </a>
+                            </li>
+
+                            <!-- Descargar PDF -->
+                            <li>
+                                <a class="dropdown-item" 
+                                  href="../../exports/pdf/generar_pdf_comprobante_contable.php?id=<?php echo $comprobante['id']; ?>" 
+                                  target="_blank">
+                                    <i class="fas fa-file-pdf me-2"></i>Descargar PDF
+                                </a>
+                            </li>
+
+                            <!-- Descargar Excel -->
+                            <li>
+                                <a class="dropdown-item" 
+                                  href="../../exports/excel/generar_excel_comprobante_contable.php?id=<?php echo $comprobante['id']; ?>" 
+                                  target="_blank">
+                                    <i class="fas fa-file-excel me-2"></i>Descargar Excel
+                                </a>
+                            </li>
+
+                        </ul>
+                    </div>
+                </td>
                 </tr>
               <?php } ?>
               </tbody>
@@ -769,7 +818,7 @@ window.addRow = function() {
         icon: 'warning',
         title: 'Atención',
         text: 'Debe haber al menos una fila',
-        confirmButtonColor: '#3085d6'
+        confirmButtonColor: '#103669'
       });
     }
   };
@@ -793,7 +842,7 @@ function removeRowSafe(btn) {
       icon: 'warning',
       title: 'Atención',
       text: 'Debe haber al menos una fila',
-      confirmButtonColor: '#3085d6'
+      confirmButtonColor: '#103669'
     });
   }
 }
@@ -886,7 +935,7 @@ $(document).ready(function() {
       confirmButtonText: 'Sí, cancelar',
       cancelButtonText: 'No',
       confirmButtonColor: '#6c757d',
-      cancelButtonColor: '#3085d6'
+      cancelButtonColor: '#103669'
     }).then((result) => {
       if (result.isConfirmed) {
         modoAgregar();
@@ -933,7 +982,7 @@ $(document).ready(function() {
           showCancelButton: true,
           confirmButtonText: "Sí, continuar",
           cancelButtonText: "Cancelar",
-          confirmButtonColor: accion === "btnModificar" ? "#3085d6" : "#d33",
+          confirmButtonColor: accion === "btnModificar" ? "#103669" : "#eb0404",
           cancelButtonColor: "#6c757d",
         }).then((result) => {
           if (result.isConfirmed) {
@@ -1017,6 +1066,72 @@ window.addEventListener('DOMContentLoaded', function() {
   }
 }); 
 
+// Solución: mover el menú desplegable a <body> para que no lo recorte el scroll de la tabla
+    document.addEventListener('show.bs.dropdown', function (e) {
+        const button = e.target;
+        const menu = button.nextElementSibling; // el <ul class="dropdown-menu">
+
+        if (!menu || !menu.classList.contains('dropdown-menu')) return;
+
+        // Guarda dónde estaba originalmente para devolverlo después
+        menu._originalParent = menu.parentNode;
+        menu._originalNextSibling = menu.nextSibling;
+
+        document.body.appendChild(menu);
+        menu.style.position = 'fixed';
+        menu.style.zIndex = '3000';
+        menu.style.display = 'block';
+        menu.style.width = '220px'; // ancho fijo: evita que se estire al reposicionar
+
+        const posicionar = () => {
+            const rect = button.getBoundingClientRect();
+            const menuAncho = menu.offsetWidth;
+
+            // Alinea el borde derecho del menú con el borde derecho del botón (como dropdown-menu-end)
+            let left = rect.right - menuAncho;
+            if (left < 8) left = 8; // evita que se salga por la izquierda
+
+            let top = rect.bottom + 4;
+            // Si no cabe abajo, lo abre hacia arriba
+            if (top + menu.offsetHeight > window.innerHeight) {
+                top = rect.top - menu.offsetHeight - 4;
+            }
+
+            menu.style.top = `${top}px`;
+            menu.style.left = `${left}px`;
+        };
+
+        posicionar();
+        // Reposiciona si se hace scroll o resize mientras el menú está abierto
+        window.addEventListener('scroll', posicionar, true);
+        window.addEventListener('resize', posicionar);
+        menu._posicionar = posicionar;
+    });
+
+    document.addEventListener('hide.bs.dropdown', function (e) {
+        const button = e.target;
+        const menu = button.nextElementSibling?.classList.contains('dropdown-menu')
+            ? button.nextElementSibling
+            : document.body.querySelector('.dropdown-menu[style*="position: fixed"]');
+
+        if (!menu || !menu._originalParent) return;
+
+        window.removeEventListener('scroll', menu._posicionar, true);
+        window.removeEventListener('resize', menu._posicionar);
+
+        // Lo regresa a su lugar original en la fila de la tabla
+        if (menu._originalNextSibling) {
+            menu._originalParent.insertBefore(menu, menu._originalNextSibling);
+        } else {
+            menu._originalParent.appendChild(menu);
+        }
+        menu.style.position = '';
+        menu.style.zIndex = '';
+        menu.style.top = '';
+        menu.style.left = '';
+        menu.style.display = '';
+        menu.style.width = '';
+    });
         </script>
         <br>
       </div>
