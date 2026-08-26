@@ -62,9 +62,14 @@
 
     <!-- ======= Services Section ======= -->
     <section id="services" class="services">
-            <button class="btn-ir" onclick="window.location.href='../../dashboard.php'">
-        <i class="fa-solid fa-arrow-left"></i> Regresar
-      </button>
+      <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <button class="btn-ir" onclick="window.location.href='../../dashboard.php'">
+          <i class="fa-solid fa-arrow-left"></i> Regresar
+        </button>
+        <button class="btn-ir" onclick="window.location.href='../libros/ver_libro_diario.php'" style="margin-right: 50px;">
+          <i class="fa-solid fa-book-open"></i> Ver Libro Diario
+        </button>
+      </div>
       <div class="container" data-aos="fade-up">
 
         <div class="section-title">

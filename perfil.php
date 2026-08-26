@@ -1,5 +1,8 @@
+<?php require_once $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/auth_check.php'; ?>
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Evitar caché que pueda interferir con la sesión
 header("Cache-Control: no-cache, no-store, must-revalidate");
@@ -235,7 +238,7 @@ document.addEventListener("DOMContentLoaded", () => {
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1.0" name="viewport">
 
-  <title>SOFI - UDES</title>
+  <title>Mi Negocio - SOFI</title>
   <meta content="" name="description">
   <meta content="" name="keywords">
 

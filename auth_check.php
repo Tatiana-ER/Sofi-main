@@ -11,7 +11,7 @@ header("Expires: 0");
 
 // Sin sesión activa -> a la página de inicio (ahí está el botón "Iniciar Sesión")
 if (!isset($_SESSION['usuario'])) {
-    header("Location: index.php");
+    header("Location: /Sofi-main/index.php");
     exit();
 }
 
@@ -20,7 +20,7 @@ $tiempo_maximo = 1800;
 if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity']) > $tiempo_maximo) {
     session_unset();
     session_destroy();
-    header("Location: index.php?error=sesion_expirada");
+    header("Location: /Sofi-main/index.php?error=sesion_expirada");
     exit();
 }
 $_SESSION['last_activity'] = time();

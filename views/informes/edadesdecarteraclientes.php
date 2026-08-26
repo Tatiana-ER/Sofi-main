@@ -1,3 +1,4 @@
+<?php require_once $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/auth_check.php'; ?>
 <?php
 // Procesar búsqueda de cliente por identificación (AJAX)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
