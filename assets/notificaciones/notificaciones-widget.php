@@ -22,8 +22,8 @@
     }
     #notif-badge {
         position: absolute;
-        top: -4px;
-        right: 2px;
+        top: -2px;
+        right: -2px;
         background: #dc3545;
         color: #fff;
         border-radius: 50%;
