@@ -1,12 +1,5 @@
 <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/auth_check.php'; ?>
 <?php
-session_start();
-
-// Verificar si el usuario está autenticado
-if (!isset($_SESSION['usuario'])) {
-    header("Location: login.php");
-    exit();
-}
 
 // Configuración de conexión a la base de datos
 $host = 'localhost';
@@ -82,10 +75,7 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+            background: linear-gradient(155deg, #0a2748 0%, #103669 55%, #1b4b82 100%);
         }
 
         .container {
@@ -95,45 +85,28 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
             padding: 30px;
             border-radius: 12px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            position: relative;
         }
 
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 3px solid #667eea;
-        }
-
-        h1 {
-            color: #333;
+        /* Botón cerrar flotante (discreto, esquina superior derecha) */
+        .btn-cerrar-flotante {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            background: none;
+            border: none;
             font-size: 28px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            line-height: 1;
+            color: #bbb;
+            cursor: pointer;
+            padding: 4px 8px;
+            z-index: 10;
+            transition: color 0.2s, transform 0.2s;
         }
 
-        .icon {
-            font-size: 32px;
-        }
-
-        .btn-volver {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 24px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 600;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .btn-volver:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        .btn-cerrar-flotante:hover {
+            color: #eb0404;
+            transform: scale(1.15);
         }
 
         .filters {
@@ -141,6 +114,7 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
             padding: 20px;
             border-radius: 8px;
             margin-bottom: 25px;
+            margin-top: 20px;
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
@@ -170,7 +144,7 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
         .filter-group input:focus,
         .filter-group select:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #103669;
         }
 
         .filter-actions {
@@ -190,12 +164,12 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
         }
 
         .btn-filter {
-            background-color: #667eea;
+            background-color: #103669;
             color: white;
         }
 
         .btn-filter:hover {
-            background-color: #5568d3;
+            background-color: #0a2748;
         }
 
         .btn-clear {
@@ -207,38 +181,12 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
             background-color: #d0d0d0;
         }
 
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 25px;
-        }
-
-        .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .stat-number {
-            font-size: 32px;
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-
-        .stat-label {
-            font-size: 14px;
-            opacity: 0.9;
-        }
-
         .search-box {
             margin-bottom: 20px;
             padding: 12px;
             width: 100%;
             max-width: 500px;
-            border: 2px solid #667eea;
+            border: 2px solid #103669;
             border-radius: 8px;
             font-size: 15px;
         }
@@ -256,7 +204,7 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
         }
 
         thead {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #103669 0%, #1b4b82 100%);
             color: white;
         }
 
@@ -299,7 +247,7 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
 
         .badge-factura {
             background-color: #e3f2fd;
-            color: #1976d2;
+            color: #103669;
         }
 
         .badge-recibo {
@@ -308,8 +256,8 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
         }
 
         .badge-comprobante {
-            background-color: #f3e5f5;
-            color: #7b1fa2;
+            background-color: #e8eaf6;
+            color: #1b4b82;
         }
 
         .badge-default {
@@ -348,20 +296,6 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
                 padding: 15px;
             }
 
-            h1 {
-                font-size: 22px;
-            }
-
-            .header {
-                flex-direction: column;
-                gap: 15px;
-                align-items: flex-start;
-            }
-
-            .stats {
-                grid-template-columns: 1fr;
-            }
-
             table {
                 font-size: 12px;
             }
@@ -374,41 +308,11 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>
-                <span class="icon">🗑️</span>
-                Documentos Eliminados
-            </h1>
-            <a href="../../index.php" class="btn-volver">
-                ← Volver al inicio
-            </a>
-        </div>
 
-        <!-- Estadísticas -->
-        <div class="stats">
-            <div class="stat-card">
-                <div class="stat-number"><?php echo count($documentos); ?></div>
-                <div class="stat-label">Total Documentos Eliminados</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">
-                    <?php 
-                    $total_dinero = 0;
-                    foreach ($documentos as $doc) {
-                        if ($doc['total']) {
-                            $total_dinero += $doc['total'];
-                        }
-                    }
-                    echo '$' . number_format($total_dinero, 2);
-                    ?>
-                </div>
-                <div class="stat-label">Valor Total Eliminado</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number"><?php echo count($tipos_documentos); ?></div>
-                <div class="stat-label">Tipos de Documentos</div>
-            </div>
-        </div>
+        <!-- Botón cerrar flotante -->
+        <button type="button" class="btn-cerrar-flotante" onclick="cerrarDocumentosEliminados()" title="Cerrar">
+            &times;
+        </button>
 
         <!-- Filtros -->
         <form method="GET" action="">
@@ -552,6 +456,16 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
                     
                     tr[i].style.display = found ? "" : "none";
                 }
+            }
+        }
+
+        function cerrarDocumentosEliminados() {
+            // Si está dentro del modal (iframe), le avisa a la página padre que lo cierre
+            if (window.parent !== window) {
+                window.parent.postMessage('cerrarModalDocumentos', '*');
+            } else {
+                // Si por algún motivo se abrió directo en una pestaña, la cierra
+                window.close();
             }
         }
     </script>

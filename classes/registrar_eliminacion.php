@@ -95,7 +95,7 @@ function obtenerUsuarioActual() {
  * Función helper para obtener ID de usuario desde la sesión
  */
 function obtenerIdUsuarioActual() {
-    return isset($_SESSION['id_usuario']) ? $_SESSION['id_usuario'] : null;
+    return isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
 }
 
 // ==========================================
