@@ -910,7 +910,7 @@ function exportarExcel() {
     tercero: document.querySelector('select[name="tercero"]').value,
     mostrar_saldo_inicial: document.querySelector('#checkSaldoInicial').checked ? '1' : '0'
   });
-  window.location.href = `exportar_balance_prueba_excel.php?${params}`;
+  window.location.href = `../../exports/excel/exportar_balance_prueba_excel.php?${params}`;
 }
 
 function exportarPDF() {
@@ -923,7 +923,7 @@ function exportarPDF() {
     tercero: document.querySelector('select[name="tercero"]').value,
     mostrar_saldo_inicial: document.querySelector('#checkSaldoInicial').checked ? '1' : '0'
   });
-  window.open(`exportar_balance_prueba_pdf.php?${params}`, '_blank');
+  window.open(`../../exports/pdf/exportar_balance_prueba_pdf.php?${params}`, '_blank');
 }
 
 function limpiarFiltros() {

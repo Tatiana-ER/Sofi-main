@@ -932,7 +932,7 @@ $lista_terceros = array_values($terceros_unificados);
         const tercero = document.querySelector('select[name="tercero"]').value;
         const mostrar_saldo_inicial = document.querySelector('input[name="mostrar_saldo_inicial"]').checked ? '1' : '0';
 
-        const url = `exportar_estado_resultados_excel.php?periodo_fiscal=${encodeURIComponent(periodo_fiscal)}&cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}&mostrar_saldo_inicial=${mostrar_saldo_inicial}`;
+        const url = `../../exports/excel/exportar_estado_resultados_excel.php?periodo_fiscal=${encodeURIComponent(periodo_fiscal)}&cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}&mostrar_saldo_inicial=${mostrar_saldo_inicial}`;
         window.location.href = url;
     }
 
@@ -944,7 +944,7 @@ $lista_terceros = array_values($terceros_unificados);
         const tercero = document.querySelector('select[name="tercero"]').value;
         const mostrar_saldo_inicial = document.querySelector('input[name="mostrar_saldo_inicial"]').checked ? '1' : '0';
 
-        const url = `exportar_estado_resultados_pdf.php?periodo_fiscal=${encodeURIComponent(periodo_fiscal)}&cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}&mostrar_saldo_inicial=${mostrar_saldo_inicial}`;
+        const url = `../../exports/pdf/exportar_estado_resultados_pdf.php?periodo_fiscal=${encodeURIComponent(periodo_fiscal)}&cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}&mostrar_saldo_inicial=${mostrar_saldo_inicial}`;
         window.open(url, '_blank');
     }
 

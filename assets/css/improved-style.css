@@ -511,20 +511,28 @@ button {
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;   /* Ancho de la barra vertical */
+  height: 6px;  /* Altura de la barra horizontal (para que sea delgadita) */
 }
 
 ::-webkit-scrollbar-track {
   background: #f1f1f1;
 }
 
+/* Color sólido para la barrita (quitando el degradado) */
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  background: #103669; /* Azul oscuro sólido */
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--primary-dark);
+  background: #0855a7; /* Un tono un poco más claro al pasar el mouse */
+}
+
+/* Soporte para Firefox */
+.table-responsive, body {
+  scrollbar-width: thin; /* Hace la barra delgada */
+  scrollbar-color: #103669 #f1f1f1; /* Color de la barrita y color del fondo */
 }
 
 .table-container {
@@ -930,10 +938,12 @@ form {
       color: white;
       padding: 10px 20px;
       border: none;
-      border-radius: 10px;
+      border-radius: 10px; 
       cursor: pointer;
       margin-top: 20px;
       margin-left: 10px;
+      text-decoration: none; /* <--- Esta línea quita el subrayado */
+      display: inline-block; /* <--- Asegura que el padding y margen se apliquen correctamente */
     }
     .btn-agregar-excel:hover {
       background-color: #49c34d;
@@ -1228,3 +1238,12 @@ form {
     font-weight: 600;
     white-space: nowrap;
 }
+
+/* Ocultar barra de desplazamiento horizontal en tablas */
+/* .table-responsive::-webkit-scrollbar {
+    display: none;
+}
+.table-responsive {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+} */

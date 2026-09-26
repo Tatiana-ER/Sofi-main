@@ -284,7 +284,7 @@ $totalGeneral = 0;
         hasta: document.querySelector('input[name="hasta"]').value,
         cliente: document.querySelector('select[name="cliente"]').value
       });
-      window.location.href = `exportar_libroventas_excel.php?${params}`;
+      window.location.href = `../../exports/excel/exportar_libroventas_excel.php?${params}`;
     }
 
     function exportarPDF() {
@@ -293,7 +293,7 @@ $totalGeneral = 0;
         hasta: document.querySelector('input[name="hasta"]').value,
         cliente: document.querySelector('select[name="cliente"]').value
       });
-      window.open(`exportar_libroventas_pdf.php?${params}`, '_blank');
+      window.open(`../../exports/pdf/exportar_libroventas_pdf.php?${params}`, '_blank');
     }
   </script>
 

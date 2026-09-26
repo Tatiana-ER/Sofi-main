@@ -635,7 +635,7 @@ $lista_terceros = array_values($terceros_unificados);
       const hasta = document.querySelector('input[name="hasta"]').value;
       const tercero = document.querySelector('select[name="tercero"]').value;
 
-      const url = `exportar_libro_auxiliar.php?cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}`;
+      const url = `../../exports/excel/exportar_libro_auxiliar.php?cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}`;
       
       window.location.href = url;
   }
@@ -646,7 +646,7 @@ $lista_terceros = array_values($terceros_unificados);
       const hasta = document.querySelector('input[name="hasta"]').value;
       const tercero = document.querySelector('select[name="tercero"]').value;
 
-      const url = `exportar_libro_auxiliar_pdf.php?cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}`;
+      const url = `../../exports/pdf/exportar_libro_auxiliar_pdf.php?cuenta=${encodeURIComponent(cuenta)}&desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}&tercero=${encodeURIComponent(tercero)}`;
       
       window.location.href = url;
   }

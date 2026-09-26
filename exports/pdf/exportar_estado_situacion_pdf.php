@@ -411,7 +411,7 @@ class PDF extends FPDF {
     
     function ChapterTitle($title) {
         $this->SetFont('Arial', 'B', 12);
-        $this->SetFillColor(200, 220, 255);
+        $this->SetFillColor(255, 255, 255);
         $this->Cell(0, 8, convertText($title), 0, 1, 'L', true);
         $this->Ln(2);
     }

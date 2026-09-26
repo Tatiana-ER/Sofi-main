@@ -142,10 +142,10 @@ header('Cache-Control: max-age=0');
     <style>
         table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; }
         th, td { border: 1px solid #000; padding: 8px; font-size: 11px; }
-        th { background-color: #0d6efd; color: white; font-weight: bold; text-align: center; }
+        th { background-color: #054a85; color: white; font-weight: bold; text-align: center; }
         .numero { text-align: right; }
         .header-info { margin-bottom: 20px; font-family: Arial, sans-serif; }
-        .header-info h2 { color: #0d6efd; margin-bottom: 10px; }
+        .header-info h2 { color: #054a85; margin-bottom: 10px; }
         .header-info p { margin: 5px 0; }
         .texto-numerico { mso-number-format:"\@"; } /* Forzar texto para números largos */
         .nit-formato { mso-number-format:"0"; } /* Formato específico para NIT */
