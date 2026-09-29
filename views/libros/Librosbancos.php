@@ -420,7 +420,7 @@ $saldoFinalPeriodo = array_sum($saldoPorCuenta);
         desde: document.querySelector('input[name="desde"]').value,
         hasta: document.querySelector('input[name="hasta"]').value
       });
-      window.location.href = `exportar_bancos_excel.php?${params}`;
+      window.location.href = `../../exports/excel/exportar_bancos_excel.php?${params}`;
     }
 
     function exportarPDF() {
@@ -430,7 +430,7 @@ $saldoFinalPeriodo = array_sum($saldoPorCuenta);
         desde: document.querySelector('input[name="desde"]').value,
         hasta: document.querySelector('input[name="hasta"]').value
       });
-      window.open(`exportar_bancos_pdf.php?${params}`, '_blank');
+      window.open(`../../exports/pdf/exportar_bancos_pdf.php?${params}`, '_blank');
     }
   </script>
 </body>

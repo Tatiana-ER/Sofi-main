@@ -390,7 +390,7 @@ $saldoFinalPeriodo = $saldoCorriente;
         desde: document.querySelector('input[name="desde"]').value,
         hasta: document.querySelector('input[name="hasta"]').value
       });
-      window.location.href = `exportar_movimientocaja_excel.php?${params}`;
+      window.location.href = `../../exports/excel/exportar_movimientocaja_excel.php?${params}`;
     }
 
     function exportarPDF() {
@@ -400,7 +400,7 @@ $saldoFinalPeriodo = $saldoCorriente;
         desde: document.querySelector('input[name="desde"]').value,
         hasta: document.querySelector('input[name="hasta"]').value
       });
-      window.open(`exportar_movimientocaja_pdf.php?${params}`, '_blank');
+      window.open(`../../exports/pdf/exportar_movimientocaja_pdf.php?${params}`, '_blank');
     }
   </script>
 

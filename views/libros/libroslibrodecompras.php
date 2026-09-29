@@ -283,7 +283,7 @@ $totalGeneral = 0;
         hasta: document.querySelector('input[name="hasta"]').value,
         proveedor: document.querySelector('select[name="proveedor"]').value
       });
-      window.location.href = `exportar_librocompras_excel.php?${params}`;
+      window.location.href = `../../exports/excel/exportar_librocompras_excel.php?${params}`;
     }
 
     function exportarPDF() {
@@ -292,7 +292,7 @@ $totalGeneral = 0;
         hasta: document.querySelector('input[name="hasta"]').value,
         proveedor: document.querySelector('select[name="proveedor"]').value
       });
-      window.open(`exportar_librocompras_pdf.php?${params}`, '_blank');
+      window.open(`../../exports/pdf/exportar_librocompras_pdf.php?${params}`, '_blank');
     }
   </script>
 

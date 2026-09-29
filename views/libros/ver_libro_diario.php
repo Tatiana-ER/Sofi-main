@@ -292,8 +292,8 @@ foreach ($movimientos as $mov) {
 
       <?php if (count($movimientos) > 0): ?>
       <div class="mb-3 text-end">
-        <button onclick="window.print()" class="btn-agregar">
-          <i class="fa-solid fa-print"></i> Imprimir
+        <button onclick="window.open('../../exports/pdf/exportar_libro_diario_pdf.php?id=123', '_blank')" class="btn-agregar">
+            <i class="fa-solid fa-print"></i> Exportar a PDF
         </button>
         <a href="../../exports/excel/exportar_excel_libro_diario.php?fecha_inicio=<?= htmlspecialchars($fecha_inicio) ?>&fecha_fin=<?= htmlspecialchars($fecha_fin) ?>" class="btn-agregar-excel">
           <i class="fa-solid fa-file-excel"></i> Exportar a Excel

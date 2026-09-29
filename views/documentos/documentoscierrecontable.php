@@ -57,6 +57,11 @@ $historialCierres = $stmtHistorial->fetchAll(PDO::FETCH_ASSOC);
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cierre Contable</title>
 
+   <!-- Favicons -->
+  <link href="../../assets/img/favicon.png" rel="icon">
+  <link href="../../assets/img/apple-touch-icon.png" rel="apple-touch-icon">
+
+
   <!-- Vendor CSS Files -->
   <link href="../../assets/vendor/animate.css/animate.min.css" rel="stylesheet">
   <link href="../../assets/vendor/aos/aos.css" rel="stylesheet">
