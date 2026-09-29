@@ -2,6 +2,7 @@
 <?php
 require_once '../../config/database.php';
 include('../../classes/LibroDiario.php');
+require_once '../../classes/registrar_eliminacion.php';
 
 
 $pdo = Database::getConnection();
@@ -430,13 +431,18 @@ break;
     try {
         $pdo->beginTransaction();
 
-        // Candado de cierre contable
-        $stmtFechaEliminar = $pdo->prepare("SELECT fecha FROM facturac WHERE id = :id");
-        $stmtFechaEliminar->execute([':id' => $txtId]);
-        $fechaEliminar = $stmtFechaEliminar->fetchColumn();
+        // Obtener TODOS los datos de la factura antes de eliminarla (para el log de auditoría)
+        $stmtFacturaEliminar = $pdo->prepare("SELECT * FROM facturac WHERE id = :id");
+        $stmtFacturaEliminar->execute([':id' => $txtId]);
+        $facturaEliminar = $stmtFacturaEliminar->fetch(PDO::FETCH_ASSOC);
 
-        if ($fechaEliminar && $libroDiario->existeCierreActivoParaFecha($fechaEliminar)) {
-            throw new Exception("No se puede eliminar esta factura: pertenece al año " . date('Y', strtotime($fechaEliminar)) . ", que ya tiene un cierre contable activo.");
+        if (!$facturaEliminar) {
+            throw new Exception("La factura que intenta eliminar no existe.");
+        }
+
+        // Candado de cierre contable
+        if ($libroDiario->existeCierreActivoParaFecha($facturaEliminar['fecha'])) {
+            throw new Exception("No se puede eliminar esta factura: pertenece al año " . date('Y', strtotime($facturaEliminar['fecha'])) . ", que ya tiene un cierre contable activo.");
         }
 
         // Eliminar asientos contables
@@ -479,6 +485,23 @@ break;
         $sentencia->execute();
 
         $pdo->commit();
+
+        // Registrar la eliminación en el historial de auditoría
+        registrarEliminacion(
+            $pdo,
+            obtenerIdUsuarioActual(),
+            obtenerUsuarioActual(),
+            'Factura de Compra',
+            $txtId,
+            $facturaEliminar['numeroFactura'],
+            'Factura Compra #' . $facturaEliminar['numeroFactura'],
+            $facturaEliminar['nombre'],
+            $facturaEliminar['valorTotal'],
+            $facturaEliminar['fecha'],
+            'Subtotal: $' . number_format($facturaEliminar['subtotal'], 2) . ', IVA: $' . number_format($facturaEliminar['ivaTotal'], 2),
+            $facturaEliminar
+        );
+
         header("Location: ".$_SERVER['PHP_SELF']."?msg=eliminado");
         exit;
 
@@ -734,6 +757,39 @@ document.addEventListener("DOMContentLoaded", () => {
   <link href="../../assets/css/improved-style.css" rel="stylesheet">
 
   <style> 
+
+  .modal-documentos-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .modal-documentos-overlay.active {
+    display: flex;
+  }
+
+  .modal-documentos-content {
+    background: white;
+    width: 95%;
+    max-width: 1400px;
+    height: 90vh;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+  }
+
+  .modal-documentos-content iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+  }
+
     input[type="text"] {
       width: 100%;
       box-sizing: border-box;
@@ -875,6 +931,28 @@ document.addEventListener("DOMContentLoaded", () => {
     width: 220px;
     min-width: 220px;
     max-width: 220px;
+    }
+
+    /* Botón "Documentos Eliminados": acción secundaria de auditoría,
+       se distingue a propósito del azul de Agregar/Modificar con un
+       gris neutro (mismo tono que Cancelar), y queda en la misma fila. */
+    .btn-eliminados {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      background-color: #6c757d;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .btn-eliminados:hover {
+      background-color: #565e64;
     }
   </style>
 
@@ -1191,6 +1269,9 @@ document.addEventListener("DOMContentLoaded", () => {
           <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion">Modificar</button>
           <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion">Eliminar</button>
           <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">Cancelar</button>
+          <button type="button" class="btn-eliminados" onclick="abrirModalDocumentosEliminados()">
+            <i class="fa-solid fa-trash-can"></i> Documentos Eliminados
+          </button>
         </div>
       </form>
 
@@ -1369,6 +1450,31 @@ document.addEventListener("DOMContentLoaded", () => {
 </div>
         
         <script>
+
+        function abrirModalDocumentosEliminados() {
+            const overlay = document.getElementById('modalDocumentosEliminados');
+            const iframe = document.getElementById('iframeDocumentosEliminados');
+            // "tipo" filtra automáticamente para mostrar solo los eliminados de este módulo
+            iframe.src = 'documentos_eliminados.php?tipo=' + encodeURIComponent('Factura de Compra');
+            overlay.classList.add('active');
+            document.body.style.overflow = 'hidden'; // evita scroll de fondo
+        }
+
+        function cerrarModalDocumentosEliminados() {
+            const overlay = document.getElementById('modalDocumentosEliminados');
+            const iframe = document.getElementById('iframeDocumentosEliminados');
+            overlay.classList.remove('active');
+            iframe.src = ''; // limpia el iframe (resetea filtros al reabrir)
+            document.body.style.overflow = '';
+        }
+
+        // Escucha el aviso que manda el iframe cuando el usuario da clic en la "X"
+        window.addEventListener('message', function(event) {
+            if (event.data === 'cerrarModalDocumentos') {
+                cerrarModalDocumentosEliminados();
+            }
+        });
+
         // Obtener consecutivo cuando el usuario selecciona el Tipo de Factura (idParametro)
         document.getElementById('idParametro').addEventListener('change', function() {
             const idParametroSel = this.value;
@@ -2318,6 +2424,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
   <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/asistente/asistente-widget.php'; ?>
   <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/notificaciones/notificaciones-widget.php'; ?>
+
+  <!-- Modal flotante para Documentos Eliminados -->
+  <div class="modal-documentos-overlay" id="modalDocumentosEliminados">
+    <div class="modal-documentos-content">
+      <iframe id="iframeDocumentosEliminados" src=""></iframe>
+    </div>
+  </div>
 
 </body>
 

@@ -1,29 +1,39 @@
 <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/auth_check.php'; ?>
 <?php
-
-// Configuración de conexión a la base de datos
-$host = 'localhost';
-$dbname = 'sofi';
-$username = 'root';  // Cambiar según tu configuración
-$password = '';      // Cambiar según tu configuración
+require_once '../../config/database.php';
 
 try {
-    $conn = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
-    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-} catch(PDOException $e) {
+    $conn = Database::getConnection();
+} catch (Exception $e) {
     die("Error de conexión: " . $e->getMessage());
 }
 
 // Filtros
-$filtro_tipo = isset($_GET['tipo']) ? $_GET['tipo'] : '';
+$filtro_tipo = isset($_GET['tipo']) ? $_GET['tipo'] : ''; // Viene del módulo que abre el modal (no es seleccionable por el usuario)
 $filtro_fecha_inicio = isset($_GET['fecha_inicio']) ? $_GET['fecha_inicio'] : '';
 $filtro_fecha_fin = isset($_GET['fecha_fin']) ? $_GET['fecha_fin'] : '';
 $filtro_usuario = isset($_GET['usuario']) ? $_GET['usuario'] : '';
 
 // Construir consulta con filtros
-$sql = "SELECT * FROM documentos_eliminados WHERE 1=1";
+$sql = "SELECT
+            id,
+            nombre_usuario,
+            tipo_documento,
+            id_documento,
+            numero_documento,
+            nombre_documento,
+            tercero,
+            total,
+            fecha_documento,
+            fecha_eliminacion,
+            hora_eliminacion,
+            detalles
+        FROM documentos_eliminados WHERE 1=1";
 $params = array();
 
+// Filtro automático por módulo: solo se aplica si el módulo que abrió el
+// modal envió un tipo (ej. "Factura de Venta"). No hay selector para esto,
+// cada módulo trae consigo su propio tipo de documento.
 if (!empty($filtro_tipo)) {
     $sql .= " AND tipo_documento = :tipo";
     $params[':tipo'] = $filtro_tipo;
@@ -50,14 +60,16 @@ $stmt = $conn->prepare($sql);
 $stmt->execute($params);
 $documentos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Obtener tipos de documentos únicos para el filtro
-$sql_tipos = "SELECT DISTINCT tipo_documento FROM documentos_eliminados ORDER BY tipo_documento";
-$stmt_tipos = $conn->query($sql_tipos);
-$tipos_documentos = $stmt_tipos->fetchAll(PDO::FETCH_COLUMN);
-
-// Obtener usuarios únicos para el filtro
-$sql_usuarios = "SELECT DISTINCT nombre_usuario FROM documentos_eliminados ORDER BY nombre_usuario";
-$stmt_usuarios = $conn->query($sql_usuarios);
+// Obtener usuarios únicos para el filtro (respetando el tipo ya fijado por el módulo)
+$sql_usuarios = "SELECT DISTINCT nombre_usuario FROM documentos_eliminados WHERE 1=1";
+$params_usuarios = array();
+if (!empty($filtro_tipo)) {
+    $sql_usuarios .= " AND tipo_documento = :tipo";
+    $params_usuarios[':tipo'] = $filtro_tipo;
+}
+$sql_usuarios .= " ORDER BY nombre_usuario";
+$stmt_usuarios = $conn->prepare($sql_usuarios);
+$stmt_usuarios->execute($params_usuarios);
 $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
 ?>
 
@@ -67,11 +79,19 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Documentos Eliminados - SOFI</title>
+    <link href="https://fonts.googleapis.com/css?family=Poppins:500,600,700|Inter:400,500,600" rel="stylesheet">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Poppins para títulos y encabezados de sección (tabla, badges) */
+        thead th,
+        .badge {
+            font-family: 'Poppins', sans-serif;
         }
 
         body {
@@ -314,22 +334,16 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
             &times;
         </button>
 
+        <?php if (!empty($filtro_tipo)): ?>
+            <h3 style="font-family:'Poppins',sans-serif; color:#103669; font-size:18px; margin-bottom:18px;">
+                🗑️ Documentos eliminados — <?php echo htmlspecialchars($filtro_tipo); ?>
+            </h3>
+        <?php endif; ?>
+
         <!-- Filtros -->
         <form method="GET" action="">
+            <input type="hidden" name="tipo" value="<?php echo htmlspecialchars($filtro_tipo); ?>">
             <div class="filters">
-                <div class="filter-group">
-                    <label>Tipo de Documento</label>
-                    <select name="tipo">
-                        <option value="">Todos</option>
-                        <?php foreach ($tipos_documentos as $tipo): ?>
-                            <option value="<?php echo htmlspecialchars($tipo); ?>" 
-                                <?php echo ($filtro_tipo == $tipo) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($tipo); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
                 <div class="filter-group">
                     <label>Usuario</label>
                     <select name="usuario">
@@ -355,7 +369,7 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
 
                 <div class="filter-actions">
                     <button type="submit" class="btn-filter">🔍 Filtrar</button>
-                    <a href="documentos_eliminados.php" class="btn-clear">✖️ Limpiar</a>
+                    <a href="documentos_eliminados.php?tipo=<?php echo urlencode($filtro_tipo); ?>" class="btn-clear">✖️ Limpiar</a>
                 </div>
             </div>
         </form>
@@ -405,9 +419,9 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
                                         <?php echo htmlspecialchars($doc['tipo_documento']); ?>
                                     </span>
                                 </td>
-                                <td><?php echo htmlspecialchars($doc['numero_documento']); ?></td>
-                                <td><?php echo htmlspecialchars($doc['nombre_documento']); ?></td>
-                                <td><?php echo htmlspecialchars($doc['tercero']); ?></td>
+                                <td><?php echo htmlspecialchars($doc['numero_documento'] ?? ''); ?></td>
+                                <td><?php echo htmlspecialchars($doc['nombre_documento'] ?? ''); ?></td>
+                                <td><?php echo htmlspecialchars($doc['tercero'] ?? ''); ?></td>
                                 <td class="total-money">
                                     <?php echo $doc['total'] ? '$' . number_format($doc['total'], 2) : '-'; ?>
                                 </td>
@@ -416,7 +430,7 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
                                 </td>
                                 <td><?php echo date('d/m/Y', strtotime($doc['fecha_eliminacion'])); ?></td>
                                 <td><?php echo date('h:i A', strtotime($doc['hora_eliminacion'])); ?></td>
-                                <td><?php echo htmlspecialchars($doc['detalles']); ?></td>
+                                <td><?php echo htmlspecialchars($doc['detalles'] ?? ''); ?></td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>

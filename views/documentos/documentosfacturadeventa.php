@@ -882,6 +882,28 @@ document.addEventListener("DOMContentLoaded", () => {
     min-width: 220px;
     max-width: 220px;
     }
+
+    /* Botón "Documentos Eliminados": acción secundaria de auditoría,
+       se distingue a propósito del azul de Agregar/Modificar con un
+       gris neutro (mismo tono que Cancelar), y queda en la misma fila. */
+    .btn-eliminados {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      background-color: #6c757d;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    .btn-eliminados:hover {
+      background-color: #565e64;
+    }
   </style>
   </style>
 
@@ -1179,13 +1201,9 @@ document.addEventListener("DOMContentLoaded", () => {
           <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion">Modificar</button>
           <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion">Eliminar</button>
           <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">Cancelar</button>
-        </div>
-
-        <!-- Botón Documentos Eliminados -->
-        <div class="mt-2">
-        <button type="button" class="btn-ir" onclick="abrirModalDocumentosEliminados()" style="background-color:#103669;">
+          <button type="button" class="btn-eliminados" onclick="abrirModalDocumentosEliminados()">
             <i class="fa-solid fa-trash-can"></i> Documentos Eliminados
-        </button>
+          </button>
         </div>
 
       </form>
@@ -1313,7 +1331,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 function abrirModalDocumentosEliminados() {
             const overlay = document.getElementById('modalDocumentosEliminados');
             const iframe = document.getElementById('iframeDocumentosEliminados');
-            iframe.src = 'documentos_eliminados.php'; // se carga cada vez que se abre
+            // "tipo" filtra automáticamente para mostrar solo los eliminados de este módulo
+            iframe.src = 'documentos_eliminados.php?tipo=' + encodeURIComponent('Factura de Venta');
             overlay.classList.add('active');
             document.body.style.overflow = 'hidden'; // evita scroll de fondo
         }

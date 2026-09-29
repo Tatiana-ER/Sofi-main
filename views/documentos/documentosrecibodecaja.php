@@ -2,6 +2,7 @@
 <?php
 require_once '../../config/database.php';
 include('../../classes/LibroDiario.php');
+require_once '../../classes/registrar_eliminacion.php';
 
 
 $pdo = Database::getConnection();
@@ -487,6 +488,15 @@ switch($accion) {
       try {
           $pdo->beginTransaction();
 
+          // Obtener TODOS los datos del recibo antes de eliminarlo (para el log de auditoría)
+          $stmtReciboEliminar = $pdo->prepare("SELECT * FROM docrecibodecaja WHERE id = :id");
+          $stmtReciboEliminar->execute([':id' => $txtId]);
+          $reciboEliminar = $stmtReciboEliminar->fetch(PDO::FETCH_ASSOC);
+
+          if (!$reciboEliminar) {
+              throw new Exception("El recibo que intenta eliminar no existe.");
+          }
+
           // Candado de cierre contable
           $stmtFechaEliminar = $pdo->prepare("SELECT fecha FROM docrecibodecaja WHERE id = :id");
           $stmtFechaEliminar->execute([':id' => $txtId]);
@@ -508,6 +518,23 @@ switch($accion) {
           $sentencia->execute();
           
           $pdo->commit();
+
+          // Registrar la eliminación en el historial de auditoría
+          registrarEliminacion(
+              $pdo,
+              obtenerIdUsuarioActual(),
+              obtenerUsuarioActual(),
+              'Recibo de Caja',
+              $txtId,
+              $reciboEliminar['consecutivo'],
+              'Recibo #' . $reciboEliminar['consecutivo'],
+              $reciboEliminar['nombre'],
+              $reciboEliminar['valorTotal'],
+              $reciboEliminar['fecha'],
+              'Aplicado a factura(s): ' . $reciboEliminar['numeroFactura'] . ', Forma de pago: ' . $reciboEliminar['formaPago'],
+              $reciboEliminar
+          );
+
           header("Location: " . $_SERVER['PHP_SELF'] . "?msg=eliminado");
           exit();
           
@@ -839,6 +866,60 @@ document.addEventListener("DOMContentLoaded", () => {
   min-width: 220px;
   max-width: 220px;
 }
+
+.modal-documentos-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 9999;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-documentos-overlay.active {
+  display: flex;
+}
+
+.modal-documentos-content {
+  background: white;
+  width: 95%;
+  max-width: 1400px;
+  height: 90vh;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+}
+
+.modal-documentos-content iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+/* Botón "Documentos Eliminados": acción secundaria de auditoría,
+   se distingue a propósito del azul de Agregar/Modificar con un
+   gris neutro (mismo tono que Cancelar), y queda en la misma fila. */
+.btn-eliminados {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background-color: #6c757d;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.btn-eliminados:hover {
+  background-color: #565e64;
+}
   </style>
 </head>
 
@@ -1028,6 +1109,9 @@ document.addEventListener("DOMContentLoaded", () => {
           <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">
             <i class="fas fa-times"></i> Cancelar
           </button>
+          <button type="button" class="btn-eliminados" onclick="abrirModalDocumentosEliminados()">
+            <i class="fa-solid fa-trash-can"></i> Documentos Eliminados
+          </button>
         </div>
       </form>
 
@@ -1124,6 +1208,30 @@ document.addEventListener("DOMContentLoaded", () => {
   <script>
     // Variable global para modo edición
     let modoEdicion = false;
+
+    function abrirModalDocumentosEliminados() {
+        const overlay = document.getElementById('modalDocumentosEliminados');
+        const iframe = document.getElementById('iframeDocumentosEliminados');
+        // "tipo" filtra automáticamente para mostrar solo los eliminados de este módulo
+        iframe.src = 'documentos_eliminados.php?tipo=' + encodeURIComponent('Recibo de Caja');
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function cerrarModalDocumentosEliminados() {
+        const overlay = document.getElementById('modalDocumentosEliminados');
+        const iframe = document.getElementById('iframeDocumentosEliminados');
+        overlay.classList.remove('active');
+        iframe.src = '';
+        document.body.style.overflow = '';
+    }
+
+    // Escucha el aviso que manda el iframe cuando el usuario da clic en la "X"
+    window.addEventListener('message', function(event) {
+        if (event.data === 'cerrarModalDocumentos') {
+            cerrarModalDocumentosEliminados();
+        }
+    });
 
     // Obtener consecutivo
     window.addEventListener('DOMContentLoaded', function() {
@@ -1730,6 +1838,16 @@ document.addEventListener('DOMContentLoaded', function() {
   <script src="../../assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="../../assets/vendor/glightbox/js/glightbox.min.js"></script>
   <script src="../../assets/js/main.js"></script>
+
+  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/asistente/asistente-widget.php'; ?>
+  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/notificaciones/notificaciones-widget.php'; ?>
+
+  <!-- Modal flotante para Documentos Eliminados -->
+  <div class="modal-documentos-overlay" id="modalDocumentosEliminados">
+    <div class="modal-documentos-content">
+      <iframe id="iframeDocumentosEliminados" src=""></iframe>
+    </div>
+  </div>
 
 </body>
 </html>
