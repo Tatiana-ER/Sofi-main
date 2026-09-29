@@ -1,9 +1,11 @@
 <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/auth_check.php'; ?>
 <?php
 require_once '../../config/database.php';
+require_once '../../classes/Permisos.php';
+Permisos::exigirVer('doc_recibocaja');
+$puedeEditar = Permisos::puede('doc_recibocaja', 'editar');
 include('../../classes/LibroDiario.php');
 require_once '../../classes/registrar_eliminacion.php';
-
 
 $pdo = Database::getConnection();
 $libroDiario = new LibroDiario($pdo);
@@ -903,22 +905,17 @@ document.addEventListener("DOMContentLoaded", () => {
    se distingue a propósito del azul de Agregar/Modificar con un
    gris neutro (mismo tono que Cancelar), y queda en la misma fila. */
 .btn-eliminados {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
   background-color: #6c757d;
-  color: #fff;
+  color: white;
+  padding: 10px 20px;
   border: none;
-  border-radius: 6px;
-  font-weight: 600;
+  border-radius: 10px;
   cursor: pointer;
-  transition: background-color 0.2s;
-  margin-left: 8px;
-  vertical-align: middle;
+  margin-top: 20px;
+  margin-left: 10px;
 }
 .btn-eliminados:hover {
-  background-color: #565e64;
+  background-color: #5a6268;
 }
   </style>
 </head>
@@ -1097,21 +1094,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
         <!-- Botones -->
         <div class="mt-4 mb-4">
-          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar" name="accion">
-            <i class="fas fa-save"></i> Guardar Recibo
-          </button>
-          <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion" style="display:none;">
-            <i class="fas fa-edit"></i> Modificar
-          </button>
-          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion" style="display:none;">
-            <i class="fas fa-trash"></i> Eliminar
-          </button>
-          <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">
-            <i class="fas fa-times"></i> Cancelar
-          </button>
-          <button type="button" class="btn-eliminados" onclick="abrirModalDocumentosEliminados()">
-            <i class="fa-solid fa-trash-can"></i> Documentos Eliminados
-          </button>
+            <?php if ($puedeEditar): ?>
+              <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar" name="accion">
+                <i class="fas fa-save"></i> Guardar Recibo
+              </button>
+            <?php endif; ?>
+            <?php if ($puedeEditar): ?>
+              <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion" style="display:none;">
+                <i class="fas fa-edit"></i> Modificar
+              </button>
+            <?php endif; ?>
+            <?php if ($puedeEditar): ?>
+              <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion" style="display:none;">
+                <i class="fas fa-trash"></i> Eliminar
+              </button>
+            <?php endif; ?>
+            <?php if ($puedeEditar): ?>
+              <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">
+                <i class="fas fa-times"></i> Cancelar
+              </button>
+            <?php endif; ?>
+            <?php if ($puedeEditar): ?>
+              <button type="button" class="btn-eliminados" onclick="abrirModalDocumentosEliminados()">
+                <i class="fa-solid fa-trash-can"></i> Documentos Eliminados
+              </button>
+            <?php endif; ?>
         </div>
       </form>
 
@@ -1150,6 +1157,7 @@ document.addEventListener("DOMContentLoaded", () => {
                   <td><strong style="color: #198754;">$<?php echo number_format($recibo['valorTotal'], 2); ?></strong></td>
                   <td><?php echo htmlspecialchars($recibo['formaPago']); ?></td>
                   <td class="text-center">
+                    <?php if ($puedeEditar): ?>
                     <div class="dropdown">
                       <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
                         <i class="fas fa-ellipsis-vertical"></i>
@@ -1183,6 +1191,11 @@ document.addEventListener("DOMContentLoaded", () => {
                         <li><a class="dropdown-item" href="../../exports/excel/generar_excel_recibo_caja.php?id=<?php echo $recibo['id']; ?>" target="_blank"><i class="fas fa-file-excel me-2"></i>Descargar Excel</a></li>
                       </ul>
                     </div>
+                    <?php else: ?>
+                    <span class="text-muted" title="Sin permiso de edición">
+                        <i class="fas fa-lock"></i>
+                    </span>
+                    <?php endif; ?>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -1203,7 +1216,13 @@ document.addEventListener("DOMContentLoaded", () => {
   <footer id="footer" class="footer-minimalista">
     <p>Universidad de Santander - Ingeniería de Software</p>
     <p>Todos los derechos reservados © 2025</p>
+    <p>Creado por iniciativa del programa de Contaduría Pública</p>
   </footer>
+
+  <div id="preloader"></div>
+  <a href="#" class="back-to-top d-flex align-items-center justify-content-center">
+    <i class="bi bi-arrow-up-short"></i>
+  </a>
 
   <script>
     // Variable global para modo edición

@@ -1,6 +1,9 @@
 <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/auth_check.php'; ?>
 <?php
 require_once '../../config/database.php';
+require_once '../../classes/Permisos.php';
+Permisos::exigirVer('cat_cuentascontables');
+$puedeEditar = Permisos::puede('cat_cuentascontables', 'editar');
 
 $pdo = Database::getConnection();
 
@@ -331,10 +334,18 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
 
         <div class="mt-4">
-          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar" name="accion">Agregar</button>
-          <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion">Modificar</button>
-          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion">Eliminar</button>
-          <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">Cancelar</button>
+          <?php if ($puedeEditar): ?>
+            <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar" name="accion">Agregar</button>
+          <?php endif; ?>
+          <?php if ($puedeEditar): ?>
+            <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion">Modificar</button>
+          <?php endif; ?>
+          <?php if ($puedeEditar): ?>
+            <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion">Eliminar</button>
+          <?php endif; ?>
+          <?php if ($puedeEditar): ?>
+            <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">Cancelar</button>
+          <?php endif; ?>
         </div>
 
       </form>
@@ -504,6 +515,7 @@ document.addEventListener("DOMContentLoaded", () => {
                           <!-- ACCIONES -->
                           <td class="text-center">
 
+                              <?php if ($puedeEditar): ?>
                               <div class="dropdown">
 
                                   <button class="btn btn-sm btn-outline-secondary"
@@ -573,6 +585,11 @@ document.addEventListener("DOMContentLoaded", () => {
                                   </ul>
 
                               </div>
+                              <?php else: ?>
+                              <span class="text-muted" title="Sin permiso de edición">
+                                  <i class="fas fa-lock"></i>
+                              </span>
+                              <?php endif; ?>
 
                           </td>
 
@@ -613,10 +630,11 @@ document.addEventListener("DOMContentLoaded", () => {
           const cuenta = celdas[2].textContent.toLowerCase();
           const subcuenta = celdas[3].textContent.toLowerCase();
           const auxiliar = celdas[4].textContent.toLowerCase();
-          const modulo = celdas[5].innerHTML.includes('check-circle') ? 'si' : 'no';
-          const naturaleza = celdas[6].textContent.toLowerCase();
-          const cartera = celdas[7].innerHTML.includes('check-circle') ? 'si' : 'no';
-          const activa = celdas[8].innerHTML.includes('check-circle') ? 'si' : 'no';
+          const configItems = celdas[5].querySelectorAll('.configuracion-item');
+          const modulo  = configItems[0]?.innerHTML.includes('check-circle') ? 'si' : 'no';
+          const cartera = configItems[1]?.innerHTML.includes('check-circle') ? 'si' : 'no';
+          const activa  = configItems[2]?.innerHTML.includes('check-circle') ? 'si' : 'no';
+          const naturaleza = celdas[6].textContent.trim().toLowerCase();
 
           const coincide = 
             clase.includes(filtroClase) &&
@@ -895,7 +913,7 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('subcuenta').innerHTML = '<option value="">Selecciona una subcuenta...</option>';
         document.getElementById('subcuenta').disabled = true;
 
-        const chkActivo = document.querySelector('input[name="activo"]');
+        const chkActivo = document.querySelector('input[name="activa"]');
         if (chkActivo) chkActivo.checked = true;
 
         const txtId = document.getElementById("txtId");
@@ -1045,6 +1063,11 @@ document.addEventListener("DOMContentLoaded", () => {
     <p>Todos los derechos reservados © 2025</p>
     <p>Creado por iniciativa del programa de Contaduría Pública</p>
   </footer>
+
+  <div id="preloader"></div>
+  <a href="#" class="back-to-top d-flex align-items-center justify-content-center">
+    <i class="bi bi-arrow-up-short"></i>
+  </a>
 
   <script src="../../assets/vendor/aos/aos.js"></script>
   <script src="../../assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>

@@ -2,6 +2,9 @@
 <?php
 // ================== CONEXIÓN ==================
 require_once '../../config/database.php';
+require_once '../../classes/Permisos.php';
+Permisos::exigirVer('lib_estadoresultados');
+$puedeEditar = Permisos::puede('lib_estadoresultados', 'editar');
 
 $pdo = Database::getConnection();
 
@@ -664,12 +667,16 @@ $lista_terceros = array_values($terceros_unificados);
       <!-- Botones de exportación -->
       <?php if (count($ingresos) > 0 || count($costos) > 0 || count($gastos) > 0): ?>
       <div class="mb-3 text-end">
-        <button onclick="exportarPDF()" class="btn-agregar">
-          <i class="fa-solid fa-file-pdf"></i> Exportar PDF
-        </button>
-        <button onclick="exportarExcel()" class="btn-agregar-excel">
-          <i class="fa-solid fa-file-excel"></i> Exportar Excel
-        </button>
+        <?php if ($puedeEditar): ?>
+            <button onclick="exportarPDF()" class="btn-agregar">
+            <i class="fa-solid fa-file-pdf"></i> Exportar PDF
+            </button>
+        <?php endif; ?>
+        <?php if ($puedeEditar): ?>
+            <button onclick="exportarExcel()" class="btn-agregar-excel">
+            <i class="fa-solid fa-file-excel"></i> Exportar Excel
+            </button>
+        <?php endif; ?>
       </div>
       <?php endif; ?>
 

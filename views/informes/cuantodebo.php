@@ -1,5 +1,8 @@
 <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/auth_check.php'; ?>
 <?php
+require_once '../../classes/Permisos.php';
+Permisos::exigirVer('inf_proveedores');
+$puedeEditar = Permisos::puede('inf_proveedores', 'editar');
 // Solo procesa si viene POST con 'fetchProveedor'
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'fetchProveedor') {
     header('Content-Type: application/json');
@@ -333,12 +336,16 @@ if (isset($_POST['es_ajax']) && $_POST['es_ajax'] == 'proveedor') {
           <button type="button" class="btn-cancelar" onclick="limpiarTabla()">
             <i class="fas fa-eraser"></i> Limpiar Tabla
           </button>
-          <button type="button" class="btn-agregar" onclick="generarPDF()">
-            <i class="fas fa-file-pdf"></i> Generar PDF
-          </button>
-          <button type="button" class="btn-agregar-excel" onclick="exportarExcel()">
-            <i class="fas fa-file-excel"></i> Generar Excel
-          </button>
+          <?php if ($puedeEditar): ?>
+            <button type="button" class="btn-agregar" onclick="generarPDF()">
+              <i class="fas fa-file-pdf"></i> Generar PDF
+            </button>
+          <?php endif; ?>
+          <?php if ($puedeEditar): ?>
+            <button type="button" class="btn-agregar-excel" onclick="exportarExcel()">
+              <i class="fas fa-file-excel"></i> Generar Excel
+            </button>
+          <?php endif; ?>
         </div>
 
       </form>

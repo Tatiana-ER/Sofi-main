@@ -2,6 +2,9 @@
 <?php
 // ================== CONEXIÓN ==================
 require_once '../../config/database.php';
+require_once '../../classes/Permisos.php';
+Permisos::exigirVer('lib_estadosituacion');
+$puedeEditar = Permisos::puede('lib_estadosituacion', 'editar');
 
 $pdo = Database::getConnection();
 
@@ -775,12 +778,16 @@ $esta_equilibrado = abs($diferencia) < 0.01;
       <!-- Botones de exportación -->
       <?php if (count($activos) > 0 || count($pasivos) > 0 || count($patrimonios) > 0): ?>
       <div class="mb-3 text-end">
-        <button onclick="exportarPDF()" class="btn-agregar">
-          <i class="fa-solid fa-file-pdf"></i> Exportar PDF
-        </button>
-        <button onclick="exportarExcel()" class="btn-agregar-excel">
-          <i class="fa-solid fa-file-excel"></i> Exportar Excel
-        </button>
+        <?php if ($puedeEditar): ?>
+            <button onclick="exportarPDF()" class="btn-agregar">
+            <i class="fa-solid fa-file-pdf"></i> Exportar PDF
+            </button>
+        <?php endif; ?>
+        <?php if ($puedeEditar): ?>
+            <button onclick="exportarExcel()" class="btn-agregar-excel">
+            <i class="fa-solid fa-file-excel"></i> Exportar Excel
+            </button>
+        <?php endif; ?>
       </div>
       <?php endif; ?>
 

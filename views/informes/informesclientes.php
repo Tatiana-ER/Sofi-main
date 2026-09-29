@@ -91,17 +91,16 @@
             <p>El formulario Edades de Cartera clasifica las cuentas por cobrar según su antigüedad (0-30, 31-60, 61-90 y más de 90 días), facilitando la evaluación de cobros, detección de riesgos e implementación de políticas de crédito para un mejor control financiero.</p>
           </div>
         </div>
-
     </div>
     <br><br><br>
   </section><!-- End Services Section -->
 
-    <!-- ======= Footer ======= -->
-    <footer id="footer" class="footer-minimalista">
-      <p>Universidad de Santander - Ingeniería de Software</p>
-      <p>Todos los derechos reservados © 2025</p>
-      <p>Creado por iniciativa del programa de Contaduría Pública</p>
-    </footer><!-- End Footer -->
+  <!-- ======= Footer ======= -->
+  <footer id="footer" class="footer">
+    <p>Universidad de Santander - Ingeniería de Software</p>
+    <p>Todos los derechos reservados © 2025</p>
+    <p>Creado por iniciativa del programa de Contaduría Pública</p>
+  </footer><!-- End Footer -->
 
 
   <!-- Vendor JS Files -->
@@ -115,7 +114,7 @@
   <!-- Template Main JS File -->
   <script src="../../assets/js/main.js"></script>
 
-    <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/asistente/asistente-widget.php'; ?>
+  <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/asistente/asistente-widget.php'; ?>
   <?php include $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/assets/notificaciones/notificaciones-widget.php'; ?>
 
 </body>

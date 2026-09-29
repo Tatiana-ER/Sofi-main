@@ -52,8 +52,13 @@
           <li>
             <a class="nav-link scrollto active" href="perfil.php" style="color: darkblue;">Mi Negocio</a>
           </li>
+          <?php if (($_SESSION['rol_id'] ?? null) == 1): ?>
           <li>
-            <a class="nav-link scrolto active" href="inicioSesion/cerrarSesion.php" style="color: darkblue;">Cerrar Sesión</a>
+            <a class="nav-link scrollto active" href="views/usuarios/usuarios.php" style="color: darkblue;">Usuarios</a>
+          </li>
+          <?php endif; ?>
+          <li>
+            <a class="nav-link scrollto active" href="inicioSesion/cerrarSesion.php" style="color: darkblue;">Cerrar Sesión</a>
           </li>
         </ul>
         

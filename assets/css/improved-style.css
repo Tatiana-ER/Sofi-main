@@ -381,49 +381,62 @@ button {
   margin-bottom: 0;
 }
 
-/* Footer Improvements */
+/* ===== Footer ===== */
 #footer {
-  background:#050d63;
-  color: #e5e7eb;
-  text-align: center;
-  position: relative;
-}
-
-#footer::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, #374151, transparent);
-}
-
-.footer-top {
-  padding: 60px 0 40px;
-}
-
-.copyright {
+  background: linear-gradient(135deg, #0b1e4d);
+  color: #e6ecff;
   text-align: center;
   padding: 30px 0;
-  border-top: 1px solid #374151;
-  margin-top: 40px;
-  color: #9ca3af;
 }
 
-/* Back to top button */
+#footer p {
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+}
+
+#footer .copyright {
+  font-weight: 500;
+}
+
+/* ===== Botón Back to Top Mejorado (Alineado a la Izquierda) ===== */
 .back-to-top {
-  background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+  position: fixed; /* Flota de forma fija en la ventana */
+  left: 25px;      /* Ubicado a la izquierda de la pantalla */
+  bottom: 25px;     /* Distancia desde el borde inferior */
+  z-index: 999;     /* Se mantiene por encima de cualquier otro elemento */
+  
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
-  width: 50px;
-  height: 50px;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-lg);
+  
+  background: #103669; 
+  color: #ffffff;
+  
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  text-decoration: none;
+  
+  opacity: 0.9;
 }
 
+/* Alineación y tamaño de la flecha */
+.back-to-top i {
+  font-size: 28px;
+  line-height: 0; /* Centra perfectamente el icono dentro del círculo */
+  color: #ffffff;
+}
+
+/* Efectos interactivos al pasar el cursor (Hover) */
 .back-to-top:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--shadow-xl);
+  transform: translateY(-5px) scale(1.05);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+  color: #ffffff;
+  opacity: 1;
+}
+
+/* Efecto al presionar (Active) */
+.back-to-top:active {
+  transform: translateY(-2px) scale(0.98);
 }
 
 /* Responsive Design */
@@ -1016,6 +1029,45 @@ form {
     .btn-limpiar:hover {
       background-color: #5a6268;
     }
+
+    .btn-crear {
+      background-color: #103669;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      padding: 0 20px; /* Quitamos el padding vertical o lo dejamos en 0 */
+      height: 37px;
+      
+      /* Flexbox para centrar texto vertical y horizontalmente */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-crear:hover {
+      background-color: #0855a7;
+    }
+
+    .btn-crear-rol {
+      background-color: #6c757d;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      padding: 0 20px; /* Quitamos el padding vertical o lo dejamos en 0 */
+      height: 37px;
+      
+      /* Flexbox para centrar texto vertical y horizontalmente */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-crear-rol:hover {
+      background-color: #5a6268;
+    }
+
     .total-row {
       font-weight: bold;
       background-color: #e9ecef;

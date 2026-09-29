@@ -1,7 +1,9 @@
 <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/auth_check.php'; ?>
 <?php
 require_once '../../config/database.php';
-
+require_once '../../classes/Permisos.php';
+Permisos::exigirVer('inf_inventarios');
+$puedeEditar = Permisos::puede('inf_inventarios', 'editar');
 
 $pdo = Database::getConnection();
 
@@ -182,7 +184,7 @@ $movimientos = $sentenciaMovimientos->fetchAll(PDO::FETCH_ASSOC);
   </style>
 </head>
 
-<body class="p-4">
+<body>
 
   <header id="header" class="fixed-top d-flex align-items-center">
     <div class="container d-flex align-items-center justify-content-between">
@@ -203,12 +205,12 @@ $movimientos = $sentenciaMovimientos->fetchAll(PDO::FETCH_ASSOC);
     </div>
   </header>
 
-  <div class="container" style="margin-top: 80px;">
-
-    <!-- Botón de Regresar -->
-    <button class="btn-ir" onclick="window.location.href='informesinventarios.php'">
-      <i class="fa-solid fa-arrow-left"></i> Regresar
-    </button>
+  <section id="services" class="services">
+  <!-- Botón de Regresar -->
+  <button class="btn-ir" onclick="window.location.href='informesinventarios.php'">
+    <i class="fa-solid fa-arrow-left"></i> Regresar
+  </button>
+  <div class="container" data-aos="fade-up">
 
     <div class="container" data-aos="fade-up">
 
@@ -332,12 +334,16 @@ $movimientos = $sentenciaMovimientos->fetchAll(PDO::FETCH_ASSOC);
       <!-- Botón de Descarga -->
       <?php if (count($movimientos) > 0): ?>
       <div class="mt-4 text-center">
-        <button type="button" class="btn-agregar" onclick="generarPDF()">
-          <i class="fas fa-file-pdf"></i> Descargar PDF
-        </button>
-        <button type="button" class="btn-agregar-excel" onclick="exportarExcel()">
-          <i class="fas fa-file-excel"></i> Descargar Excel
-        </button>
+        <?php if ($puedeEditar): ?>
+          <button type="button" class="btn-agregar" onclick="generarPDF()">
+            <i class="fas fa-file-pdf"></i> Descargar PDF
+          </button>
+        <?php endif; ?>
+        <?php if ($puedeEditar): ?>
+          <button type="button" class="btn-agregar-excel" onclick="exportarExcel()">
+            <i class="fas fa-file-excel"></i> Descargar Excel
+          </button>
+        <?php endif; ?>
       </div>
       <?php endif; ?>
 
@@ -356,6 +362,9 @@ $movimientos = $sentenciaMovimientos->fetchAll(PDO::FETCH_ASSOC);
     <input type="hidden" name="filtros" id="filtrosExcel">
   </form>
 <br>
+
+</section>
+
   <!-- Footer -->
   <footer id="footer" class="footer-minimalista">
     <p>Universidad de Santander - Ingeniería de Software</p>

@@ -2,6 +2,9 @@
 <?php
 
 require_once '../config/database.php';
+require_once '../classes/Permisos.php';
+Permisos::exigirVer('doc_comprobanteegreso');
+$puedeEditar = Permisos::puede('doc_comprobanteegreso', 'editar');
 
 
 $pdo = Database::getConnection();
@@ -241,10 +244,18 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
 
         <div class="mt-4">
-          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar"  name="accion" >Guardar</button>
-          <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar"  name="accion" >Modificar</button>
-          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item"  name="accion" >Eliminar</button>
-          <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">Cancelar</button>
+          <?php if ($puedeEditar): ?>
+            <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar"  name="accion" >Guardar</button>
+          <?php endif; ?>
+          <?php if ($puedeEditar): ?>
+            <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar"  name="accion" >Modificar</button>
+          <?php endif; ?>
+          <?php if ($puedeEditar): ?>
+            <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item"  name="accion" >Eliminar</button>
+          <?php endif; ?>
+          <?php if ($puedeEditar): ?>
+            <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">Cancelar</button>
+          <?php endif; ?>
         </div>
 
       </form>

@@ -1,5 +1,8 @@
 <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/auth_check.php'; ?>
 <?php
+require_once '../../classes/Permisos.php';
+Permisos::exigirVer('inf_proveedores');
+$puedeEditar = Permisos::puede('inf_proveedores', 'editar');
 // Procesar búsqueda de proveedor por identificación (AJAX)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     
@@ -475,12 +478,16 @@ function clasificarSaldo($saldo, $diasMora) {
         <button type="button" class="btn-cancelar" onclick="limpiarTabla()">
             <i class="fas fa-eraser"></i> Limpiar Tabla
         </button>
-        <button type="button" class="btn-exportar" onclick="exportarPDF()">
-            <i class="fas fa-file-pdf"></i> Exportar a PDF
-        </button>
-        <button type="button" class="btn-agregar-excel" onclick="exportarExcel()">
-            <i class="fas fa-file-excel"></i> Exportar a Excel
-        </button>
+        <?php if ($puedeEditar): ?>
+            <button type="button" class="btn-exportar" onclick="exportarPDF()">
+                <i class="fas fa-file-pdf"></i> Exportar a PDF
+            </button>
+        <?php endif; ?>
+        <?php if ($puedeEditar): ?>
+            <button type="button" class="btn-agregar-excel" onclick="exportarExcel()">
+                <i class="fas fa-file-excel"></i> Exportar a Excel
+            </button>
+        <?php endif; ?>
       </form>
 
       <!-- Formularios ocultos para exportación -->

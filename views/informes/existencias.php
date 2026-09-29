@@ -1,14 +1,10 @@
 <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/auth_check.php'; ?>
 <?php
-/**
- * =================================================================
- * SECCIÓN 1: LÓGICA DE SERVIDOR (PHP)
- *
- * Esta parte maneja la conexión a la base de datos y procesa
- * las peticiones AJAX para la búsqueda de productos.
- * =================================================================
- */
+
 require_once '../../config/database.php';
+require_once '../../classes/Permisos.php';
+Permisos::exigirVer('inf_inventarios');
+$puedeEditar = Permisos::puede('inf_inventarios', 'editar');
 
 // 1. CONEXIÓN A LA BASE DE DATOS
 
@@ -176,7 +172,7 @@ if (isset($_POST['action'])) {
   </style>
 </head>
 
-<body class="p-4">
+<body>
 
   <!-- Header (Menú de Navegación) -->
   <header id="header" class="fixed-top d-flex align-items-center">
@@ -276,12 +272,16 @@ if (isset($_POST['action'])) {
 
       <!-- Botones de Acción -->
       <div class="mt-4 text-center">
-        <button type="button" class="btn-agregar" onclick="exportarPDF()">
-          <i class="fas fa-file-pdf"></i> Descargar PDF
-        </button>
-        <button type="button" class="btn-agregar-excel" onclick="exportarExcel()">
-          <i class="fas fa-file-excel"></i> Descargar Excel
-        </button>
+        <?php if ($puedeEditar): ?>
+          <button type="button" class="btn-agregar" onclick="exportarPDF()">
+            <i class="fas fa-file-pdf"></i> Descargar PDF
+          </button>
+        <?php endif; ?>
+        <?php if ($puedeEditar): ?>
+          <button type="button" class="btn-agregar-excel" onclick="exportarExcel()">
+            <i class="fas fa-file-excel"></i> Descargar Excel
+          </button>
+        <?php endif; ?>
         <br><br>
         <br>
       </div>

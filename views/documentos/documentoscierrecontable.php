@@ -1,6 +1,9 @@
 <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/auth_check.php'; ?>
 <?php
 require_once '../../config/database.php';
+require_once '../../classes/Permisos.php';
+Permisos::exigirVer('doc_cierrecontable');
+$puedeEditar = Permisos::puede('doc_cierrecontable', 'editar');
 include('../../classes/LibroDiario.php');
 
 $pdo = Database::getConnection();
@@ -90,9 +93,14 @@ $historialCierres = $stmtHistorial->fetchAll(PDO::FETCH_ASSOC);
     }
 
     .cierre-form-box h5 {
-      color: #2c3e50;
+      color: #103669;
       font-weight: bold;
       margin-bottom: 15px;
+    }
+
+    .btn-agregar-cierre {
+      background-color: #103669;
+      color: white;
     }
 
     .aviso-cierre {
@@ -132,7 +140,7 @@ $historialCierres = $stmtHistorial->fetchAll(PDO::FETCH_ASSOC);
     }
 
     .table-historial th {
-      background-color: #2c3e50;
+      background-color: #103669;
       color: white;
       padding: 10px;
       font-size: 13px;
@@ -213,9 +221,11 @@ $historialCierres = $stmtHistorial->fetchAll(PDO::FETCH_ASSOC);
               </select>
             </div>
             <div>
-              <button type="submit" name="accion" value="cerrar" class="btn btn-primary">
-                <i class="fas fa-lock me-1"></i> Cerrar Año Fiscal
-              </button>
+              <?php if ($puedeEditar): ?>
+                <button type="submit" name="accion" value="cerrar" class="btn btn-agregar-cierre">
+                  <i class="fas fa-lock me-1"></i> Cerrar Año Fiscal
+                </button>
+              <?php endif; ?>
             </div>
           </form>
         </div>
@@ -357,6 +367,18 @@ $historialCierres = $stmtHistorial->fetchAll(PDO::FETCH_ASSOC);
       });
     });
   </script>
+
+  <!-- Footer -->
+  <footer id="footer" class="footer-minimalista">
+    <p>Universidad de Santander - Ingeniería de Software</p>
+    <p>Todos los derechos reservados © 2025</p>
+    <p>Creado por iniciativa del programa de Contaduría Pública</p>
+  </footer>
+
+  <div id="preloader"></div>
+  <a href="#" class="back-to-top d-flex align-items-center justify-content-center">
+    <i class="bi bi-arrow-up-short"></i>
+  </a>
 
 <!-- Vendor JS Files -->
   <script src="../../assets/vendor/aos/aos.js"></script>

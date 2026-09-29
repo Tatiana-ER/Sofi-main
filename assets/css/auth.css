@@ -1,23 +1,4 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Formulario de Ingreso | SOFI UDES</title>
 
-      <!-- Favicons -->
-  <link href="assets/img/favicon.png" rel="icon">
-  <link href="assets/img/apple-touch-icon.png" rel="apple-touch-icon">
-
-    <!-- Font Awesome (íconos) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-    <!-- Google Fonts, consistente con el resto de SOFI -->
-    <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,600,700|Poppins:400,500,600,700" rel="stylesheet">
-
-    <!-- SweetAlert2 -->
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-    <style>
         :root {
             --primary: #103669;
             --primary-light: #1b4b82;
@@ -228,20 +209,30 @@
             margin: 22px 0 10px 0;
         }
 
-        .forgot-link {
-            text-align: right;
-            margin: -6px 0 14px 0;
-            font-size: 13px;
+        .social-items {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 10px;
         }
 
-        .forgot-link a {
+        .social-items a {
+            width: 38px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background-color: #f1f4f8;
             color: var(--primary);
             text-decoration: none;
-            font-weight: 600;
+            transition: background-color 0.2s, color 0.2s, transform 0.15s;
         }
 
-        .forgot-link a:hover {
-            text-decoration: underline;
+        .social-items a:hover {
+            background-color: var(--primary);
+            color: #fff;
+            transform: translateY(-2px);
         }
 
         /* Botón secundario "Regístrate" */
@@ -274,65 +265,41 @@
                 padding: 30px 16px 50px;
             }
         }
-    </style>
-</head>
-<body>
+    
+        /* ===== Enlace "¿Olvidaste tu contraseña?" ===== */
+        .forgot-link {
+            display: block;
+            text-align: right;
+            margin: -6px 0 16px 0;
+            font-size: 13px;
+        }
+        .forgot-link a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .forgot-link a:hover { text-decoration: underline; }
 
-    <div class="form">
-        <div class="leftside">
-            <div class="growth-lines">
-                <svg viewBox="0 0 600 800" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-                    <polyline points="0,650 90,600 180,660 270,520 360,570 450,400 540,440 600,300"
-                        fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="3"/>
-                    <polyline points="0,750 90,710 180,740 270,630 360,660 450,540 540,570 600,470"
-                        fill="none" stroke="rgba(232,163,61,0.18)" stroke-width="3"/>
-                </svg>
-            </div>
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            font-size: 13px;
+        }
+        .back-link a { color: var(--primary); text-decoration: none; font-weight: 600; }
+        .back-link a:hover { text-decoration: underline; }
 
-            <div class="leftside-inner">
-                <div class="logo-card">
-                    <img src="./Img/logonuevo3.jpeg" alt="Logo SOFI">
-                </div>
-            </div>
-        </div>
-
-        <div class="rightside">
-            <div class="input-container">
-                <h2>INICIO</h2>
-                <div class="title-underline"></div>
-
-                <!-- FORMULARIO DE LOGIN -->
-                <form action="inicioSesion/inicioSesion.php" method="POST">
-                    <div class="input">
-                        <i class="fa fa-user"></i>
-                        <input type="text" name="username" required placeholder="Usuario">
-                    </div>
-                    <div class="input">
-                        <i class="fa fa-lock"></i>
-                        <input type="password" name="password" required placeholder="Contraseña">
-                    </div>
-                    <div class="forgot-link"><a href="olvide_password.php">¿Olvidaste tu contraseña?</a></div>
-                    <button type="submit" class="login">INICIO</button>
-                </form>
-
-                <!-- FORMULARIO DE REGISTRO -->
-                <p>¿No tienes cuenta?</p>
-                <form action="registrarse.php" method="post">
-                    <input type="submit" class="login" value="REGISTRATE">
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <?php if (($_GET['reset'] ?? '') === 'ok'): ?>
-    <script>
-        Swal.fire({
-            icon: 'success',
-            title: 'Contraseña actualizada',
-            text: 'Ya puedes iniciar sesión con tu nueva contraseña.',
-            confirmButtonColor: '#103669'
-        });
-    </script>
-    <?php endif; ?>
-</body>
-</html>
+        .auth-help {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+            line-height: 1.5;
+            margin-bottom: 22px;
+        }
+        .input .toggle-pass {
+            left: auto;
+            right: 14px;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
+        .input .has-toggle { padding-right: 40px; }

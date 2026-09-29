@@ -90,20 +90,16 @@
             <p>El formulario de Edades de Cartera (Proveedores) clasifica las cuentas por pagar de la empresa según su antigüedad, mostrando el tiempo que llevan pendientes los pagos.</p>
           </div>
         </div>
-
     </div>
+    <br><br><br>
   </section><!-- End Services Section -->
 
-    <!-- ======= Footer ======= -->
-    <footer id="footer" class="footer-minimalista">
-      <p>Universidad de Santander - Ingeniería de Software</p>
-      <p>Todos los derechos reservados © 2025</p>
-      <p>Creado por iniciativa del programa de Contaduría Pública</p>
-    </footer><!-- End Footer -->
-
-
-  <div id="preloader"></div>
-  <a href="#" class="back-to-top d-flex align-items-center justify-content-center"><i class="bi bi-arrow-up-short"></i></a>
+  <!-- ======= Footer ======= -->
+  <footer id="footer" class="footer-minimalista">
+    <p>Universidad de Santander - Ingeniería de Software</p>
+    <p>Todos los derechos reservados © 2025</p>
+    <p>Creado por iniciativa del programa de Contaduría Pública</p>
+  </footer><!-- End Footer -->
 
   <!-- Vendor JS Files -->
   <script src="../../assets/vendor/aos/aos.js"></script>

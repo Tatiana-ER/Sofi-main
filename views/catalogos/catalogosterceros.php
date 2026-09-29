@@ -1,7 +1,9 @@
 <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/auth_check.php'; ?>
 <?php
 require_once '../../config/database.php';
-
+require_once '../../classes/Permisos.php';
+Permisos::exigirVer('cat_terceros');
+$puedeEditar = Permisos::puede('cat_terceros', 'editar');
 
 $pdo = Database::getConnection();
 
@@ -419,9 +421,15 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
 
         <!-- Botones -->
         <div class="mt-4">
-          <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar" name="accion">Agregar</button>
-          <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion" style="display:none;">Modificar</button>
-          <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion" style="display:none;">Eliminar</button>
+          <?php if ($puedeEditar): ?>
+            <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar" name="accion">Agregar</button>
+          <?php endif; ?>
+          <?php if ($puedeEditar): ?>
+            <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion" style="display:none;">Modificar</button>
+          <?php endif; ?>
+          <?php if ($puedeEditar): ?>
+            <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion" style="display:none;">Eliminar</button>
+          <?php endif; ?>
           <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">Cancelar</button>
         </div>
       </form>
@@ -578,6 +586,7 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
 
                           <!-- ACCIONES -->
                           <td class="text-center">
+                              <?php if ($puedeEditar): ?>
                               <div class="dropdown">
 
                                   <button class="btn btn-sm btn-outline-secondary"
@@ -652,6 +661,11 @@ $lista = $sentencia->fetchAll(PDO::FETCH_ASSOC);
                                   </ul>
 
                               </div>
+                              <?php else: ?>
+                              <span class="text-muted" title="Sin permiso de edición">
+                                  <i class="fas fa-lock"></i>
+                              </span>
+                              <?php endif; ?>
                           </td>
 
                       </tr>

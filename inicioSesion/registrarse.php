@@ -5,15 +5,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $username = trim($_POST['username']);
     $password = trim($_POST['password']);
+    $email    = trim($_POST['email'] ?? '');
+
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        header('Location: ../registrarse.php');
+        exit();
+    }
 
     try {
 
         $pdo = Database::getConnection();
 
         // Verificar si el usuario ya existe
-        $verificar = $pdo->prepare("SELECT id FROM usuarios WHERE username = :username");
+        $verificar = $pdo->prepare("SELECT id FROM usuarios WHERE username = :username OR email = :email");
         $verificar->execute([
-            ':username' => $username
+            ':username' => $username,
+            ':email'    => $email
         ]);
 
         if ($verificar->fetch()) {
@@ -27,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     Swal.fire({
                         icon: 'warning',
                         title: 'Usuario existente',
-                        text: 'Ese nombre de usuario ya está registrado.',
+                        text: 'Ese usuario o correo ya está registrado.',
                         confirmButtonText: 'Entendido',
                         confirmButtonColor: '#f39c12'
                     }).then(() => {
@@ -43,13 +50,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
         // Registrar usuario con rol Usuario (2)
-        $sql = "INSERT INTO usuarios (username, password, rol_id)
-                VALUES (:username, :password, :rol_id)";
+        $sql = "INSERT INTO usuarios (username, email, password, rol_id)
+                VALUES (:username, :email, :password, :rol_id)";
 
         $stmt = $pdo->prepare($sql);
 
         $stmt->execute([
             ':username' => $username,
+            ':email'    => $email,
             ':password' => $passwordHash,
             ':rol_id'   => 2
         ]);

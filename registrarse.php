@@ -288,6 +288,10 @@
                         <input type="text" id="username" name="username" required placeholder="Usuario">
                     </div>
                     <div class="input">
+                        <i class="fa fa-envelope"></i>
+                        <input type="email" id="email" name="email" required placeholder="Correo electrónico">
+                    </div>
+                    <div class="input">
                         <i class="fa fa-lock"></i>
                         <input type="password" id="password" name="password" required placeholder="Contraseña">
                     </div>

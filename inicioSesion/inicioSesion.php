@@ -46,6 +46,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $_SESSION['rol_id']      = $usuario['rol_id'];
             $_SESSION['rol_nombre']  = $usuario['rol_nombre'];
             $_SESSION['last_activity'] = time();
+            $_SESSION['rol_id']      = $usuario['rol_id'];
+            $_SESSION['rol_nombre']  = $usuario['rol_nombre'];
+            $_SESSION['last_activity'] = time();
+
+            // NUEVO: cargar permisos del rol en sesión
+            require_once __DIR__ . '/../classes/Permisos.php';
+            $_SESSION['permisos'] = Permisos::cargar($pdo, $usuario['rol_id']);
+
+            header("Location: ../dashboard.php");
 
             header("Location: ../dashboard.php");
             exit();

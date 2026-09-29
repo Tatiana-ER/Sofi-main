@@ -1,6 +1,9 @@
 <?php require_once $_SERVER['DOCUMENT_ROOT'] . '/Sofi-main/auth_check.php'; ?>
 <?php
 require_once '../../config/database.php';
+require_once '../../classes/Permisos.php';
+Permisos::exigirVer('doc_comprobantecontable');
+$puedeEditar = Permisos::puede('doc_comprobantecontable', 'editar');
 include('../../classes/LibroDiario.php');
 require_once '../../classes/registrar_eliminacion.php';
 
@@ -397,22 +400,17 @@ document.addEventListener("DOMContentLoaded", () => {
      se distingue a propósito del azul de Agregar/Modificar con un
      gris neutro (mismo tono que Cancelar), y queda en la misma fila. */
   .btn-eliminados {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
     background-color: #6c757d;
-    color: #fff;
+    color: white;
+    padding: 10px 20px;
     border: none;
-    border-radius: 6px;
-    font-weight: 600;
+    border-radius: 10px;
     cursor: pointer;
-    transition: background-color 0.2s;
-    margin-left: 8px;
-    vertical-align: middle;
+    margin-top: 20px;
+    margin-left: 10px;
   }
   .btn-eliminados:hover {
-    background-color: #565e64;
+    background-color: #5a6268;
   }
   </style>
 
@@ -586,13 +584,23 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
 
           <div class="mt-4">
-            <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar" name="accion">Agregar</button>
-            <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion">Modificar</button>
-            <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion">Eliminar</button>
-            <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">Cancelar</button>
-            <button type="button" class="btn-eliminados" onclick="abrirModalDocumentosEliminados()">
-              <i class="fa-solid fa-trash-can"></i> Documentos Eliminados
-            </button>
+            <?php if ($puedeEditar): ?>
+              <button id="btnAgregar" value="btnAgregar" type="submit" class="btn-agregar" name="accion">Agregar</button>
+            <?php endif; ?>
+            <?php if ($puedeEditar): ?>
+              <button id="btnModificar" value="btnModificar" type="submit" class="btn-modificar" name="accion">Modificar</button>
+            <?php endif; ?>
+            <?php if ($puedeEditar): ?>
+              <button id="btnEliminar" value="btnEliminar" type="submit" class="btn-eliminar-item" name="accion">Eliminar</button>
+            <?php endif; ?>
+            <?php if ($puedeEditar): ?>
+              <button id="btnCancelar" type="button" class="btn-cancelar" style="display:none;">Cancelar</button>
+            <?php endif; ?>
+            <?php if ($puedeEditar): ?>
+              <button type="button" class="btn-eliminados" onclick="abrirModalDocumentosEliminados()">
+                <i class="fa-solid fa-trash-can"></i> Documentos Eliminados
+              </button>
+            <?php endif; ?>
           </div>
         </form>
 
@@ -614,6 +622,7 @@ document.addEventListener("DOMContentLoaded", () => {
                   <td><?php echo $comprobante['consecutivo']; ?></td>
                   <td><?php echo $comprobante['observaciones']; ?></td>
                   <td class="text-center">
+                    <?php if ($puedeEditar): ?>
                     <div class="dropdown">
                         <button class="btn btn-sm btn-outline-secondary" 
                                 type="button" 
@@ -689,6 +698,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
                         </ul>
                     </div>
+                    <?php else: ?>
+                    <span class="text-muted" title="Sin permiso de edición">
+                        <i class="fas fa-lock"></i>
+                    </span>
+                    <?php endif; ?>
                 </td>
                 </tr>
               <?php } ?>

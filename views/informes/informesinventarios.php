@@ -87,8 +87,8 @@
             <p>El formulario de Movimiento de Inventarios registra todas las entradas y salidas de productos del almacén, ya sea por compras, ventas, devoluciones, ajustes o transferencias entre bodegas. Permite mantener una trazabilidad completa de los inventarios y facilita la conciliación física con los registros contables.</p>
           </div>
         </div>
-
     </div>
+    <br><br><br>
   </section><!-- End Services Section -->
 
     <!-- ======= Footer ======= -->

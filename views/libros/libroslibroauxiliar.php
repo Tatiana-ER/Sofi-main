@@ -2,6 +2,9 @@
 <?php
 // ================== CONEXIÓN ==================
 require_once '../../config/database.php';
+require_once '../../classes/Permisos.php';
+Permisos::exigirVer('lib_auxiliar');
+$puedeEditar = Permisos::puede('lib_auxiliar', 'editar');
 
 $pdo = Database::getConnection();
 
@@ -541,12 +544,16 @@ $lista_terceros = array_values($terceros_unificados);
 
       <?php if (count($cuentas) > 0): ?>
       <div class="mb-3 text-end">
-        <button onclick="exportarExcel()" class="btn-agregar-excel">
-          <i class="fa-solid fa-file-excel"></i> Exportar a Excel
-        </button>
-        <button onclick="exportarPDF()" class="btn-agregar">
-          <i class="fa-solid fa-file-pdf"></i> Exportar PDF
-        </button>
+        <?php if ($puedeEditar): ?>
+          <button onclick="exportarExcel()" class="btn-agregar-excel">
+            <i class="fa-solid fa-file-excel"></i> Exportar a Excel
+          </button>
+        <?php endif; ?>
+        <?php if ($puedeEditar): ?>
+          <button onclick="exportarPDF()" class="btn-agregar">
+            <i class="fa-solid fa-file-pdf"></i> Exportar PDF
+          </button>
+        <?php endif; ?>
       </div>
       <?php endif; ?>
 

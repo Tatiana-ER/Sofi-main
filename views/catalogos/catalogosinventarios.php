@@ -2,6 +2,9 @@
 <?php
 
 require_once '../../config/database.php';
+require_once '../../classes/Permisos.php';
+Permisos::exigirVer('cat_inventarios');
+$puedeEditar = Permisos::puede('cat_inventarios', 'editar');
 
 
 $pdo = Database::getConnection();
@@ -489,16 +492,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
             <!-- Botón -->
             <div class="mt-4">
-                  <button id="btnGuardarCategoria" value="btnAgregarCategoria" type="submit" class="btn-agregar" name="accion">
-                      Guardar Categoría
-                  </button>
-                  <button id="btnModificarCategoria" value="btnModificarCategoria" type="submit" class="btn-modificar d-none" name="accion">
-                      Modificar Categoría
-                  </button>
-                  <button id="btnCancelarCategoria" type="button" class="btn-cancelar d-none">
-                      Cancelar Edición
-                  </button>
-              </div>
+              <?php if ($puedeEditar): ?>
+                <button id="btnGuardarCategoria" value="btnAgregarCategoria" type="submit" class="btn-agregar" name="accion">
+                    Guardar Categoría
+                </button>
+              <?php endif; ?>
+              <?php if ($puedeEditar): ?>
+                <button id="btnModificarCategoria" value="btnModificarCategoria" type="submit" class="btn-modificar d-none" name="accion">
+                    Modificar Categoría
+                </button>
+              <?php endif; ?>
+              <?php if ($puedeEditar): ?>
+                <button id="btnCancelarCategoria" type="button" class="btn-cancelar d-none">
+                    Cancelar Edición
+                </button>
+              <?php endif; ?>
+            </div>
           </form>
         </div>
 
@@ -530,6 +539,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             <td><?php echo htmlspecialchars($cat['codigoCuentaCostos']); ?></td>
                             <td><?php echo htmlspecialchars($cat['codigoCuentaDevoluciones']); ?></td>
                             <td class="text-center">
+                              <?php if ($puedeEditar): ?>
                               <div class="dropdown">
 
                                   <button class="btn btn-sm btn-outline-secondary"
@@ -591,6 +601,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
                                   </ul>
                               </div>
+                              <?php else: ?>
+                              <span class="text-muted" title="Sin permiso de edición">
+                                  <i class="fas fa-lock"></i>
+                              </span>
+                              <?php endif; ?>
                           </td>
                         </tr>
                         <?php endforeach; ?>
@@ -739,15 +754,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
             <!-- Botón -->
             <div class="mt-4">
+              <?php if ($puedeEditar): ?>
                 <button value="btnAgregarProducto" type="submit" class="btn-agregar" name="accion" id="btnGuardarProducto">
                     Guardar Producto/Servicio
                 </button>
+              <?php endif; ?>
+              <?php if ($puedeEditar): ?>
                 <button id="btnModificarProducto" value="btnModificarProducto" type="submit" class="btn-modificar d-none" name="accion">
                     Modificar Producto/Servicio
                 </button>
+              <?php endif; ?>
+              <?php if ($puedeEditar): ?>
                 <button id="btnCancelarProducto" type="button" class="btn-cancelar d-none">
                     Cancelar Edición
                 </button>
+              <?php endif; ?>
             </div>
           </form>
         </div>
@@ -790,6 +811,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             <td><?php echo $prod['productoIva'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
                             <td><?php echo $prod['activo'] ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-danger"></i>'; ?></td>
                             <td class="text-center">
+                              <?php if ($puedeEditar): ?>
                               <div class="dropdown">
 
                                   <!-- BOTÓN DE LOS 3 PUNTOS -->
@@ -879,6 +901,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
                                   </ul>
                               </div>
+                              <?php else: ?>
+                              <span class="text-muted" title="Sin permiso de edición">
+                                  <i class="fas fa-lock"></i>
+                              </span>
+                              <?php endif; ?>
                           </td>
                         </tr>
                         <?php endforeach; ?>

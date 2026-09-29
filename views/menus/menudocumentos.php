@@ -63,7 +63,7 @@
 
     <!-- ======= Services Section ======= -->
     <section id="services" class="services">
-            <button class="btn-ir" onclick="window.location.href='../../dashboard.php'">
+      <button class="btn-ir" onclick="window.location.href='../../dashboard.php'">
         <i class="fa-solid fa-arrow-left"></i> Regresar
       </button>
       <div class="container" data-aos="fade-up">

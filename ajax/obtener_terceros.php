@@ -1,7 +1,9 @@
 <?php
 require_once '../config/database.php';
 header('Content-Type: application/json; charset=utf-8');
-
+if (session_status() === PHP_SESSION_NONE) session_start();
+require_once '../classes/Permisos.php';
+Permisos::exigirEditar('cat_terceros');
 
 $pdo = Database::getConnection();
 

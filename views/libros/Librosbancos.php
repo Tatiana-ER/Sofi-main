@@ -2,6 +2,9 @@
 <?php
 // ================== CONEXIÓN ==================
 require_once '../../config/database.php';
+require_once '../../classes/Permisos.php';
+Permisos::exigirVer('lib_bancos');
+$puedeEditar = Permisos::puede('lib_bancos', 'editar');
 
 $pdo = Database::getConnection();
 
@@ -340,12 +343,16 @@ $saldoFinalPeriodo = array_sum($saldoPorCuenta);
 
       <?php if (count($filasReporte) > 0): ?>
       <div class="mb-3 text-end">
-        <button onclick="exportarPDF()" class="btn-agregar">
-          <i class="fa-solid fa-file-pdf"></i> Exportar PDF
-        </button>
-        <button onclick="exportarExcel()" class="btn-agregar-excel">
-          <i class="fa-solid fa-file-excel"></i> Exportar Excel
-        </button>
+        <?php if ($puedeEditar): ?>
+          <button onclick="exportarPDF()" class="btn-agregar">
+            <i class="fa-solid fa-file-pdf"></i> Exportar PDF
+          </button>
+        <?php endif; ?>
+        <?php if ($puedeEditar): ?>
+          <button onclick="exportarExcel()" class="btn-agregar-excel">
+            <i class="fa-solid fa-file-excel"></i> Exportar Excel
+          </button>
+        <?php endif; ?>
       </div>
       <?php endif; ?>
 
@@ -407,6 +414,18 @@ $saldoFinalPeriodo = array_sum($saldoPorCuenta);
 
     </div>
   </section>
+
+  <!-- ======= Footer ======= -->
+  <footer id="footer" class="footer">
+    <p>Universidad de Santander - Ingeniería de Software</p>
+    <p>Todos los derechos reservados © 2025</p>
+    <p>Creado por iniciativa del programa de Contaduría Pública</p>
+  </footer><!-- End Footer -->
+
+  <div id="preloader"></div>
+  <a href="#" class="back-to-top d-flex align-items-center justify-content-center">
+    <i class="bi bi-arrow-up-short"></i>
+  </a>
 
   <script src="../../assets/vendor/aos/aos.js"></script>
   <script src="../../assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
