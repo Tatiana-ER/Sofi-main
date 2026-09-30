@@ -2,6 +2,15 @@
 (function () {
   const RUTA_DATOS = "/Sofi-main/assets/asistente/asistente-data.json"; // ajusta esta ruta a donde subas el JSON
 
+  const ICONOS_ACCION = {
+    crear: "➕",
+    editar: "✏️",
+    buscar: "🔍",
+    consultar: "👁️",
+    configurar: "⚙️",
+    info: "ℹ️"
+  };
+
   let datos = null;
   let historial = []; // pila de nodos visitados, ej: ["inicio", "catalogos", "cat_terceros"]
 
@@ -41,47 +50,92 @@
     renderizar();
   }
 
-  function renderizar() {
-    const id = nodoActual();
-    const nodo = datos[id];
-    if (!nodo) return;
+  // Crea una burbuja de chat con animación escalonada (delay en ms)
+  function crearBurbuja(delayMs, claseExtra) {
+    const div = document.createElement("div");
+    div.className = "sofi-burbuja" + (claseExtra ? " " + claseExtra : "");
+    div.style.animationDelay = delayMs + "ms";
+    return div;
+  }
 
-    cuerpo.innerHTML = "";
-
-    const divMensaje = document.createElement("div");
-    divMensaje.className = "sofi-mensaje";
-    divMensaje.textContent = nodo.mensaje;
-
-    if (nodo.tipo === "respuesta" && nodo.enlace) {
-      const enlace = document.createElement("a");
-      enlace.href = nodo.enlace;
-      enlace.className = "sofi-enlace-btn";
-      enlace.textContent = "Ir a esta sección →";
-      divMensaje.appendChild(document.createElement("br"));
-      divMensaje.appendChild(enlace);
-    }
-    cuerpo.appendChild(divMensaje);
+  function renderPregunta(nodo) {
+    const burbujaMsg = crearBurbuja(0);
+    burbujaMsg.innerHTML = `<span>${nodo.mensaje}</span>`;
+    cuerpo.appendChild(burbujaMsg);
 
     if (Array.isArray(nodo.opciones) && nodo.opciones.length) {
       const divOpciones = document.createElement("div");
       divOpciones.className = "sofi-opciones";
-      nodo.opciones.forEach((op) => {
+      nodo.opciones.forEach((op, i) => {
         const btn = document.createElement("button");
         btn.textContent = op.texto;
+        btn.style.animationDelay = (120 + i * 70) + "ms";
         btn.addEventListener("click", () => irANodo(op.siguiente));
         divOpciones.appendChild(btn);
       });
       cuerpo.appendChild(divOpciones);
     }
+  }
+
+  function renderRespuesta(nodo) {
+    let delay = 0;
+    const paso = 220; // ms entre cada burbuja
+
+    // Burbuja de introducción, con el ícono de la acción
+    const icono = ICONOS_ACCION[nodo.accion] || ICONOS_ACCION.info;
+    const burbujaIntro = crearBurbuja(delay);
+    burbujaIntro.innerHTML = `<span class="sofi-badge-accion">${icono}</span><span>${nodo.intro}</span>`;
+    cuerpo.appendChild(burbujaIntro);
+    delay += paso;
+
+    // Burbujas de pasos numerados
+    if (Array.isArray(nodo.pasos) && nodo.pasos.length) {
+      const contPasos = document.createElement("div");
+      contPasos.className = "sofi-pasos";
+      nodo.pasos.forEach((paso_texto, i) => {
+        const burbujaPaso = crearBurbuja(delay);
+        burbujaPaso.innerHTML = `<span class="sofi-num">${i + 1}</span><span>${paso_texto}</span>`;
+        contPasos.appendChild(burbujaPaso);
+        delay += paso;
+      });
+      cuerpo.appendChild(contPasos);
+    }
+
+    // Botón de enlace directo (si existe)
+    if (nodo.enlace) {
+      const burbujaEnlace = crearBurbuja(delay);
+      const enlace = document.createElement("a");
+      enlace.href = nodo.enlace;
+      enlace.className = "sofi-enlace-btn";
+      enlace.textContent = "Ir a esta sección →";
+      burbujaEnlace.appendChild(enlace);
+      cuerpo.appendChild(burbujaEnlace);
+      delay += paso;
+    }
+
+    // Botón para volver al menú principal
+    const divOpciones = document.createElement("div");
+    divOpciones.className = "sofi-opciones";
+    const btn = document.createElement("button");
+    btn.textContent = "⬅ Volver al menú principal";
+    btn.style.animationDelay = delay + "ms";
+    btn.addEventListener("click", reiniciar);
+    divOpciones.appendChild(btn);
+    cuerpo.appendChild(divOpciones);
+  }
+
+  function renderizar() {
+    const id = nodoActual();
+    const nodo = datos[id];
+    if (!nodo) return;
+
+    panel.setAttribute("data-modulo", nodo.modulo || "general");
+    cuerpo.innerHTML = "";
 
     if (nodo.tipo === "respuesta") {
-      const btnMenu = document.createElement("div");
-      btnMenu.className = "sofi-opciones";
-      const btn = document.createElement("button");
-      btn.textContent = "⬅ Volver al menú principal";
-      btn.addEventListener("click", reiniciar);
-      btnMenu.appendChild(btn);
-      cuerpo.appendChild(btnMenu);
+      renderRespuesta(nodo);
+    } else {
+      renderPregunta(nodo);
     }
 
     cuerpo.scrollTop = 0;

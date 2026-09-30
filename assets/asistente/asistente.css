@@ -1,4 +1,5 @@
 /* ===== Asistente SOFI - estilos ===== */
+
 #sofi-asistente-burbuja {
   position: fixed;
   bottom: 24px;
@@ -22,6 +23,16 @@
   transform: scale(1.07);
 }
 
+/* --- Colores por módulo (variable CSS que cambia según data-modulo) --- */
+#sofi-asistente-panel {
+  --sofi-color: #1a5f9e; /* general (default) */
+}
+#sofi-asistente-panel[data-modulo="catalogos"]  { --sofi-color: #2563eb; }
+#sofi-asistente-panel[data-modulo="documentos"] { --sofi-color: #16a34a; }
+#sofi-asistente-panel[data-modulo="informes"]   { --sofi-color: #7c3aed; }
+#sofi-asistente-panel[data-modulo="libros"]     { --sofi-color: #ea580c; }
+#sofi-asistente-panel[data-modulo="general"]    { --sofi-color: #1a5f9e; }
+
 #sofi-asistente-panel {
   position: fixed;
   bottom: 96px;
@@ -44,13 +55,14 @@
 }
 
 #sofi-asistente-header {
-  background: #1a5f9e;
+  background: var(--sofi-color);
   color: #fff;
   padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
+  transition: background-color 0.25s ease;
 }
 #sofi-asistente-header .titulo {
   font-weight: bold;
@@ -76,17 +88,68 @@
   background: #f4f7fb;
 }
 
-.sofi-mensaje {
+/* --- Burbujas de chat --- */
+.sofi-burbuja {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 12px 14px;
-  font-size: 14px;
+  border-radius: 12px;
+  border-top-left-radius: 4px;
+  padding: 10px 12px;
+  font-size: 13.5px;
   line-height: 1.45;
   color: #1f2937;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
+  opacity: 0;
+  transform: translateY(8px);
+  animation: sofiFadeIn 0.35s ease forwards;
 }
 
+.sofi-badge-accion {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--sofi-color);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.sofi-num {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--sofi-color);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.sofi-pasos {
+  margin-left: 4px;
+}
+
+@keyframes sofiFadeIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sofi-burbuja {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --- Opciones (menú) --- */
 .sofi-opciones {
   display: flex;
   flex-direction: column;
@@ -95,22 +158,32 @@
 .sofi-opciones button {
   text-align: left;
   background: #fff;
-  border: 1.5px solid #1a5f9e;
-  color: #1a5f9e;
+  border: 1.5px solid var(--sofi-color);
+  color: var(--sofi-color);
   border-radius: 8px;
   padding: 9px 12px;
   font-size: 13.5px;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
+  opacity: 0;
+  transform: translateY(6px);
+  animation: sofiFadeIn 0.3s ease forwards;
 }
 .sofi-opciones button:hover {
-  background: #1a5f9e;
+  background: var(--sofi-color);
   color: #fff;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sofi-opciones button {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .sofi-enlace-btn {
   display: inline-block;
-  margin-top: 10px;
+  margin-top: 2px;
   background: #f0a500;
   color: #fff;
   text-decoration: none;
@@ -134,7 +207,7 @@
 #sofi-asistente-footer button {
   background: none;
   border: none;
-  color: #1a5f9e;
+  color: var(--sofi-color);
   font-size: 13px;
   cursor: pointer;
   font-weight: bold;

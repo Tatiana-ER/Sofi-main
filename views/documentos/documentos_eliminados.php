@@ -336,7 +336,7 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
 
         <?php if (!empty($filtro_tipo)): ?>
             <h3 style="font-family:'Poppins',sans-serif; color:#103669; font-size:18px; margin-bottom:18px;">
-                🗑️ Documentos eliminados — <?php echo htmlspecialchars($filtro_tipo); ?>
+                Documentos eliminados — <?php echo htmlspecialchars($filtro_tipo); ?>
             </h3>
         <?php endif; ?>
 
@@ -368,15 +368,15 @@ $usuarios = $stmt_usuarios->fetchAll(PDO::FETCH_COLUMN);
                 </div>
 
                 <div class="filter-actions">
-                    <button type="submit" class="btn-filter">🔍 Filtrar</button>
-                    <a href="documentos_eliminados.php?tipo=<?php echo urlencode($filtro_tipo); ?>" class="btn-clear">✖️ Limpiar</a>
+                    <button type="submit" class="btn-filter">Filtrar</button>
+                    <a href="documentos_eliminados.php?tipo=<?php echo urlencode($filtro_tipo); ?>" class="btn-clear">Limpiar</a>
                 </div>
             </div>
         </form>
 
         <!-- Búsqueda rápida -->
         <input type="text" id="searchInput" class="search-box" 
-               placeholder="🔎 Buscar por documento, tercero, número..." 
+               placeholder="Buscar por documento, tercero, número..." 
                onkeyup="filtrarTabla()">
 
         <!-- Tabla -->

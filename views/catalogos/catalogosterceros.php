@@ -47,7 +47,7 @@ if ($telefono && !preg_match('/^[0-9]{7,10}$/', $telefono)) {
 
 switch ($accion) {
   case "btnAgregar":
-    // Validaciones únicas
+    // Validaciones 
     $verificar = $pdo->prepare("SELECT COUNT(*) FROM catalogosterceros WHERE cedula = :cedula OR correo = :correo OR telefono = :telefono");
     $verificar->bindParam(':cedula', $cedula);
     $verificar->bindParam(':correo', $correo);
